@@ -19,7 +19,7 @@ export function openMsg91OTP({ phone, onSuccess, onFailure }) {
     widgetId: import.meta.env.VITE_MSG91_WIDGET_ID,
     tokenAuth: import.meta.env.VITE_MSG91_TOKEN_AUTH,
     identifier: `91${phone}`,
-    exposeMethods: true,
+    exposeMethods: false,          // IMPORTANT: false = show MSG91 popup
     success: (data) => {
       console.log('MSG91 success:', data)
       onSuccess(data)
@@ -30,20 +30,10 @@ export function openMsg91OTP({ phone, onSuccess, onFailure }) {
     }
   }
 
-  // Small delay to let the form modal settle
-  setTimeout(() => {
-    if (typeof window.initSendOTP === 'function') {
-      window.initSendOTP(configuration)
-
-      // Force higher z-index for MSG91 popup
-      setTimeout(() => {
-        const msg91Elements = document.querySelectorAll('[class*="msg91"], [id*="msg91"], [class*="otp"], iframe')
-        msg91Elements.forEach(el => {
-          el.style.zIndex = '99999'
-        })
-      }, 800)
-    } else {
-      onFailure('MSG91 not loaded')
-    }
-  }, 300)
+  if (typeof window.initSendOTP === 'function') {
+    window.initSendOTP(configuration)
+  } else {
+    console.error('MSG91 not loaded')
+    onFailure('MSG91 not loaded')
+  }
 }
