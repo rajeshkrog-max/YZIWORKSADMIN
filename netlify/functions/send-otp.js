@@ -16,22 +16,22 @@ export async function handler(event) {
       }
     }
 
-    // MSG91 Send OTP via Widget API
-    const response = await fetch('https://api.msg91.com/api/v5/widget/sendOtp', {
+    const response = await fetch('https://control.msg91.com/api/v5/widget/sendOtp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'authkey': process.env.MSG91_AUTH_KEY
       },
       body: JSON.stringify({
-        widgetId: process.env.MSG91_WIDGET_ID,
+        widget_id: process.env.MSG91_WIDGET_ID,
         identifier: `91${phone}`
       })
     })
 
     const data = await response.json()
+    console.log('MSG91 Response:', data)
 
-    if (!response.ok || data.type === 'error') {
+    if (data.hasError || data.type === 'error' || data.status === 'fail') {
       console.error('MSG91 Error:', data)
       return {
         statusCode: 500,
@@ -51,7 +51,7 @@ export async function handler(event) {
       body: JSON.stringify({
         success: true,
         message: 'OTP sent successfully',
-        reqId: data.message // this is required for verification
+        reqId: data.request_id || data.reqId || data.message
       })
     }
 
