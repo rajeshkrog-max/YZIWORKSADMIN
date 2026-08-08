@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  /* Backgrounds */
+  --color-yzi-black: #05050A;
+  --color-yzi-dark: #0B0B14;
+  --color-yzi-card: #11111B;
+
+  /* Main Gradient Colors (from your posters) */
+  --color-yzi-orange: #FF5E00;
+  --color-yzi-pink: #FF008A;
+  --color-yzi-purple: #8B5CF6;
+  --color-yzi-blue: #3B82F6;
+  --color-yzi-cyan: #22D3EE;
+
+  /* Text */
+  --color-yzi-text: #FFFFFF;
+  --color-yzi-muted: #A1A1AA;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-yzi-black);
+  color: var(--color-yzi-text);
+  font-family: system-ui, -apple-system, sans-serif;
+}
