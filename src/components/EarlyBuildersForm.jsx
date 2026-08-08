@@ -86,16 +86,13 @@ function EarlyBuildersForm({ isOpen, onClose }) {
       openMsg91OTP({
         phone: formData.phone,
         onSuccess: async (data) => {
-          console.log('OTP Verified:', data)
+          console.log('MSG91 success:', data)
 
           try {
             const response = await fetch('/.netlify/functions/verify-otp', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                phone: formData.phone,
-                otp: 'verified',
-                reqId: data?.message || 'msg91',
                 formType: 'builder',
                 formData: formData
               })
