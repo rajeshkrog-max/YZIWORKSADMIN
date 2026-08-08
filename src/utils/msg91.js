@@ -30,10 +30,20 @@ export function openMsg91OTP({ phone, onSuccess, onFailure }) {
     }
   }
 
-  if (typeof window.initSendOTP === 'function') {
-    window.initSendOTP(configuration)
-  } else {
-    console.error('MSG91 not loaded')
-    onFailure('MSG91 not loaded')
-  }
+  // Small delay to let the form modal settle
+  setTimeout(() => {
+    if (typeof window.initSendOTP === 'function') {
+      window.initSendOTP(configuration)
+
+      // Force higher z-index for MSG91 popup
+      setTimeout(() => {
+        const msg91Elements = document.querySelectorAll('[class*="msg91"], [id*="msg91"], [class*="otp"], iframe')
+        msg91Elements.forEach(el => {
+          el.style.zIndex = '99999'
+        })
+      }, 800)
+    } else {
+      onFailure('MSG91 not loaded')
+    }
+  }, 300)
 }
