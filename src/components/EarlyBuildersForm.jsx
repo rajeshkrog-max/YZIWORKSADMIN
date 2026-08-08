@@ -102,6 +102,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
             if (result.success) {
               setIsVerified(true)
+              setShowOtpModal(true)
             } else {
               alert('Verification succeeded but failed to save application')
             }
