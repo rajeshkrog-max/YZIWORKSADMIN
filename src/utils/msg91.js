@@ -16,8 +16,8 @@ export function loadMsg91Script() {
 
 export function openMsg91OTP({ phone, onSuccess, onFailure }) {
   const configuration = {
-    widgetId: "3668686c6a66323430333930",
-    tokenAuth: "506200T8B2QLCZGd6a77711fP1",
+    widgetId: import.meta.env.VITE_MSG91_WIDGET_ID,
+    tokenAuth: import.meta.env.VITE_MSG91_TOKEN_AUTH,
     identifier: `91${phone}`,
     exposeMethods: true,
     success: (data) => {
