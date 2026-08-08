@@ -7,42 +7,15 @@ export async function handler(event) {
   }
 
   try {
-    const { phone, otp, reqId, formType, formData } = JSON.parse(event.body)
+    const { formType, formData } = JSON.parse(event.body)
 
-    if (!phone || !otp || !reqId) {
+    if (!formData) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Phone, OTP and reqId are required' })
+        body: JSON.stringify({ error: 'Form data is required' })
       }
     }
 
-    // 1. Verify OTP with MSG91
-    const verifyResponse = await fetch('https://api.msg91.com/api/v5/widget/verifyOtp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'authkey': process.env.MSG91_AUTH_KEY
-      },
-      body: JSON.stringify({
-        widgetId: process.env.MSG91_WIDGET_ID,
-        reqId: reqId,
-        otp: otp
-      })
-    })
-
-    const verifyData = await verifyResponse.json()
-
-    if (!verifyResponse.ok || verifyData.type === 'error') {
-      console.error('MSG91 Verify Error:', verifyData)
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ 
-          error: verifyData.message || 'Invalid OTP' 
-        })
-      }
-    }
-
-    // 2. Send Email Report via Resend (to internal team)
     let subject = ''
     let htmlContent = ''
 
@@ -100,8 +73,7 @@ export async function handler(event) {
       `
     }
 
-    // Send email via Resend
-    await fetch('https://api.resend.com/emails', {
+    const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
@@ -115,6 +87,16 @@ export async function handler(event) {
       })
     })
 
+    const emailData = await emailResponse.json()
+
+    if (!emailResponse.ok) {
+      console.error('Resend Error:', emailData)
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Failed to send email report' })
+      }
+    }
+
     return {
       statusCode: 200,
       headers: {
@@ -123,7 +105,7 @@ export async function handler(event) {
       },
       body: JSON.stringify({ 
         success: true, 
-        message: 'Verified successfully' 
+        message: 'Application saved successfully' 
       })
     }
 
