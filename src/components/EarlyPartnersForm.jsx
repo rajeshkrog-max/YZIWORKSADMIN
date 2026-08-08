@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
 
 function EarlyPartnersForm({ isOpen, onClose }) {
   const [formData, setFormData] = useState({
@@ -80,24 +81,46 @@ function EarlyPartnersForm({ isOpen, onClose }) {
     if (!validate()) return
 
     try {
-      const response = await fetch('/.netlify/functions/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone })
+      await loadMsg91Script()
+
+      openMsg91OTP({
+        phone: formData.phone,
+        onSuccess: async (data) => {
+          console.log('OTP Verified:', data)
+
+          try {
+            const response = await fetch('/.netlify/functions/verify-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: formData.phone,
+                otp: 'verified',
+                reqId: data?.message || 'msg91',
+                formType: 'partner',
+                formData: formData
+              })
+            })
+
+            const result = await response.json()
+
+            if (result.success) {
+              setIsVerified(true)
+            } else {
+              alert('Verification succeeded but failed to save application')
+            }
+          } catch (err) {
+            console.error(err)
+            alert('Something went wrong after OTP verification')
+          }
+        },
+        onFailure: (error) => {
+          console.error(error)
+          alert('OTP verification failed')
+        }
       })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setReqId(data.reqId)
-        setShowOtpModal(true)
-        startTimer()
-      } else {
-        alert(data.error || 'Failed to send OTP')
-      }
     } catch (error) {
       console.error(error)
-      alert('Something went wrong while sending OTP')
+      alert('Failed to load OTP service')
     }
   }
 
