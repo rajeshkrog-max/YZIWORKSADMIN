@@ -26,6 +26,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
   const [isVerified, setIsVerified] = useState(false)
   const [timer, setTimer] = useState(30)
   const [canResend, setCanResend] = useState(false)
+  const [reqId, setReqId] = useState('')
 
   const industries = [
     'Software & IT',
@@ -79,7 +80,6 @@ function EarlyBuildersForm({ isOpen, onClose }) {
     if (!validate()) return
 
     try {
-      // Call send-otp function
       const response = await fetch('/.netlify/functions/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,6 +89,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
       const data = await response.json()
 
       if (data.success) {
+        setReqId(data.reqId)
         setShowOtpModal(true)
         startTimer()
       } else {
@@ -128,6 +129,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
         body: JSON.stringify({
           phone: formData.phone,
           otp: otp,
+          reqId: reqId,
           formType: 'builder',
           formData: formData
         })

@@ -1,7 +1,3 @@
-// Temporary OTP storage
-const otpStore = global.otpStore || new Map()
-global.otpStore = otpStore
-
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return {
@@ -20,67 +16,28 @@ export async function handler(event) {
       }
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
-
-    // Store OTP (valid for 10 minutes)
-    otpStore.set(phone, {
-      otp,
-      expires: Date.now() + 10 * 60 * 1000
+    // MSG91 Send OTP via Widget API
+    const response = await fetch('https://api.msg91.com/api/v5/widget/sendOtp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authkey': process.env.MSG91_AUTH_KEY
+      },
+      body: JSON.stringify({
+        widgetId: process.env.MSG91_WIDGET_ID,
+        identifier: `91${phone}`
+      })
     })
-
-    // Send OTP using your approved template
-    const response = await fetch(
-      `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: `91${phone}`,
-          type: 'template',
-          template: {
-            name: 'youngzoneindia',
-            language: { code: 'en' },
-            components: [
-              {
-                type: 'body',
-                parameters: [
-                  {
-                    type: 'text',
-                    text: otp
-                  }
-                ]
-              },
-              {
-                type: 'button',
-                sub_type: 'url',
-                index: '0',
-                parameters: [
-                  {
-                    type: 'text',
-                    text: otp
-                  }
-                ]
-              }
-            ]
-          }
-        })
-      }
-    )
 
     const data = await response.json()
 
-    if (!response.ok) {
-      console.error('WhatsApp Error:', data)
+    if (!response.ok || data.type === 'error') {
+      console.error('MSG91 Error:', data)
       return {
         statusCode: 500,
         body: JSON.stringify({ 
-          error: 'Failed to send OTP', 
-          details: data 
+          error: data.message || 'Failed to send OTP',
+          details: data
         })
       }
     }
@@ -91,9 +48,10 @@ export async function handler(event) {
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'OTP sent successfully' 
+      body: JSON.stringify({
+        success: true,
+        message: 'OTP sent successfully',
+        reqId: data.message // this is required for verification
       })
     }
 

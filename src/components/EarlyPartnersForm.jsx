@@ -25,6 +25,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
   const [isVerified, setIsVerified] = useState(false)
   const [timer, setTimer] = useState(30)
   const [canResend, setCanResend] = useState(false)
+  const [reqId, setReqId] = useState('')
 
   const industries = [
     'Software & IT',
@@ -88,6 +89,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
       const data = await response.json()
 
       if (data.success) {
+        setReqId(data.reqId)
         setShowOtpModal(true)
         startTimer()
       } else {
@@ -127,6 +129,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
         body: JSON.stringify({
           phone: formData.phone,
           otp: otp,
+          reqId: reqId,
           formType: 'partner',
           formData: formData
         })
