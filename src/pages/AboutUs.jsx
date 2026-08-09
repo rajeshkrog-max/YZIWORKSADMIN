@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
-import aboutHero from '../assets/about us/aboutushero.png'
-import onceImage from '../assets/about us/once.png'
-import image1 from '../assets/about us/image1.png'
-import image2 from '../assets/about us/image2.png'
-import image3 from '../assets/about us/image3.png'
-import image4 from '../assets/about us/image4.png'
-import image5 from '../assets/about us/image5.png'
-import image6 from '../assets/about us/image6.png'
+import aboutHero from '../assets/aboutus/aboutushero.png'
+import onceImage from '../assets/aboutus/once.png'
+import image1 from '../assets/aboutus/image1.png'
+import image2 from '../assets/aboutus/image2.png'
+import image3 from '../assets/aboutus/image3.png'
+import image4 from '../assets/aboutus/image4.png'
+import image5 from '../assets/aboutus/image5.png'
+import image6 from '../assets/aboutus/image6.png'
 
 const assets = {
   storyImage: onceImage,
