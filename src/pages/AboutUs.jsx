@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
+import aboutHero from '../assets/about us/aboutushero.png'
+import onceImage from '../assets/about us/once.png'
+import image1 from '../assets/about us/image1.png'
+import image2 from '../assets/about us/image2.png'
+import image3 from '../assets/about us/image3.png'
+import image4 from '../assets/about us/image4.png'
+import image5 from '../assets/about us/image5.png'
+import image6 from '../assets/about us/image6.png'
 
-// Temporary placeholders — replace later with real images
 const assets = {
-  parentLogo: '/src/assets/logo.png',
-  storyImage: '/src/assets/about us/once.png',
-  gallery: [
-    '/src/assets/about us/image1.png',
-    '/src/assets/about us/image2.png',
-    '/src/assets/about us/image3.png',
-    '/src/assets/about us/image4.png',
-    '/src/assets/about us/image5.png',
-    '/src/assets/about us/image6.png',
-  ]
+  storyImage: onceImage,
+  gallery: [image1, image2, image3, image4, image5, image6]
 }
 
 const testimonials = [
@@ -59,7 +58,7 @@ function AboutUs() {
       {/* ========== HERO ========== */}
       <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center overflow-hidden">
         <img
-          src="/src/assets/about us/aboutushero.png"
+          src={aboutHero}
           alt="Young Zone India Community"
           className="absolute inset-0 w-full h-full object-cover"
         />
