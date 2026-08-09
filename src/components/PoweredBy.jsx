@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import partner1 from '../assets/partner1.png'
+import partner2 from '../assets/partner2.png'
+import partner3 from '../assets/partner3.png'
+import partner4 from '../assets/partner4.png'
+import partner5 from '../assets/partner5.png'
+import partner6 from '../assets/partner6.png'
 
 function PoweredBy() {
   const partners = [
-    { src: '/src/assets/partner1.png', alt: 'DPU FIIE' },
-    { src: '/src/assets/partner2.png', alt: 'DPIIT Startup India' },
-    { src: '/src/assets/partner3.png', alt: 'Razorpay' },
-    { src: '/src/assets/partner4.png', alt: 'AWS Startups' },
-    { src: '/src/assets/partner5.png', alt: 'Google for Startups' },
-    { src: '/src/assets/partner6.png', alt: 'Microsoft for Startups' },
+    { src: partner1, alt: 'DPU FIIE' },
+    { src: partner2, alt: 'DPIIT Startup India' },
+    { src: partner3, alt: 'Razorpay' },
+    { src: partner4, alt: 'AWS Startups' },
+    { src: partner5, alt: 'Google for Startups' },
+    { src: partner6, alt: 'Microsoft for Startups' },
   ]
 
   // Duplicate the list a few times so the loop always has enough
