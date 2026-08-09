@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
+import partnerImage from '../assets/partner.png'
 
 const PRIVACY_NOTICE_VERSION = 'v1'
 
@@ -661,9 +662,20 @@ function EarlyPartnersForm({ isOpen, onClose }) {
             </form>
           </div>
 
-          <div className="hidden lg:block relative bg-gradient-to-br from-yzi-purple/20 via-yzi-blue/10 to-yzi-cyan/10">
+          <div
+            className="hidden lg:block relative overflow-hidden"
+            style={{
+              backgroundImage: `url(${partnerImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          >
+            {/* Dark readability overlay */}
+            <div className="absolute inset-0 bg-black/45" />
+
+            {/* Existing text remains above the image */}
             <div className="absolute inset-0 flex items-center justify-center p-10">
-              <div className="text-center">
+              <div className="relative z-10 text-center">
                 <h3 className="text-3xl font-bold mb-4">
                   Build Better
                   <br />

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
+import youthImage from '../assets/youth.png'
 
 const PRIVACY_NOTICE_VERSION = 'v1'
 
@@ -640,9 +641,20 @@ function EarlyBuildersForm({ isOpen, onClose }) {
             </form>
           </div>
 
-          <div className="hidden lg:block relative bg-gradient-to-br from-yzi-orange/20 via-yzi-pink/10 to-yzi-purple/20">
+          <div
+            className="hidden lg:block relative overflow-hidden"
+            style={{
+              backgroundImage: `url(${youthImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          >
+            {/* Dark readability overlay */}
+            <div className="absolute inset-0 bg-black/45" />
+
+            {/* Existing text remains above the image */}
             <div className="absolute inset-0 flex items-center justify-center p-10">
-              <div className="text-center">
+              <div className="relative z-10 text-center">
                 <h3 className="text-3xl font-bold mb-4">
                   Build Your
                   <br />
