@@ -1,22 +1,17 @@
-import Navbar from './components/Navbar'
-import HeroSlider from './components/HeroSlider'
-import Hero from './components/Hero'
-import Programs from './components/Programs'
-import AIAdvantage from './components/AIAdvantage'
-import FinalCTA from './components/FinalCTA'
-import Footer from './components/Footer'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Home from './pages/Home'
+import ApplicationProcess from './pages/ApplicationProcess'
+import AboutUs from './pages/AboutUs'
 
 function App() {
   return (
-    <div className="min-h-screen bg-yzi-black text-white">
-      <Navbar />
-      <HeroSlider />
-      <Hero />
-      <Programs />
-      <AIAdvantage />
-      <FinalCTA />
-      <Footer />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/application-process" element={<ApplicationProcess />} />
+        <Route path="/about" element={<AboutUs />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

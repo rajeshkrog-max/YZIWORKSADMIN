@@ -10,7 +10,7 @@ function AIAdvantage() {
         <div className="text-center mb-16">
           <p className="text-yzi-cyan text-sm tracking-widest uppercase mb-3">The Real Power</p>
           <h2 className="text-3xl md:text-5xl font-bold mb-4">
-            Powered by AI SERA
+            Powered by AI 
           </h2>
           <p className="text-yzi-muted text-lg max-w-2xl mx-auto">
             YZI Works is not just a community. It is an intelligent system that organizes, matches, tracks and records everything — so both individuals and organizations can work with complete clarity.

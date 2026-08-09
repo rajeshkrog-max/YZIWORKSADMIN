@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import logo from '../assets/logo.png'
 import VideoModal from './VideoModal'
 import ChoiceModal from './ChoiceModal'
@@ -28,11 +29,13 @@ function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8 text-sm text-white/80">
-            <a href="#programs" className="hover:text-white transition">Programs</a>
+            <Link to="/about" className="hover:text-white transition">About Us</Link>
             <button onClick={() => setIsVideoOpen(true)} className="hover:text-white transition">
-              AI SERA
+              Dashboard
             </button>
-            <a href="#apply" className="hover:text-white transition">Apply</a>
+            <Link to="/application-process" className="hover:text-white transition">
+              Application Process
+            </Link>
           </div>
 
           {/* Desktop CTA */}
@@ -40,7 +43,7 @@ function Navbar() {
             onClick={() => setIsChoiceOpen(true)}
             className="hidden md:block px-5 py-2 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-sm font-medium hover:scale-105 transition-transform"
           >
-            Get Notified
+            Apply Now
           </button>
 
           {/* Mobile Hamburger */}
@@ -71,15 +74,15 @@ function Navbar() {
               }}
               className="block text-white/90 py-2 w-full text-left"
             >
-              AI SERA
+              Dashboard
             </button>
-            <a 
-              href="#apply" 
+            <Link 
+              to="/application-process"
               onClick={() => setIsMobileMenuOpen(false)}
               className="block text-white/90 py-2"
             >
-              Apply
-            </a>
+              Application Process
+            </Link>
             <button 
               onClick={() => {
                 setIsMobileMenuOpen(false)
@@ -87,7 +90,7 @@ function Navbar() {
               }}
               className="w-full mt-2 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-sm font-medium"
             >
-              Get Notified
+              Apply Here
             </button>
           </div>
         )}

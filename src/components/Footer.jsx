@@ -1,198 +1,246 @@
 import { useState } from 'react'
 import logo from '../assets/logo.png'
 
+// Clean, minimal brand-mark SVGs — crisper and more "real" than emoji/text links
+const FacebookIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.16 8.44 9.94v-7.03H7.9v-2.9h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34V22c4.78-.78 8.44-4.94 8.44-9.94Z" />
+  </svg>
+)
+const InstagramIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+  </svg>
+)
+const WhatsAppIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.36 5.07L2 22l5.19-1.44a9.87 9.87 0 0 0 4.85 1.27h.01c5.46 0 9.91-4.45 9.91-9.92S17.5 2 12.04 2Zm0 18.13c-1.53 0-3-.4-4.28-1.16l-.31-.18-3.08.86.82-3-.2-.32a8.06 8.06 0 0 1-1.24-4.32c0-4.47 3.64-8.11 8.29-8.11 2.21 0 4.29.87 5.86 2.44a8.22 8.22 0 0 1 2.43 5.83c0 4.47-3.64 8-8.29 8Zm4.54-6.06c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.15.16-.29.18-.54.06-.25-.12-1.04-.38-1.99-1.22-.73-.65-1.23-1.46-1.37-1.7-.15-.25-.02-.38.1-.5.11-.11.25-.29.37-.43a1.6 1.6 0 0 0 .25-.4.45.45 0 0 0-.02-.44c-.06-.12-.55-1.34-.76-1.83-.2-.48-.4-.42-.55-.42h-.47c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.03s.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.28Z" />
+  </svg>
+)
+const LinkedInIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M6.94 5.01a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM3 8.98h3.9V21H3V8.98Zm7.02 0H13.8v1.64h.05c.53-.99 1.82-2.03 3.75-2.03 4.01 0 4.75 2.56 4.75 5.89V21h-3.9v-5.94c0-1.42-.03-3.24-2.02-3.24-2.02 0-2.33 1.53-2.33 3.13V21h-3.9V8.98Z" />
+  </svg>
+)
+
+const socials = [
+  { icon: FacebookIcon, label: 'Facebook', href: 'https://www.facebook.com/youngzoneindia' },
+  { icon: InstagramIcon, label: 'Instagram', href: 'https://www.instagram.com/youngzoneindia' },
+  { icon: WhatsAppIcon, label: 'WhatsApp', href: 'https://wa.me/c/919011256256' },
+  { icon: LinkedInIcon, label: 'LinkedIn', href: 'https://in.linkedin.com/company/youngzoneindia' },
+]
+
 function Footer() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isContactOpen, setIsContactOpen] = useState(false)
+  const [form, setForm] = useState({ name: '', subject: '', message: '' })
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address')
+    if (!form.name || !form.subject || !form.message) {
+      setStatusMessage('Please fill all fields')
       return
     }
 
-    if (!message.trim()) {
-      setError('Please write your query')
-      return
-    }
-
-    setError('')
+    setSending(true)
+    setStatusMessage('')
 
     try {
       const response = await fetch('/.netlify/functions/send-contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, message })
+        body: JSON.stringify(form)
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setIsSubmitted(true)
+        setStatusMessage('Message sent successfully')
+        setForm({ name: '', subject: '', message: '' })
+        setTimeout(() => {
+          setIsContactOpen(false)
+          setStatusMessage('')
+        }, 2500)
       } else {
-        setError(data.error || 'Failed to send message')
+        setStatusMessage(data.error || 'Failed to send message')
       }
     } catch (err) {
-      console.error(err)
-      setError('Something went wrong. Please try again.')
+      setStatusMessage('Something went wrong. Please try again.')
     }
-  }
 
-  const handleClose = () => {
-    setIsOpen(false)
-    setEmail('')
-    setMessage('')
-    setError('')
-    setIsSubmitted(false)
+    setSending(false)
   }
 
   return (
-    <>
-      <footer className="py-14 border-t border-white/5 bg-yzi-black">
-        <div className="max-w-6xl mx-auto px-6">
-          
-          <div className="flex flex-col md:flex-row items-center justify-between gap-10">
-            
-            {/* Left Side */}
-            <div className="flex flex-col items-center md:items-start gap-4">
-              <img 
-                src={logo} 
-                alt="YZI Works" 
-                className="h-35 w-auto object-contain"
-              />
-              <p className="text-sm text-yzi-muted">
-                © 2026 Young Zone India. All rights reserved.
-              </p>
-            </div>
+    <footer className="relative bg-[#05050A] pt-20 pb-10 overflow-hidden">
+      {/* Signature gradient hairline across the very top of the footer */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
+      {/* Faint ambient glow, echoes the accent used elsewhere on the site */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-500/10 blur-3xl rounded-full" />
 
-            {/* Right Side */}
-            <div className="flex flex-col items-center md:items-end gap-5">
-              
-              <button 
-                onClick={() => setIsOpen(true)}
-                className="px-6 py-2.5 rounded-full border border-white/20 text-sm font-medium hover:bg-white/10 transition-all"
+      <div className="relative max-w-7xl mx-auto px-6">
+        {/* Contact Modal */}
+        {isContactOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="relative w-full max-w-4xl bg-[#0B0B14] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+              <button
+                onClick={() => setIsContactOpen(false)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
               >
-                Contact Us
+                ✕
               </button>
 
-              {/* Social Icons */}
-              <div className="flex items-center gap-4">
-                <a href="https://www.facebook.com/youngzoneindia" target="_blank" rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-yzi-orange/20 flex items-center justify-center transition-all hover:scale-110">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
-                  </svg>
-                </a>
+              {sent ? (
+                <div className="py-24 text-center">
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4 text-3xl">✓</div>
+                  <h3 className="text-2xl font-bold mb-2">Message Sent</h3>
+                  <p className="text-white/60">Thank you. Our team will get back to you soon.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  <div className="p-8 md:p-10">
+                    <h3 className="text-2xl font-bold mb-1">Contact Us</h3>
+                    <p className="text-white/50 text-sm mb-8">We usually reply within 24 hours.</p>
 
-                <a href="https://www.instagram.com/youngzoneindia" target="_blank" rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-yzi-pink/20 flex items-center justify-center transition-all hover:scale-110">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
-                  </svg>
-                </a>
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                      <div>
+                        <label className="text-sm text-white/60 mb-1.5 block">Name</label>
+                        <input
+                          name="name"
+                          value={form.name}
+                          onChange={handleChange}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          required
+                        />
+                      </div>
 
-                <a href="https://wa.me/c/919011256256" target="_blank" rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-green-500/20 flex items-center justify-center transition-all hover:scale-110">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
-                </a>
+                      <div>
+                        <label className="text-sm text-white/60 mb-1.5 block">Subject</label>
+                        <input
+                          name="subject"
+                          value={form.subject}
+                          onChange={handleChange}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          required
+                        />
+                      </div>
 
-                <a href="https://in.linkedin.com/company/youngzoneindia" target="_blank" rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-blue-500/20 flex items-center justify-center transition-all hover:scale-110">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                  </svg>
+                      <div>
+                        <label className="text-sm text-white/60 mb-1.5 block">Message</label>
+                        <textarea
+                          name="message"
+                          value={form.message}
+                          onChange={handleChange}
+                          rows="5"
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 resize-none"
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={sending}
+                        className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 font-semibold hover:scale-[1.02] transition disabled:opacity-50"
+                      >
+                        {sending ? 'Sending...' : 'Send Message'}
+                      </button>
+
+                      {statusMessage && (
+                        <p className={`text-sm text-center mt-3 ${
+                          statusMessage.includes('successfully') ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {statusMessage}
+                        </p>
+                      )}
+                    </form>
+                  </div>
+
+                  <div className="hidden md:flex relative bg-gradient-to-br from-orange-500/20 via-pink-500/10 to-purple-500/20 items-center justify-center p-10">
+                    <div className="text-center">
+                      <h3 className="text-3xl font-bold mb-4 leading-tight">
+                        We’re here<br />to help
+                      </h3>
+                      <p className="text-white/60 text-sm max-w-xs mx-auto">
+                        Have a question, partnership idea, or feedback? Reach out and our team will respond soon.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Top: brand + socials */}
+        <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-12 pb-12">
+          <div className="flex flex-col items-center md:items-start gap-4 text-center md:text-left">
+            <img src={logo} alt="YZI Works" className="h-32 md:h-32 w-auto object-contain py-2" />
+            <p className="text-white/50 text-sm max-w-xs leading-relaxed">
+              An intelligent system that organizes, matches, and builds — for India's next generation of founders.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center md:items-end gap-5">
+            <button 
+              onClick={() => setIsContactOpen(true)}
+              className="px-6 py-2.5 rounded-full border border-white/20 text-sm text-white font-medium
+                         hover:border-transparent hover:bg-gradient-to-r hover:from-orange-500 hover:via-pink-500 hover:to-purple-500
+                         transition-all duration-300"
+            >
+              Contact Us
+            </button>
+
+            <div className="flex items-center gap-3">
+              {socials.map(({ icon: Icon, label, href }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={label}
+                  className="group w-10 h-10 rounded-full border border-white/10 bg-white/[0.03]
+                             flex items-center justify-center
+                             hover:border-transparent hover:bg-gradient-to-br hover:from-orange-500 hover:via-pink-500 hover:to-purple-500
+                             transition-all duration-300"
+                >
+                  <Icon className="w-4.5 h-4.5 text-white/60 group-hover:text-white transition-colors duration-300" />
                 </a>
-              </div>
+              ))}
             </div>
           </div>
         </div>
-      </footer>
 
-      {/* Contact Modal */}
-      {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md bg-yzi-card border border-white/10 rounded-3xl p-8 shadow-2xl">
-            
-            <button 
-              onClick={handleClose}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
-            >
-              ✕
-            </button>
+        {/* Divider */}
+        <div className="w-full h-px bg-white/10" />
 
-            {!isSubmitted ? (
-              <>
-                <h2 className="text-2xl font-bold mb-2">Contact Us</h2>
-                <p className="text-yzi-muted text-sm mb-6">
-                  Send us your query and our team will get back to you.
-                </p>
+        {/* Bottom bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-center sm:text-left">
+          <p className="text-white/40 text-sm">
+            © 2026 Young Zone India. All rights reserved.
+          </p>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <label className="text-sm text-yzi-muted mb-1 block">Email Address</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@email.com"
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-yzi-muted mb-1 block">
-                      Your Query <span className="text-xs text-yzi-muted">(max 300 characters)</span>
-                    </label>
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value.slice(0, 300))}
-                      rows="4"
-                      maxLength="300"
-                      placeholder="Write your message here..."
-                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange resize-none"
-                    />
-                    <p className="text-xs text-yzi-muted mt-1 text-right">{message.length}/300</p>
-                  </div>
-
-                  {error && <p className="text-red-400 text-sm">{error}</p>}
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform"
-                  >
-                    Submit
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="text-center py-6">
-                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4 text-3xl">
-                  ✓
-                </div>
-                <h3 className="text-xl font-bold mb-2">Thank You!</h3>
-                <p className="text-yzi-muted mb-6">
-                  Our team will get back to you soon.
-                </p>
-                <button
-                  onClick={handleClose}
-                  className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold"
-                >
-                  Close
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-2 text-white/50 text-sm">
+            <span>Made with</span>
+            <span className="text-red-500">❤</span>
+            <span>in India</span>
+            <span className="text-white/20">•</span>
+            <span>
+              Backed by{' '}
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-white/15 text-white/80 font-semibold text-xs tracking-wide ml-1">
+                ANTLER
+              </span>
+            </span>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </footer>
   )
 }
 
