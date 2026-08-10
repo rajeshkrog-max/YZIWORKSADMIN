@@ -91,7 +91,7 @@ function AboutUs() {
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 blur-2xl rounded-3xl" />
               <img
-                src="/src/assets/about us/once.png"
+                src={onceImage}
                 alt="Once Upon A Time"
                 className="relative rounded-2xl w-full h-[480px] object-cover border border-white/10"
               />
