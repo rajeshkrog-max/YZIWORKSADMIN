@@ -3,24 +3,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const BUCKET_NAME = 'yzi-application-files'
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024
-
-const ALLOWED_TYPES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'image/jpeg',
-  'image/png'
-])
-
-const ALLOWED_EXTENSIONS = new Set([
-  'pdf',
-  'doc',
-  'docx',
-  'jpg',
-  'jpeg',
-  'png'
-])
+const MAX_FILES = 5
+const MAX_TOTAL_SIZE = 20 * 1024 * 1024
 
 function jsonResponse(statusCode, body) {
   return {
@@ -36,16 +20,17 @@ function jsonResponse(statusCode, body) {
 }
 
 function getExtension(filename) {
-  return filename
-    .split('.')
-    .pop()
-    .toLowerCase()
+  const parts = String(filename).split('.')
+  if (parts.length < 2) return ''
+  return parts.pop().toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 function createSafeFilename(filename) {
   const extension = getExtension(filename)
 
-  return `${crypto.randomUUID()}.${extension}`
+  return extension
+    ? `${crypto.randomUUID()}.${extension}`
+    : crypto.randomUUID()
 }
 
 function getS3Client() {
@@ -82,15 +67,13 @@ export async function handler(event) {
     const body = JSON.parse(event.body || '{}')
 
     const {
-      filename,
-      contentType,
-      size,
+      files,
       applicationType
     } = body
 
-    if (!filename || !contentType || !size || !applicationType) {
+    if (!Array.isArray(files) || !applicationType) {
       return jsonResponse(400, {
-        error: 'filename, contentType, size and applicationType are required'
+        error: 'files and applicationType are required'
       })
     }
 
@@ -100,58 +83,81 @@ export async function handler(event) {
       })
     }
 
-    if (!Number.isInteger(size) || size <= 0 || size > MAX_FILE_SIZE) {
+    if (files.length < 1 || files.length > MAX_FILES) {
       return jsonResponse(400, {
-        error: 'File must be 5 MB or smaller'
+        error: `You can upload between 1 and ${MAX_FILES} files`
       })
     }
 
-    if (!ALLOWED_TYPES.has(contentType)) {
+    const totalSize = files.reduce((total, file) => {
+      return total + (Number.isInteger(file?.size) ? file.size : 0)
+    }, 0)
+
+    if (totalSize <= 0 || totalSize > MAX_TOTAL_SIZE) {
       return jsonResponse(400, {
-        error: 'File type is not supported'
+        error: 'Total file size must be 20 MB or smaller'
       })
     }
 
-    const extension = getExtension(filename)
-
-    if (!ALLOWED_EXTENSIONS.has(extension)) {
-      return jsonResponse(400, {
-        error: 'File extension is not supported'
-      })
+    for (const file of files) {
+      if (
+        !file ||
+        typeof file.filename !== 'string' ||
+        !file.filename.trim() ||
+        typeof file.contentType !== 'string' ||
+        !Number.isInteger(file.size) ||
+        file.size <= 0
+      ) {
+        return jsonResponse(400, {
+          error: 'Invalid file information'
+        })
+      }
     }
-
-    const safeFilename = createSafeFilename(filename)
 
     const folder =
       applicationType === 'builder'
         ? 'applications/builders'
         : 'applications/partners'
 
-    const objectKey = `${folder}/${crypto.randomUUID()}/${safeFilename}`
-
     const s3 = getS3Client()
 
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: objectKey,
-      ContentType: contentType
-    })
+    const uploads = await Promise.all(
+      files.map(async (file) => {
+        const safeFilename = createSafeFilename(file.filename)
 
-    const uploadUrl = await getSignedUrl(s3, command, {
-      expiresIn: 300
-    })
+        const objectKey =
+          `${folder}/${crypto.randomUUID()}/${safeFilename}`
+
+        const command = new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: objectKey,
+          ContentType: file.contentType
+        })
+
+        const uploadUrl = await getSignedUrl(s3, command, {
+          expiresIn: 300
+        })
+
+        return {
+          uploadUrl,
+          objectKey,
+          originalFilename: file.filename,
+          contentType: file.contentType,
+          size: file.size
+        }
+      })
+    )
 
     return jsonResponse(200, {
       success: true,
-      uploadUrl,
-      objectKey,
+      uploads,
       expiresIn: 300
     })
   } catch (error) {
     console.error('R2 create upload error:', error)
 
     return jsonResponse(500, {
-      error: 'Unable to prepare file upload'
+      error: 'Unable to prepare file uploads'
     })
   }
 }

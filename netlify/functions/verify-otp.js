@@ -1,7 +1,20 @@
+import {
+  S3Client,
+  GetObjectCommand,
+  HeadObjectCommand
+} from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+
 const PRIVACY_NOTICE_VERSION = 'v1'
 
 const PRIVACY_CONSENT_TEXT =
   'I agree to the collection and processing of my personal data by Young Zone India for the YZI Works platform as detailed in the Privacy Notice above [DPDPA 2023].'
+
+const BUCKET_NAME = 'yzi-application-files'
+
+const MAX_FILES = 5
+const MAX_TOTAL_SIZE = 20 * 1024 * 1024
+const DOWNLOAD_URL_EXPIRY = 7 * 24 * 60 * 60
 
 function escapeHtml(value) {
   if (value === null || value === undefined) return ''
@@ -23,11 +36,179 @@ function formatConsentTimestamp(timestamp) {
     return 'Invalid timestamp'
   }
 
-  return date.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    dateStyle: 'medium',
-    timeStyle: 'medium'
-  }) + ' IST'
+  return (
+    date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'medium'
+    }) + ' IST'
+  )
+}
+
+function getS3Client() {
+  const accountId = process.env.R2_ACCOUNT_ID
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
+
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new Error('R2 environment variables are not configured')
+  }
+
+  return new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  })
+}
+
+async function prepareAttachmentLinks(attachments, formType) {
+  if (!attachments) {
+    return []
+  }
+
+  if (!Array.isArray(attachments)) {
+    throw new Error('Invalid attachments')
+  }
+
+  if (attachments.length > MAX_FILES) {
+    throw new Error(`Maximum ${MAX_FILES} attachments are allowed`)
+  }
+
+  if (attachments.length === 0) {
+    return []
+  }
+
+  const expectedPrefix =
+    formType === 'builder'
+      ? 'applications/builders/'
+      : 'applications/partners/'
+
+  const totalClientSize = attachments.reduce(
+    (total, attachment) =>
+      total +
+      (Number.isInteger(attachment?.size) ? attachment.size : 0),
+    0
+  )
+
+  if (totalClientSize > MAX_TOTAL_SIZE) {
+    throw new Error('Total attachment size must be 20 MB or smaller')
+  }
+
+  const s3 = getS3Client()
+
+  const preparedAttachments = await Promise.all(
+    attachments.map(async (attachment) => {
+      if (
+        !attachment ||
+        typeof attachment.objectKey !== 'string' ||
+        typeof attachment.originalFilename !== 'string' ||
+        !Number.isInteger(attachment.size) ||
+        attachment.size <= 0
+      ) {
+        throw new Error('Invalid attachment information')
+      }
+
+      if (!attachment.objectKey.startsWith(expectedPrefix)) {
+        throw new Error('Invalid attachment location')
+      }
+
+      const headResult = await s3.send(
+        new HeadObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: attachment.objectKey
+        })
+      )
+
+      const actualSize = Number(headResult.ContentLength || 0)
+
+      if (!actualSize || actualSize > MAX_TOTAL_SIZE) {
+        throw new Error('Invalid attachment size')
+      }
+
+      return {
+        originalFilename: attachment.originalFilename,
+        objectKey: attachment.objectKey,
+        size: actualSize
+      }
+    })
+  )
+
+  const actualTotalSize = preparedAttachments.reduce(
+    (total, attachment) => total + attachment.size,
+    0
+  )
+
+  if (actualTotalSize > MAX_TOTAL_SIZE) {
+    throw new Error('Total attachment size must be 20 MB or smaller')
+  }
+
+  const links = await Promise.all(
+    preparedAttachments.map(async (attachment) => {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: attachment.objectKey,
+        ResponseContentDisposition:
+          `inline; filename="${attachment.originalFilename.replace(/"/g, '')}"`
+      })
+
+      const downloadUrl = await getSignedUrl(s3, command, {
+        expiresIn: DOWNLOAD_URL_EXPIRY
+      })
+
+      return {
+        originalFilename: attachment.originalFilename,
+        size: attachment.size,
+        downloadUrl
+      }
+    })
+  )
+
+  return links
+}
+
+function buildAttachmentSection(attachments) {
+  if (!attachments.length) {
+    return ''
+  }
+
+  const rows = attachments
+    .map(
+      (attachment, index) => `
+        <tr>
+          <td style="padding: 10px 0; color: #A1A1AA; width: 40px;">
+            ${index + 1}.
+          </td>
+          <td style="padding: 10px 0;">
+            <a
+              href="${escapeHtml(attachment.downloadUrl)}"
+              style="color: #60A5FA; text-decoration: none;"
+            >
+              ${escapeHtml(attachment.originalFilename)}
+            </a>
+          </td>
+        </tr>
+      `
+    )
+    .join('')
+
+  return `
+    <div style="margin-top: 30px; padding: 20px; background: #11111D; border: 1px solid #272733; border-radius: 10px;">
+      <p style="margin: 0 0 14px; color: #ffffff; font-size: 15px; font-weight: bold;">
+        Uploaded Documents
+      </p>
+
+      <table style="width: 100%; border-collapse: collapse;">
+        ${rows}
+      </table>
+
+      <p style="margin: 14px 0 0; color: #71717A; font-size: 11px; line-height: 1.5;">
+        Document links are private temporary links and expire after 7 days.
+      </p>
+    </div>
+  `
 }
 
 export async function handler(event) {
@@ -39,12 +220,22 @@ export async function handler(event) {
   }
 
   try {
-    const { formType, formData } = JSON.parse(event.body)
+    const { formType, formData, attachments } =
+      JSON.parse(event.body || '{}')
 
     if (!formData) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Form data is required' })
+      }
+    }
+
+    if (!['builder', 'partner'].includes(formType)) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Invalid form type'
+        })
       }
     }
 
@@ -86,6 +277,11 @@ export async function handler(event) {
     const consentVersion = PRIVACY_NOTICE_VERSION
     const consentText = PRIVACY_CONSENT_TEXT
 
+    const attachmentLinks = await prepareAttachmentLinks(
+      attachments,
+      formType
+    )
+
     let subject = ''
     let htmlContent = ''
 
@@ -121,7 +317,11 @@ export async function handler(event) {
               <td style="padding: 8px 0; color: #A1A1AA;">Qualification</td>
               <td>
                 ${escapeHtml(formData.qualification)}
-                ${formData.otherQualification ? ' - ' + escapeHtml(formData.otherQualification) : ''}
+                ${
+                  formData.otherQualification
+                    ? ' - ' + escapeHtml(formData.otherQualification)
+                    : ''
+                }
               </td>
             </tr>
 
@@ -129,7 +329,11 @@ export async function handler(event) {
               <td style="padding: 8px 0; color: #A1A1AA;">Field</td>
               <td>
                 ${escapeHtml(formData.field)}
-                ${formData.otherField ? ' - ' + escapeHtml(formData.otherField) : ''}
+                ${
+                  formData.otherField
+                    ? ' - ' + escapeHtml(formData.otherField)
+                    : ''
+                }
               </td>
             </tr>
 
@@ -157,10 +361,16 @@ export async function handler(event) {
               <td style="padding: 8px 0; color: #A1A1AA;">Source</td>
               <td>
                 ${escapeHtml(formData.source)}
-                ${formData.otherSource ? ' - ' + escapeHtml(formData.otherSource) : ''}
+                ${
+                  formData.otherSource
+                    ? ' - ' + escapeHtml(formData.otherSource)
+                    : ''
+                }
               </td>
             </tr>
           </table>
+
+          ${buildAttachmentSection(attachmentLinks)}
 
           <div style="margin-top: 30px; padding: 20px; background: #11111D; border: 1px solid #272733; border-radius: 10px;">
             <p style="margin: 0 0 14px; color: #ffffff; font-size: 15px; font-weight: bold;">
@@ -206,7 +416,7 @@ export async function handler(event) {
           </p>
         </div>
       `
-    } else if (formType === 'partner') {
+    } else {
       subject = `New Early Partner Application - ${formData.businessName}`
 
       htmlContent = `
@@ -243,7 +453,11 @@ export async function handler(event) {
               <td style="padding: 8px 0; color: #A1A1AA;">Industry</td>
               <td>
                 ${escapeHtml(formData.industry)}
-                ${formData.otherIndustry ? ' - ' + escapeHtml(formData.otherIndustry) : ''}
+                ${
+                  formData.otherIndustry
+                    ? ' - ' + escapeHtml(formData.otherIndustry)
+                    : ''
+                }
               </td>
             </tr>
 
@@ -276,7 +490,11 @@ export async function handler(event) {
               <td style="padding: 8px 0; color: #A1A1AA;">Source</td>
               <td>
                 ${escapeHtml(formData.source)}
-                ${formData.otherSource ? ' - ' + escapeHtml(formData.otherSource) : ''}
+                ${
+                  formData.otherSource
+                    ? ' - ' + escapeHtml(formData.otherSource)
+                    : ''
+                }
               </td>
             </tr>
 
@@ -285,6 +503,8 @@ export async function handler(event) {
               <td>${escapeHtml(formData.anythingElse || '—')}</td>
             </tr>
           </table>
+
+          ${buildAttachmentSection(attachmentLinks)}
 
           <div style="margin-top: 30px; padding: 20px; background: #11111D; border: 1px solid #272733; border-radius: 10px;">
             <p style="margin: 0 0 14px; color: #ffffff; font-size: 15px; font-weight: bold;">
@@ -330,28 +550,24 @@ export async function handler(event) {
           </p>
         </div>
       `
-    } else {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Invalid form type'
-        })
-      }
     }
 
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'YZI Works <onboarding@resend.dev>',
-        to: ['admin@youngzoneindia.com'],
-        subject,
-        html: htmlContent
-      })
-    })
+    const emailResponse = await fetch(
+      'https://api.resend.com/emails',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'YZI Works <onboarding@resend.dev>',
+          to: ['admin@youngzoneindia.com'],
+          subject,
+          html: htmlContent
+        })
+      }
+    )
 
     const emailData = await emailResponse.json()
 
@@ -378,12 +594,12 @@ export async function handler(event) {
       })
     }
   } catch (error) {
-    console.error(error)
+    console.error('verify-otp error:', error)
 
     return {
       statusCode: 500,
       body: JSON.stringify({
-        error: 'Server error'
+        error: error.message || 'Server error'
       })
     }
   }

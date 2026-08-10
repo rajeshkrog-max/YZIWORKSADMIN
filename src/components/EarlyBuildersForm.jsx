@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
+import { uploadFilesToR2 } from '../utils/r2Upload'
 import youthImage from '../assets/youth.png'
 
 const PRIVACY_NOTICE_VERSION = 'v1'
@@ -35,6 +36,9 @@ function EarlyBuildersForm({ isOpen, onClose }) {
   const [timer, setTimer] = useState(30)
   const [canResend, setCanResend] = useState(false)
   const [reqId, setReqId] = useState('')
+  const [selectedFiles, setSelectedFiles] = useState([])
+  const fileInputRef = useRef(null)
+  const [isProcessingSubmission, setIsProcessingSubmission] = useState(false)
 
   const [privacyNoticeRead, setPrivacyNoticeRead] = useState(false)
   const privacyNoticeRef = useRef(null)
@@ -61,6 +65,57 @@ function EarlyBuildersForm({ isOpen, onClose }) {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
     setErrors(prev => ({ ...prev, [name]: '' }))
+  }
+
+  const MAX_FILES = 5
+  const MAX_TOTAL_SIZE = 20 * 1024 * 1024
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || [])
+
+    const totalSize = files.reduce(
+      (total, file) => total + file.size,
+      0
+    )
+
+    if (files.length > MAX_FILES) {
+      setErrors(prev => ({
+        ...prev,
+        attachments: `You can upload a maximum of ${MAX_FILES} files`
+      }))
+      e.target.value = ''
+      return
+    }
+
+    if (totalSize > MAX_TOTAL_SIZE) {
+      setErrors(prev => ({
+        ...prev,
+        attachments: 'Total file size must be 20 MB or smaller'
+      }))
+      e.target.value = ''
+      return
+    }
+
+    setSelectedFiles(files)
+    setErrors(prev => ({ ...prev, attachments: '' }))
+  }
+
+  const removeFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
+    setErrors(prev => ({ ...prev, attachments: '' }))
   }
 
   const handlePrivacyScroll = () => {
@@ -139,8 +194,18 @@ function EarlyBuildersForm({ isOpen, onClose }) {
         onSuccess: async (data) => {
           console.log('MSG91 success:', data)
           setReqId(data.reqId || '')
+          setIsProcessingSubmission(true)
 
           try {
+            let attachments = []
+
+            if (selectedFiles.length > 0) {
+              attachments = await uploadFilesToR2(
+                selectedFiles,
+                'builder'
+              )
+            }
+
             const response = await fetch('/.netlify/functions/verify-otp', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -150,7 +215,8 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   ...formData,
                   consentText: PRIVACY_CONSENT_TEXT,
                   consentVersion: PRIVACY_NOTICE_VERSION
-                }
+                },
+                attachments
               })
             })
 
@@ -160,11 +226,20 @@ function EarlyBuildersForm({ isOpen, onClose }) {
               setIsVerified(true)
               setShowOtpModal(true)
             } else {
-              alert('Verification succeeded but failed to save application')
+              alert(
+                result.error ||
+                'Verification succeeded but failed to save application'
+              )
             }
           } catch (err) {
-            console.error(err)
-            alert('Something went wrong after OTP verification')
+            console.error('Application submission error:', err)
+
+            alert(
+              err.message ||
+              'Something went wrong after OTP verification'
+            )
+          } finally {
+            setIsProcessingSubmission(false)
           }
         },
         onFailure: (error) => {
@@ -531,6 +606,83 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                 </div>
               )}
 
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <label className="text-sm text-yzi-muted">
+                    Upload Documents
+                  </label>
+
+                  <span className="text-[10px] text-gray-500">
+                    Optional • Max 5 files • 20 MB total
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-gray-500 mb-3">
+                  Useful documents: resume, portfolio, certificates, work samples, etc.
+                  You may upload any relevant file type.
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-gray-400
+                    file:mr-4 file:py-2.5 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-medium
+                    file:bg-white/10 file:text-white
+                    hover:file:bg-white/20
+                    cursor-pointer"
+                />
+
+                {selectedFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {selectedFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${index}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs text-white truncate">
+                            {file.name}
+                          </p>
+
+                          <p className="text-[10px] text-gray-500">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="text-xs text-red-400 hover:text-red-300 shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+
+                    <p className="text-[10px] text-gray-500">
+                      {selectedFiles.length}/5 files •{' '}
+                      {formatFileSize(
+                        selectedFiles.reduce(
+                          (total, file) => total + file.size,
+                          0
+                        )
+                      )}{' '}
+                      / 20 MB
+                    </p>
+                  </div>
+                )}
+
+                {errors.attachments && (
+                  <p className="text-red-400 text-xs mt-2">
+                    {errors.attachments}
+                  </p>
+                )}
+              </div>
+
               <div className="mt-6">
                 <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/10">
@@ -634,9 +786,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform mt-5"
+                disabled={isProcessingSubmission}
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Submit Application
+                {isProcessingSubmission ? 'Processing...' : 'Submit Application'}
               </button>
             </form>
           </div>
