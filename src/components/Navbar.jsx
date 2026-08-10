@@ -57,16 +57,16 @@ function Navbar() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu — now mirrors the desktop menu exactly */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-black/95 border-t border-white/10 px-5 py-6 space-y-4">
-            <a 
-              href="#programs" 
+            <Link 
+              to="/about" 
               onClick={() => setIsMobileMenuOpen(false)}
               className="block text-white/90 py-2"
             >
-              Programs
-            </a>
+              About Us
+            </Link>
             <button 
               onClick={() => {
                 setIsMobileMenuOpen(false)

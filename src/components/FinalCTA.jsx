@@ -41,7 +41,7 @@ function FinalCTA() {
           </div>
 
           <p className="mt-8 text-sm text-yzi-muted">
-            Every application is reviewed by the YZI Community team.
+            Every application is reviewed by the YZI WORKS team.
           </p>
 
         </div>

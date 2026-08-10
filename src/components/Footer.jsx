@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import logo from '../assets/logo.png'
+import partnerLogo from '../assets/partner1.png'
 
 const FacebookIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -390,11 +391,14 @@ function Footer() {
             <span className="text-red-500">❤</span>
             <span>in India</span>
             <span className="text-white/20">•</span>
-            <span>
-              Backed by{' '}
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-white/15 text-white/80 font-semibold text-xs tracking-wide ml-1">
-                ANTLER
-              </span>
+            <span>Backed by</span>
+
+            <span className="inline-flex items-center justify-center h-8 px-2 rounded-md bg-white ml-1">
+              <img
+                src={partnerLogo}
+                alt="DPU FFIE"
+                className="h-6 w-auto object-contain"
+              />
             </span>
           </div>
         </div>

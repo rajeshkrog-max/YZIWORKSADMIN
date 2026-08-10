@@ -24,7 +24,7 @@ function ChoiceModal({ isOpen, onClose, onSelectBuilder, onSelectPartner }) {
             onClick={onSelectBuilder}
             className="w-full p-5 rounded-2xl border border-white/10 bg-black/40 hover:border-yzi-orange/50 hover:bg-yzi-orange/5 transition-all text-left"
           >
-            <div className="font-semibold text-lg mb-1">I am a Skiller</div>
+            <div className="font-semibold text-lg mb-1">I am a Builder</div>
             <div className="text-sm text-yzi-muted">
               Student, Freelancer, Creator, Young Professional
             </div>
@@ -35,7 +35,7 @@ function ChoiceModal({ isOpen, onClose, onSelectBuilder, onSelectPartner }) {
             onClick={onSelectPartner}
             className="w-full p-5 rounded-2xl border border-white/10 bg-black/40 hover:border-yzi-purple/50 hover:bg-yzi-purple/5 transition-all text-left"
           >
-            <div className="font-semibold text-lg mb-1">I am a Hiring Partner</div>
+            <div className="font-semibold text-lg mb-1">I am a Partner</div>
             <div className="text-sm text-yzi-muted">
               Local Business, Startup, MSME, Company
             </div>
