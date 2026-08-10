@@ -1,19 +1,9 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
+import OurVerticals from '../components/OurVerticals'
+import PhotoWall from '../components/PhotoWall'
 import aboutHero from '../assets/aboutus/aboutushero.png'
 import onceImage from '../assets/aboutus/once.png'
-import image1 from '../assets/aboutus/image1.png'
-import image2 from '../assets/aboutus/image2.png'
-import image3 from '../assets/aboutus/image3.png'
-import image4 from '../assets/aboutus/image4.png'
-import image5 from '../assets/aboutus/image5.png'
-import image6 from '../assets/aboutus/image6.png'
-
-const assets = {
-  storyImage: onceImage,
-  gallery: [image1, image2, image3, image4, image5, image6]
-}
 
 const testimonials = [
   {
@@ -44,15 +34,6 @@ const testimonials = [
 ]
 
 function AboutUs() {
-  const [current, setCurrent] = useState(0)
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % assets.gallery.length)
-    }, 4000)
-    return () => clearInterval(timer)
-  }, [])
-
   return (
     <div className="min-h-screen bg-[#05050A] text-white">
       {/* ========== HERO ========== */}
@@ -83,6 +64,9 @@ function AboutUs() {
           </p>
         </div>
       </section>
+
+      {/* ========== OUR VERTICALS (Parent + 3 wings) ========== */}
+      <OurVerticals />
 
       {/* ========== ORIGIN STORY ========== */}
       <section className="py-24 px-6 border-t border-white/5">
@@ -510,38 +494,15 @@ function AboutUs() {
         </div>
       </section>
 
-      <section className="py-24 px-6 border-t border-white/5">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">On The Ground</p>
-            <h2 className="text-3xl md:text-4xl font-bold">Real youth. Real programs. Real impact.</h2>
-          </div>
-
-          <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[420px] md:h-[520px]">
-            {assets.gallery.map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt={`Gallery ${i + 1}`}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-                  i === current ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
-            ))}
-
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-              {assets.gallery.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrent(i)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${
-                    i === current ? 'bg-orange-500 w-6' : 'bg-white/40'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
+      <section className="py-24 border-t border-white/5 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6 text-center mb-14">
+          <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">On The Ground</p>
+          <h2 className="text-3xl md:text-4xl font-bold">Real youth. Real programs. Real impact.</h2>
         </div>
+
+        {/* Full-bleed living photo wall — deliberately breaks out of the
+            max-w-6xl container above so it feels large and immersive. */}
+        <PhotoWall />
       </section>
 
       <section className="py-24 px-6 border-t border-white/5">

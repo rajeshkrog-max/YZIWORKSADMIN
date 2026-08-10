@@ -1,4 +1,11 @@
+import { useState } from 'react'
+import EarlyBuildersForm from './EarlyBuildersForm'
+import EarlyPartnersForm from './EarlyPartnersForm'
+
 function Programs() {
+  const [isBuildersOpen, setIsBuildersOpen] = useState(false)
+  const [isPartnersOpen, setIsPartnersOpen] = useState(false)
+
   return (
     <section className="py-24 bg-yzi-black relative">
       <div className="max-w-6xl mx-auto px-6">
@@ -49,7 +56,10 @@ function Programs() {
               </li>
             </ul>
 
-            <button className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform">
+            <button
+              onClick={() => setIsBuildersOpen(true)}
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform"
+            >
               Build your work identity
             </button>
           </div>
@@ -87,13 +97,26 @@ function Programs() {
               </li>
             </ul>
 
-            <button className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold hover:scale-[1.02] transition-transform">
+            <button
+              onClick={() => setIsPartnersOpen(true)}
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold hover:scale-[1.02] transition-transform"
+            >
               Collaborate. Innovate. Build together.
             </button>
           </div>
 
         </div>
       </div>
+
+      <EarlyBuildersForm
+        isOpen={isBuildersOpen}
+        onClose={() => setIsBuildersOpen(false)}
+      />
+
+      <EarlyPartnersForm
+        isOpen={isPartnersOpen}
+        onClose={() => setIsPartnersOpen(false)}
+      />
     </section>
   )
 }

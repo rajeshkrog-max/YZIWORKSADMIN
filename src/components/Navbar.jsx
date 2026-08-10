@@ -31,7 +31,7 @@ function Navbar() {
           <div className="hidden md:flex items-center gap-8 text-sm text-white/80">
             <Link to="/about" className="hover:text-white transition">About Us</Link>
             <button onClick={() => setIsVideoOpen(true)} className="hover:text-white transition">
-              Dashboard
+              Meet Ai Sera
             </button>
             <Link to="/application-process" className="hover:text-white transition">
               Application Process
