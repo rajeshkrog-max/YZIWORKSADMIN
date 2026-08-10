@@ -69,18 +69,10 @@ function HeroSlider() {
 
   return (
     <>
-      {/*
-        No top padding here anymore — that "pt-16" was fighting your fixed
-        header's real height on small screens and letting the slider slide
-        under the nav. Give the <header> itself a fixed height class (e.g.
-        h-16) and this section a matching margin instead, OR make the header
-        non-fixed. If your header IS fixed/sticky, replace pt-16 below with
-        whatever its real rendered height is on mobile.
-      */}
-      <section className="relative w-full">
+      <section className="relative w-full pt-16">
         <div
           className="relative w-full overflow-hidden bg-black
-                     aspect-[21/9] md:aspect-auto md:h-[78vh] lg:h-[85vh]"
+                     aspect-[3/2] md:aspect-auto md:h-[78vh] lg:h-[85vh]"
         >
           {/* Sliding Track */}
           <div
@@ -96,23 +88,27 @@ function HeroSlider() {
                 onClick={handleSlideClick}
               >
                 {/*
-                  All 4 slides are the exact same 1915x821 (21:9) image, so the
-                  outer box above is locked to aspect-[21/9] on mobile — the
-                  image fills it edge-to-edge with zero cropping AND zero
-                  height jump between slides. Desktop keeps your original
-                  full-bleed h-[78vh]/h-[85vh] + object-cover look.
+                  Mobile: object-cover can ONLY crop left-right on a banner
+                  this wide (it always shows full height, math guarantees it)
+                  — that's why the badge row kept bleeding in. So on mobile
+                  the image is instead absolutely positioned and manually
+                  scaled to 228% width, pinned top-left. That crops BOTH the
+                  right side (photo) AND the bottom (badges row), leaving just
+                  the badge/headline/subtext block, nice and large.
+                  Desktop resets to your original static full-bleed object-cover.
                 */}
                 <img
                   src={slide}
                   alt={`YZI Works slide ${index + 1}`}
-                  className="w-full h-full object-cover object-center block"
+                  className="absolute top-0 left-0 w-[228%] h-auto max-w-none
+                             md:static md:w-full md:h-full md:max-w-full md:object-cover md:object-center"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40 pointer-events-none"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30 md:to-black/40 pointer-events-none"></div>
 
                 {/* Small hint only on mobile */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 md:hidden pointer-events-none">
-                  <span className="text-[11px] text-white/70 tracking-wide bg-black/30 px-3 py-1 rounded-full">
-                    Swipe or tap to view
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 md:hidden pointer-events-none">
+                  <span className="text-[11px] text-white/70 tracking-wide bg-black/40 px-3 py-1 rounded-full">
+                    Swipe or tap to view full image
                   </span>
                 </div>
               </div>
@@ -120,7 +116,7 @@ function HeroSlider() {
           </div>
 
           {/* Indicators */}
-          <div className="absolute bottom-2 md:bottom-5 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+          <div className="absolute bottom-1 md:bottom-5 left-1/2 -translate-x-1/2 z-20 flex gap-2">
             {slides.map((_, index) => (
               <button
                 key={index}
