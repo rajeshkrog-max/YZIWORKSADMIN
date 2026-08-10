@@ -890,11 +890,12 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                 </div>
 
                 <h3 className="text-xl font-bold mb-2">
-                  You are Verified!
+                  Application Submitted.
+
                 </h3>
 
                 <p className="text-yzi-muted mb-6">
-                  Thank you. Our team will contact you soon.
+                  Thank you. 
                 </p>
 
                 <button

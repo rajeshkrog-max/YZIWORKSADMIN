@@ -350,7 +350,7 @@ function Footer() {
             />
 
             <p className="text-white/50 text-sm max-w-xs leading-relaxed">
-              An intelligent system that organizes, matches, and builds — for India's next generation of founders.
+              A flexible work and opportunity platform by Young Zone India, connecting people, businesses and service providers to discover, collaborate and grow through a better way of working.
             </p>
           </div>
 

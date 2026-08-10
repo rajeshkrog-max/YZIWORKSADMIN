@@ -87,13 +87,16 @@ function AboutUs() {
       {/* ========== ORIGIN STORY ========== */}
       <section className="py-24 px-6 border-t border-white/5">
         <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div className="relative">
+
+          {/* Opening story */}
+          <div className="grid lg:grid-cols-2 gap-16 items-start mb-24">
+            <div className="relative lg:sticky lg:top-24">
               <div className="absolute -inset-4 bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 blur-2xl rounded-3xl" />
+
               <img
                 src={onceImage}
                 alt="Once Upon A Time"
-                className="relative rounded-2xl w-full h-[480px] object-cover border border-white/10"
+                className="relative rounded-2xl w-full h-auto max-h-[620px] object-cover border border-white/10"
               />
             </div>
 
@@ -101,22 +104,375 @@ function AboutUs() {
               <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
                 Our Origin
               </p>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Built by the people it serves
+
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-8 leading-tight">
+                It started with a simple belief
               </h2>
-              <div className="space-y-5 text-white/60 leading-relaxed">
+
+              <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
                 <p>
-                  Young Zone India began in 2017 as a small, informal gathering — a handful of creative minds meeting on weekends, without funding, infrastructure, or a playbook. What they had was a shared observation: talented young people across India were being held back not by ability, but by access — to mentorship, resources, and rooms where opportunity actually got decided.
+                  It started with a simple belief: Young people deserve more
+                  opportunities.
                 </p>
+
                 <p>
-                  That group grew into a production house, then an events and media organization, and eventually into a certified social impact startup recognized under India's DPIIT Startup India initiative. Today, Young Zone India operates across content, events, entertainment, and production — each one built to remove a different barrier standing between young talent and the opportunity it deserves.
+                  In 2017, Young Zone India (YZI) began with a vision to create a
+                  space where young people could discover opportunities, express
+                  themselves, build communities and create something of their own.
                 </p>
+
                 <p>
-                  <span className="text-white font-medium">YZI Works is the newest expression of that mission</span> — purpose-built for founders and builders, structured with the same discipline that has carried Young Zone India from a WhatsApp group to a multi-vertical organization trusted by national and global partners.
+                  What started as a youth-focused initiative gradually evolved
+                  through years of experimentation, community building and learning.
+                </p>
+
+                <p>
+                  We explored different ways to serve the next generation — from
+                  creative communities and events to media, entertainment, learning,
+                  careers and entrepreneurship.
+                </p>
+
+                <p>
+                  Every chapter taught us something new.
+                </p>
+
+                <p>
+                  And every chapter brought us closer to one larger question:
+                </p>
+
+                <p className="text-white text-xl md:text-2xl font-medium leading-relaxed">
+                  What would it take to build an ecosystem where young people can
+                  actually shape their own future?
                 </p>
               </div>
             </div>
           </div>
+
+          {/* From an idea to an ecosystem */}
+          <div className="max-w-4xl mx-auto mb-24">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              From an idea to an ecosystem
+            </p>
+
+            <h2 className="text-3xl md:text-4xl font-bold mb-8">
+              From an idea to an ecosystem
+            </h2>
+
+            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+              <p>
+                Over the years, YZI evolved through multiple initiatives and
+                experiments.
+              </p>
+
+              <p>
+                We built communities around arts and creativity, explored events and
+                entertainment through YZI Events and YZI Entertainment, created
+                conversations through YZI Connects, and explored learning and
+                career-focused initiatives through YZI SkillZone.
+              </p>
+
+              <p>
+                Some ideas evolved.
+              </p>
+
+              <p>
+                Some changed direction.
+              </p>
+
+              <p>
+                Some were paused.
+              </p>
+
+              <p>
+                But the underlying mission remained the same:
+              </p>
+
+              <p className="text-white text-xl md:text-2xl font-medium">
+                Create access to opportunities and help the next generation become
+                more independent.
+              </p>
+
+              <p>
+                YZI Productions Private Limited was incorporated in 2019, formalising
+                the organisation behind the growing ecosystem. In 2021, YZI also
+                received DPIIT recognition as a startup.
+              </p>
+
+              <p>
+                Since then, we've continued experimenting, building partnerships,
+                listening to young people and understanding where the biggest gaps
+                actually exist.
+              </p>
+            </div>
+          </div>
+
+          {/* And then we looked at work */}
+          <div className="max-w-4xl mx-auto mb-24">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              The next question
+            </p>
+
+            <h2 className="text-3xl md:text-4xl font-bold mb-8">
+              And then we looked at work.
+            </h2>
+
+            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+              <p>
+                We realised that one of the biggest transitions in a young person's
+                life is the transition from education to work.
+              </p>
+
+              <p>
+                Yet the traditional system often presents a very narrow path:
+              </p>
+
+              <div className="my-8 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5 text-center">
+                <p className="text-white font-semibold text-lg md:text-xl">
+                  Study → Graduate → Find a job → Work 9–5 → Repeat.
+                </p>
+              </div>
+
+              <p>
+                But the next generation is growing up differently.
+              </p>
+
+              <ul className="space-y-4 pl-5 list-disc marker:text-orange-400">
+                <li>Students want experience before graduation.</li>
+                <li>Creators want to build careers around their craft.</li>
+                <li>Freelancers want better opportunities and professional relationships.</li>
+                <li>Young professionals want flexibility and ownership.</li>
+                <li>Businesses need people for projects, assignments and changing requirements.</li>
+              </ul>
+
+              <p>
+                The way people work, earn and build their professional lives is
+                changing.
+              </p>
+
+              <p className="text-white text-xl md:text-2xl font-medium">
+                YZI decided to build for that change.
+              </p>
+            </div>
+          </div>
+
+          {/* Introducing YZI Works */}
+          <div className="mb-24 rounded-3xl border border-orange-500/20 bg-gradient-to-br from-orange-500/[0.08] via-pink-500/[0.04] to-transparent p-8 md:p-12">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              Introducing YZI Works
+            </p>
+
+            <h2 className="text-3xl md:text-5xl font-bold mb-8">
+              YZI Works is the next evolution of that journey.
+            </h2>
+
+            <div className="space-y-6 text-white/70 leading-relaxed text-base md:text-lg">
+              <p>
+                It is our attempt to build a better way for people and businesses to
+                discover, connect and collaborate around work.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-6 my-10">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+                  <h3 className="text-white font-bold text-lg mb-4">
+                    For individuals
+                  </h3>
+
+                  <p className="text-white/60 leading-relaxed">
+                    Discover work → Gain experience → Build your professional
+                    identity → Grow on your terms.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+                  <h3 className="text-white font-bold text-lg mb-4">
+                    For businesses and service providers
+                  </h3>
+
+                  <p className="text-white/60 leading-relaxed">
+                    Find people → Collaborate → Get work done → Build long-term
+                    relationships.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-white text-xl md:text-2xl font-semibold">
+                But we're not trying to build another job portal.
+              </p>
+
+              <p>
+                We're exploring a future where work can be more flexible, accessible
+                and human.
+              </p>
+            </div>
+          </div>
+
+          {/* We're still building */}
+          <div className="max-w-4xl mx-auto mb-24">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              We're still building
+            </p>
+
+            <h2 className="text-3xl md:text-4xl font-bold mb-8">
+              Built with the community.
+            </h2>
+
+            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+              <p>
+                YZI Works is being developed with our community — not simply for it.
+              </p>
+
+              <p>
+                Our Early Builders and Early Partners are helping us understand what
+                actually works in the real world.
+              </p>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-8">
+                {[
+                  'Students',
+                  'Creators',
+                  'Freelancers',
+                  'Young professionals',
+                  'Startups',
+                  'MSMEs',
+                  'Businesses',
+                  'Service providers',
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center text-white/70"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+
+              <p>
+                Their experiences, feedback and participation will shape what YZI
+                Works becomes.
+              </p>
+
+              <p className="text-white text-xl md:text-2xl font-medium leading-relaxed">
+                Because we don't believe the future of work should be decided by a
+                few companies and handed to everyone else.
+              </p>
+
+              <p className="text-white text-2xl md:text-3xl font-bold">
+                It should be built together.
+              </p>
+            </div>
+          </div>
+
+          {/* Timeline */}
+          <div className="max-w-4xl mx-auto mb-24">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              From Young Zone India to YZI Works
+            </p>
+
+            <h2 className="text-3xl md:text-4xl font-bold mb-10">
+              From Young Zone India to YZI Works
+            </h2>
+
+            <div className="relative border-l border-white/10 ml-3 pl-8 space-y-10">
+              {[
+                {
+                  year: '2017',
+                  text: 'Young Zone India begins with a youth-focused vision.',
+                },
+                {
+                  year: '2019',
+                  text: 'YZI Productions Private Limited is incorporated.',
+                },
+                {
+                  year: '2021',
+                  text: 'YZI receives DPIIT startup recognition.',
+                },
+                {
+                  year: '2017–2025',
+                  text: 'Communities, creative initiatives, events, media, learning and career-focused initiatives evolve through experimentation and partnerships.',
+                },
+                {
+                  year: '2026',
+                  text: 'YZI begins its next chapter with YZI Works, focused on building a more flexible and opportunity-driven way of working.',
+                },
+              ].map((item) => (
+                <div key={item.year} className="relative">
+                  <span className="absolute -left-[41px] top-1.5 w-3 h-3 rounded-full bg-orange-500 ring-4 ring-[#05050A]" />
+
+                  <p className="text-orange-400 font-bold text-lg mb-2">
+                    {item.year}
+                  </p>
+
+                  <p className="text-white/60 leading-relaxed text-base md:text-lg">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Our belief */}
+          <div className="max-w-5xl mx-auto rounded-3xl border border-white/10 bg-white/[0.03] p-8 md:p-12">
+            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              Our belief
+            </p>
+
+            <h2 className="text-3xl md:text-4xl font-bold mb-8">
+              Choose Work Independence.
+            </h2>
+
+            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+              <p>
+                We believe the next generation shouldn't have to wait until they're
+                trapped in a career they don't enjoy to start looking for
+                independence.
+              </p>
+
+              <p>
+                They should be able to explore earlier, experience more, build their
+                identity and choose how they want to work.
+              </p>
+
+              <p>
+                And businesses shouldn't have to wait for the workforce to change
+                around them.
+              </p>
+
+              <p>
+                They can help build that change.
+              </p>
+
+              <div className="pt-6 border-t border-white/10">
+                <p className="text-white font-semibold text-xl md:text-2xl mb-4">
+                  This is YZI.
+                </p>
+
+                <p className="text-white/60">
+                  Started with youth.
+                  <br />
+                  Built through experimentation.
+                  <br />
+                  Driven by opportunity.
+                  <br />
+                  And now building toward a more independent future of work.
+                </p>
+              </div>
+
+              <div className="pt-6">
+                <p className="text-white text-2xl md:text-3xl font-bold">
+                  Choose Work Independence.
+                </p>
+
+                <p className="text-orange-400 font-semibold mt-3">
+                  YZI Works
+                </p>
+
+                <p className="text-white/50 text-sm mt-1">
+                  An initiative by Young Zone India (YZI)
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 

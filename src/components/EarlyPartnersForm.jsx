@@ -514,7 +514,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
 
               <div>
                 <label className="text-sm text-yzi-muted mb-1 block">
-                  What do you need talent for?
+                  What are you looking for?
                 </label>
                 <textarea
                   name="talentNeed"
@@ -911,11 +911,11 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                 </div>
 
                 <h3 className="text-xl font-bold mb-2">
-                  You are Verified!
+                  Application Submitted. 
                 </h3>
 
                 <p className="text-yzi-muted mb-6">
-                  Thank you. Our team will contact you soon.
+                  Thank you.
                 </p>
 
                 <button
