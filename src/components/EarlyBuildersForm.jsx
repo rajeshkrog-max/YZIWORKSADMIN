@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useOtpLaunchGuard } from '../hooks/useOtpLaunchGuard'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
 import { uploadFilesToR2 } from '../utils/r2Upload'
 import youthImage from '../assets/youth.png'
@@ -41,6 +42,11 @@ function EarlyBuildersForm({ isOpen, onClose }) {
   const [selectedFiles, setSelectedFiles] = useState([])
   const fileInputRef = useRef(null)
   const [isProcessingSubmission, setIsProcessingSubmission] = useState(false)
+
+  const {
+    isOtpLaunching,
+    acquireLock
+  } = useOtpLaunchGuard(3000)
 
   const [privacyNoticeRead, setPrivacyNoticeRead] = useState(false)
   const privacyNoticeRef = useRef(null)
@@ -208,7 +214,13 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
     if (!validate()) return
+
+    const releaseOtpLaunch = acquireLock()
+
+    // Ignore accidental double-clicks or simultaneous submissions.
+    if (!releaseOtpLaunch) return
 
     try {
       await loadMsg91Script()
@@ -216,6 +228,8 @@ function EarlyBuildersForm({ isOpen, onClose }) {
       openMsg91OTP({
         phone: formData.phone,
         onSuccess: async (data) => {
+          releaseOtpLaunch()
+
           console.log('MSG91 success:', data)
           setReqId(data.reqId || '')
           setIsProcessingSubmission(true)
@@ -267,11 +281,15 @@ function EarlyBuildersForm({ isOpen, onClose }) {
           }
         },
         onFailure: (error) => {
+          releaseOtpLaunch()
+
           console.error(error)
           alert('OTP verification failed')
         }
       })
     } catch (error) {
+      releaseOtpLaunch()
+
       console.error(error)
       alert('Failed to load OTP service')
     }
@@ -825,10 +843,14 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
               <button
                 type="submit"
-                disabled={isProcessingSubmission}
+                disabled={isProcessingSubmission || isOtpLaunching}
                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isProcessingSubmission ? 'Processing...' : 'Submit Application'}
+                {isProcessingSubmission
+                  ? 'Processing...'
+                  : isOtpLaunching
+                    ? 'Opening verification...'
+                    : 'Submit Application'}
               </button>
             </form>
           </div>
@@ -938,7 +960,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                 </p>
 
                 <button
-                  onClick={onClose}
+                  onClick={() => {
+                    resetForm()
+                    onClose()
+                  }}
                   className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold"
                 >
                   Close
