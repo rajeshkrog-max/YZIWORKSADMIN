@@ -8,26 +8,28 @@ const PRIVACY_NOTICE_VERSION = 'v1'
 const PRIVACY_CONSENT_TEXT =
   'I agree to the collection and processing of my personal data by Young Zone India for the YZI Works platform as detailed in the Privacy Notice above [DPDPA 2023].'
 
+const INITIAL_FORM_DATA = {
+  firstName: '',
+  lastName: '',
+  age: '',
+  gender: '',
+  qualification: '',
+  otherQualification: '',
+  field: '',
+  otherField: '',
+  role: '',
+  otherRole: '',
+  email: '',
+  phone: '',
+  about: '',
+  source: '',
+  otherSource: '',
+  consent: false,
+  consentTimestamp: ''
+}
+
 function EarlyBuildersForm({ isOpen, onClose }) {
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    age: '',
-    gender: '',
-    qualification: '',
-    otherQualification: '',
-    field: '',
-    otherField: '',
-    role: '',
-    otherRole: '',
-    email: '',
-    phone: '',
-    about: '',
-    source: '',
-    otherSource: '',
-    consent: false,
-    consentTimestamp: ''
-  })
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA)
 
   const [errors, setErrors] = useState({})
   const [showOtpModal, setShowOtpModal] = useState(false)
@@ -42,6 +44,28 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
   const [privacyNoticeRead, setPrivacyNoticeRead] = useState(false)
   const privacyNoticeRef = useRef(null)
+
+  const resetForm = () => {
+    setFormData(INITIAL_FORM_DATA)
+    setErrors({})
+    setShowOtpModal(false)
+    setOtp('')
+    setIsVerified(false)
+    setTimer(30)
+    setCanResend(false)
+    setReqId('')
+    setSelectedFiles([])
+    setIsProcessingSubmission(false)
+    setPrivacyNoticeRead(false)
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
+    if (privacyNoticeRef.current) {
+      privacyNoticeRef.current.scrollTop = 0
+    }
+  }
 
   const industries = [
     'Software & IT',
@@ -308,15 +332,30 @@ function EarlyBuildersForm({ isOpen, onClose }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 overflow-hidden">
+      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto overscroll-contain">
 
         <button
-          onClick={onClose}
+          onClick={() => {
+            resetForm()
+            onClose()
+          }}
           className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
         >
           ✕
         </button>
+
+        {/* Mobile image banner */}
+        <div
+          className="lg:hidden relative w-full h-40 overflow-hidden"
+          style={{
+            backgroundImage: `url(${youthImage})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center 25%',
+          }}
+        >
+          <div className="absolute inset-0 bg-black/35" />
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2">
 
