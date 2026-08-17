@@ -40,7 +40,7 @@ function AnnouncementBar() {
   )
 
   return (
-    <div className="fixed top-16 left-0 right-0 z-[50] bg-black border-b border-white/10 overflow-hidden">
+    <div className="fixed top-0 left-0 right-0 z-[200] bg-black border-b border-white/10 overflow-hidden">
       <div className="relative flex items-center h-11 md:h-12">
         <div className="flex animate-marquee whitespace-nowrap">
           {announcement}
