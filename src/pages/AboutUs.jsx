@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import OurVerticals from '../components/OurVerticals'
 import PhotoWall from '../components/PhotoWall'
+import EarlyBuildersForm from '../components/EarlyBuildersForm'
 import aboutHero from '../assets/aboutus/aboutushero.png'
 import onceImage from '../assets/aboutus/once.png'
 
@@ -34,6 +36,8 @@ const testimonials = [
 ]
 
 function AboutUs() {
+  const [isBuildersOpen, setIsBuildersOpen] = useState(false)
+
   return (
     <div className="min-h-screen bg-[#05050A] text-white">
       {/* ========== HERO ========== */}
@@ -538,12 +542,12 @@ function AboutUs() {
           Here's how to become part of the movement.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link
-            to="/"
+          <button
+            onClick={() => setIsBuildersOpen(true)}
             className="px-8 py-3.5 rounded-full font-semibold text-white bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 hover:opacity-90 transition"
           >
             Join as Early Builder
-          </Link>
+          </button>
           <Link
             to="/application-process"
             className="px-8 py-3.5 rounded-full font-semibold text-white border border-white/20 hover:bg-white/10 transition"
@@ -552,6 +556,11 @@ function AboutUs() {
           </Link>
         </div>
       </section>
+
+      <EarlyBuildersForm
+        isOpen={isBuildersOpen}
+        onClose={() => setIsBuildersOpen(false)}
+      />
 
       <Footer />
     </div>
