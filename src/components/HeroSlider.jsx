@@ -101,7 +101,7 @@ function HeroSlider() {
                   src={slide}
                   alt={`YZI Works slide ${index + 1}`}
                   className="absolute top-0 left-0 w-[228%] h-auto max-w-none
-                             md:static md:w-full md:h-full md:max-w-full md:object-cover md:object-top"
+                             md:static md:w-full md:h-full md:max-w-full md:object-contain md:object-center"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30 md:to-black/40 pointer-events-none"></div>
 
