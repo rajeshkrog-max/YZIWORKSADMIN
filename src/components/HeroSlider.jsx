@@ -69,7 +69,7 @@ function HeroSlider() {
 
   return (
     <>
-      <section className="relative w-full pt-16">
+      <section className="relative w-full pt-[108px] md:pt-[112px]">
         <div
           className="relative w-full overflow-hidden bg-black
                      aspect-[3/2] md:aspect-auto md:h-[78vh] lg:h-[85vh]"
