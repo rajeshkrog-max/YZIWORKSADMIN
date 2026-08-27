@@ -35,6 +35,15 @@ read the actual current source under `src/pages/MeetSera.jsx`,
 planning notes below, which describe the *design*, not necessarily every
 exact implementation detail.
 
+**Live-testing log:** (1) Google Cloud Console OAuth Client ID needed the
+real deployed origin (`https://yziworks.netlify.app`) added under
+Authorized JavaScript origins — user did this, config-only, not a code
+fix. (2) Sign-in then hung forever on "Signing you in…" — root cause was
+the default `Cross-Origin-Opener-Policy: same-origin` blocking the Google
+popup from signaling back to the opener; fixed in `public/_headers` by
+setting `same-origin-allow-popups` (commit 6eacdea). Not yet confirmed this
+fully resolves it — next test should get past sign-in to the upload step.
+
 **What's NOT yet verified (needs a real end-to-end test with a real
 Google account, a real résumé PDF, and willingness to spend a little real
 Retell/Gemini credit):**
