@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs'
+import { getEligibilityStore } from '../lib/eligibilityStore.js'
 
 // Polled by the browser after a call ends. Zero LLM cost — just reads back
 // whatever the webhook already computed, so the report is never generated
@@ -15,7 +15,7 @@ export async function handler(event) {
       return { statusCode: 400, body: JSON.stringify({ error: 'A valid email is required' }) }
     }
 
-    const store = getStore('sera-eligibility')
+    const store = getEligibilityStore()
     const record = await store.get(email.toLowerCase(), { type: 'json' })
 
     if (record?.status === 'completed' && record.report) {

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { getStore } from '@netlify/blobs'
+import { getEligibilityStore } from '../lib/eligibilityStore.js'
 import { generateJson } from '../lib/openai.js'
 import { REPORT_SCHEMA, buildReportPrompt } from '../lib/seraReport.js'
 
@@ -155,7 +155,7 @@ export async function handler(event) {
       return { statusCode: 200, body: JSON.stringify({ received: true }) }
     }
 
-    const store = getStore('sera-eligibility')
+    const store = getEligibilityStore()
     const record = (await store.get(email.toLowerCase(), { type: 'json' })) || {}
     const candidateName = record.name || 'Candidate'
     const resumeText = record.resumeText || ''

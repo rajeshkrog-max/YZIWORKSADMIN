@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs'
+import { getEligibilityStore } from '../lib/eligibilityStore.js'
 
 const RETELL_CREATE_CALL_URL = 'https://api.retellai.com/v2/create-web-call'
 
@@ -35,7 +35,7 @@ export async function handler(event) {
       return jsonResponse(400, { error: 'Invalid attachment location' })
     }
 
-    const store = getStore('sera-eligibility')
+    const store = getEligibilityStore()
     const isAdmin = isAdminEmail(email)
 
     if (!isAdmin) {
