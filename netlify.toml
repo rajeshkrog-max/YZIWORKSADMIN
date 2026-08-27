@@ -1,0 +1,7 @@
+[build.environment]
+  # SERA_ADMIN_EMAILS holds a test/admin email address, not a credential —
+  # it's expected to appear in the deployed function bundle (it's read via
+  # process.env at runtime like any other env var) and isn't sensitive if
+  # exposed. Netlify's secret scanner was flagging it as a false positive
+  # and failing every build.
+  SECRETS_SCAN_OMIT_KEYS = "SERA_ADMIN_EMAILS"
