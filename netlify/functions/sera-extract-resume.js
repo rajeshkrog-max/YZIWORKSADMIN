@@ -63,7 +63,12 @@ export async function handler(event) {
       const pdf = await getDocumentProxy(new Uint8Array(buffer))
       const { text } = await extractText(pdf, { mergePages: true })
       extractedText = (text || '').trim()
-    } catch {
+    } catch (err) {
+      console.error('Sera extract-resume: PDF parse failed', {
+        objectKey,
+        bufferBytes: buffer.length,
+        error: err?.stack || err?.message || err,
+      })
       return {
         statusCode: 200,
         headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
