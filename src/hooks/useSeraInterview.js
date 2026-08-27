@@ -189,8 +189,20 @@ export function useSeraInterview() {
       })
       const extracted = await extractResponse.json()
 
-      if (!extractResponse.ok || !extracted.valid) {
+      if (!extractResponse.ok) {
+        // A genuine server/API failure — NOT the same as "this isn't a résumé".
+        // Don't blame the candidate's file for something on our end.
+        setError(extracted.error || 'Something went wrong reading your résumé — please try again in a moment.')
+        setResumeFile(null)
+        setResumeMeta(null)
+        setScreen('upload')
+        return
+      }
+
+      if (!extracted.valid) {
         setError(extracted.reason || "That doesn't look like a résumé — please try another file.")
+        setResumeFile(null)
+        setResumeMeta(null)
         setScreen('upload')
         return
       }
