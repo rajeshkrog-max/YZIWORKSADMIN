@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import logo from '../assets/logo.png'
-import VideoModal from './VideoModal'
 import ChoiceModal from './ChoiceModal'
 import EarlyBuildersForm from './EarlyBuildersForm'
 import EarlyPartnersForm from './EarlyPartnersForm'
 
 function Navbar() {
-  const [isVideoOpen, setIsVideoOpen] = useState(false)
   const [isChoiceOpen, setIsChoiceOpen] = useState(false)
   const [isBuildersOpen, setIsBuildersOpen] = useState(false)
   const [isPartnersOpen, setIsPartnersOpen] = useState(false)
@@ -30,9 +28,9 @@ function Navbar() {
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8 text-sm text-white/80">
             <Link to="/about" className="hover:text-white transition">About Us</Link>
-            <button onClick={() => setIsVideoOpen(true)} className="hover:text-white transition">
+            <Link to="/meet-sera" className="hover:text-white transition">
               Meet Ai Sera
-            </button>
+            </Link>
             <Link to="/application-process" className="hover:text-white transition">
               Application Process
             </Link>
@@ -67,15 +65,13 @@ function Navbar() {
             >
               About Us
             </Link>
-            <button 
-              onClick={() => {
-                setIsMobileMenuOpen(false)
-                setIsVideoOpen(true)
-              }}
-              className="block text-white/90 py-2 w-full text-left"
+            <Link
+              to="/meet-sera"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block text-white/90 py-2"
             >
-              Dashboard
-            </button>
+              Meet Ai Sera
+            </Link>
             <Link 
               to="/application-process"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -96,8 +92,6 @@ function Navbar() {
         )}
       </nav>
 
-      <VideoModal isOpen={isVideoOpen} onClose={() => setIsVideoOpen(false)} />
-      
       <ChoiceModal
         isOpen={isChoiceOpen}
         onClose={() => setIsChoiceOpen(false)}
