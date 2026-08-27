@@ -5,12 +5,11 @@ import { generateJson } from '../lib/openai.js'
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
 
-// unpdf's internal module-resolution helper (resolvePDFJSImport) throws
-// "module is not defined in ES module scope" in Netlify's runtime — not
-// just its auto-detect path, but ALSO when explicitly overridden via
-// definePDFJSModule (confirmed via live production logs on both attempts).
-// Calling pdfjs-dist directly removes the broken layer entirely instead of
-// working around it.
+// pdfjs-dist's legacy build is genuinely ESM-only (.mjs, no CJS fallback).
+// Calling it directly (no unpdf wrapper — that had its own separate,
+// unrelated bug) is correct; what actually broke this in production was
+// Netlify's bundler rewriting the import into a require() call, fixed via
+// external_node_modules in netlify.toml, not anything in this file.
 async function extractPdfText(buffer) {
   const loadingTask = getDocument({ data: new Uint8Array(buffer) })
   const pdf = await loadingTask.promise

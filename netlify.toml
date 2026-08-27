@@ -5,3 +5,11 @@
   # exposed. Netlify's secret scanner was flagging it as a false positive
   # and failing every build.
   SECRETS_SCAN_OMIT_KEYS = "SERA_ADMIN_EMAILS"
+
+[functions]
+  # pdfjs-dist's legacy build is a genuine ESM-only file (.mjs, no CJS
+  # equivalent). Netlify's default esbuild bundler rewrites imports of it
+  # into require() calls, which then crash at runtime with ERR_REQUIRE_ESM
+  # (confirmed via live production logs). Marking it external skips that
+  # rewriting entirely and lets Node's own runtime load it correctly instead.
+  external_node_modules = ["pdfjs-dist"]
