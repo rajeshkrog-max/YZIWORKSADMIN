@@ -17,8 +17,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
-    "retell-client-js-sdk": "^2.0.8",
-    "unpdf": "^1.8.1"
+    "retell-client-js-sdk": "^2.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

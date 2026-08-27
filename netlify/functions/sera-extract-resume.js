@@ -1,16 +1,27 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { extractText, getDocumentProxy, definePDFJSModule } from 'unpdf'
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { generateJson } from '../lib/openai.js'
 
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
 
-// unpdf's automatic "serverless PDF.js bundle" detection fails in Netlify's
-// runtime (ReferenceError: module is not defined in ES module scope,
-// confirmed via live production logs). Point it at the official pdfjs-dist
-// legacy build instead — the Node.js-recommended entry point, verified
-// locally against a real R2-stored résumé before this was ever deployed.
-const pdfjsReady = definePDFJSModule(() => import('pdfjs-dist/legacy/build/pdf.mjs'))
+// unpdf's internal module-resolution helper (resolvePDFJSImport) throws
+// "module is not defined in ES module scope" in Netlify's runtime — not
+// just its auto-detect path, but ALSO when explicitly overridden via
+// definePDFJSModule (confirmed via live production logs on both attempts).
+// Calling pdfjs-dist directly removes the broken layer entirely instead of
+// working around it.
+async function extractPdfText(buffer) {
+  const loadingTask = getDocument({ data: new Uint8Array(buffer) })
+  const pdf = await loadingTask.promise
+  let fullText = ''
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    fullText += content.items.map((item) => item.str).join(' ') + '\n'
+  }
+  return fullText.trim()
+}
 
 function getS3Client() {
   const accountId = process.env.R2_ACCOUNT_ID
@@ -61,17 +72,13 @@ export async function handler(event) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid attachment location' }) }
     }
 
-    await pdfjsReady
-
     const s3 = getS3Client()
     const object = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
     const buffer = await streamToBuffer(object.Body)
 
     let extractedText = ''
     try {
-      const pdf = await getDocumentProxy(new Uint8Array(buffer))
-      const { text } = await extractText(pdf, { mergePages: true })
-      extractedText = (text || '').trim()
+      extractedText = await extractPdfText(buffer)
     } catch (err) {
       console.error('Sera extract-resume: PDF parse failed', {
         objectKey,
