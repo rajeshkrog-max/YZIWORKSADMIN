@@ -41,8 +41,23 @@ Authorized JavaScript origins — user did this, config-only, not a code
 fix. (2) Sign-in then hung forever on "Signing you in…" — root cause was
 the default `Cross-Origin-Opener-Policy: same-origin` blocking the Google
 popup from signaling back to the opener; fixed in `public/_headers` by
-setting `same-origin-allow-popups` (commit 6eacdea). Not yet confirmed this
-fully resolves it — next test should get past sign-in to the upload step.
+setting `same-origin-allow-popups` (commit 6eacdea). (3) Got to upload —
+sign-in and upload both confirmed working on a real device. (4) Résumé
+upload rejected a genuine, clean résumé as "doesn't look like a résumé."
+Root cause confirmed by replaying the exact Gemini call locally against
+the user's real résumé text: **`GEMINI_API_KEY` is not a valid Gemini
+key** — it's value starts `AQ.` (looks like a Google OAuth access token),
+not `AIzaSy...` (real Gemini API keys from aistudio.google.com/app/apikey).
+Gemini returned 401 UNAUTHENTICATED. PDF extraction itself was verified
+perfect (2761 clean chars) — this is purely a wrong-credential issue, not
+a code bug in extraction/validation. **ACTION NEEDED FROM USER:** get a
+real key from https://aistudio.google.com/app/apikey and replace
+`GEMINI_API_KEY` in both local `.env` and the Netlify dashboard. Also
+fixed in the same pass (commit f805d17): the frontend was showing "doesn't
+look like a résumé" for ANY extract-resume failure including server
+errors, and wasn't clearing the selected file on failure (so "Begin the
+interview" stayed clickable on a rejected file) — both fixed regardless of
+the API key issue.
 
 **What's NOT yet verified (needs a real end-to-end test with a real
 Google account, a real résumé PDF, and willingness to spend a little real
