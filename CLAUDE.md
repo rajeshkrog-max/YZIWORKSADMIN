@@ -202,12 +202,29 @@ switch back — it is not imported by anything currently.
 - Résumé storage: reuses existing R2 bucket/credentials, new folder
   namespace (`sera-interviews/`), PDF-only, single file, 10MB cap,
   validated both client- and server-side.
-- Résumé validation: `sera-extract-resume.js` extracts text via `pdf-parse`
-  **v2**, which has a completely different class-based API than the old
-  v1 (`new PDFParse({ data: buffer })` → `await parser.getText()` →
-  `await parser.destroy()` — NOT the old `pdf(buffer)` function). Then one
-  OpenAI call both validates "is this really a résumé" AND extracts a
-  specific highlight sentence + field, in one round trip.
+- Résumé validation: `sera-extract-resume.js` extracts text via **`unpdf`**
+  (`getDocumentProxy(new Uint8Array(buffer))` → `extractText(pdf,
+  { mergePages: true })` → `{ totalPages, text }`). **History here matters
+  if this breaks again:** first tried `pdf-parse` v1's old function API
+  (wrong — v2 is a different class-based API), then `pdf-parse` v2 itself
+  (`new PDFParse({ data: buffer })` → `.getText()` → `.destroy()`) — that
+  one passed local testing but **crashed on 100% of real invocations in
+  Netlify's actual runtime** with `ReferenceError: DOMMatrix is not
+  defined`, caught only by reading live Netlify function logs
+  (`npx netlify logs --function <name> --since 1h`, CLI already
+  authenticated on this machine). Root cause: pdf-parse v2 is built on
+  pdf.js internally and references browser canvas APIs at module-load
+  time, which don't exist in Node.js and weren't polyfilled. `unpdf` is
+  purpose-built to avoid exactly this (bundles a canvas-free pdf.js build
+  for serverless/edge runtimes) — verified against the real résumé PDF via
+  both CJS and ESM import paths locally before shipping. **Lesson:** for
+  this project, "builds and runs locally" is not sufficient — some
+  failures (native/platform-specific runtime differences) only show up in
+  Netlify's actual Lambda environment. When a Netlify function is
+  reported broken and the cause isn't obvious from code review, pull live
+  logs FIRST via the Netlify CLI before guessing. Then one OpenAI call
+  both validates "is this really a résumé" AND extracts a specific
+  highlight sentence + field, in one round trip.
 - Orb: ported from the open-source **VoiceOrbs "Particles Orb"**
   (MIT licensed, github.com/amunozdev/voiceorbs) — Fibonacci-sphere
   particle system with smooth state-blending. Adapted from its original
