@@ -1,16 +1,30 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { generateJson } from '../lib/openai.js'
 
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
 
 // pdfjs-dist's legacy build is genuinely ESM-only (.mjs, no CJS fallback).
-// Calling it directly (no unpdf wrapper — that had its own separate,
-// unrelated bug) is correct; what actually broke this in production was
-// Netlify's bundler rewriting the import into a require() call, fixed via
-// external_node_modules in netlify.toml, not anything in this file.
+// Netlify's esbuild bundler compiles this whole file to CJS output for the
+// Lambda runtime, and it silently rewrites ANY static `import` statement
+// into a `require()` call — regardless of external_node_modules settings,
+// which only control whether a package is bundled inline, not the output
+// format of this file. A static require() of an ESM-only file always
+// throws ERR_REQUIRE_ESM. The fix is a dynamic import() instead: Node
+// allows CJS files to call the real, async import() at runtime, and
+// esbuild does not downgrade dynamic import() the way it does static
+// imports. We cache the loaded module so repeat invocations on a warm
+// Lambda instance don't re-import on every call.
+let pdfjsModulePromise = null
+function loadPdfjs() {
+  if (!pdfjsModulePromise) {
+    pdfjsModulePromise = import('pdfjs-dist/legacy/build/pdf.mjs')
+  }
+  return pdfjsModulePromise
+}
+
 async function extractPdfText(buffer) {
+  const { getDocument } = await loadPdfjs()
   const loadingTask = getDocument({ data: new Uint8Array(buffer) })
   const pdf = await loadingTask.promise
   let fullText = ''
