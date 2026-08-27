@@ -1,5 +1,5 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { PDFParse } from 'pdf-parse'
+import { extractText, getDocumentProxy } from 'unpdf'
 import { generateJson } from '../lib/openai.js'
 
 const BUCKET_NAME = 'yzi-application-files'
@@ -60,10 +60,9 @@ export async function handler(event) {
 
     let extractedText = ''
     try {
-      const parser = new PDFParse({ data: buffer })
-      const parsed = await parser.getText()
-      await parser.destroy()
-      extractedText = (parsed.text || '').trim()
+      const pdf = await getDocumentProxy(new Uint8Array(buffer))
+      const { text } = await extractText(pdf, { mergePages: true })
+      extractedText = (text || '').trim()
     } catch {
       return {
         statusCode: 200,
