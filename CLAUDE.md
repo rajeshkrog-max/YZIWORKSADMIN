@@ -302,3 +302,17 @@ completed record.
    knowledge would have been wrong. Test empirically where possible
    (a real local call against the real API) rather than reasoning from
    docs alone.
+6. **A successful `git push` does NOT mean the change is live.** Netlify
+   deploys can fail after the push — happened twice in a row here because
+   its secret scanner flagged `SERA_ADMIN_EMAILS` (a harmless test-email
+   allowlist, not a credential) as an exposed secret and failed the build
+   both times, silently, with no notification to this session. Fixed via
+   `netlify.toml`'s `SECRETS_SCAN_OMIT_KEYS`. **After pushing something
+   that matters, especially after adding a new env var, check
+   app.netlify.com/projects/yziworks (or ask the user to look at
+   Deploys) rather than assuming the push alone means it's live** — the
+   Netlify CLI (`npx netlify logs --function <name> --since 1h`) is
+   already authenticated on this machine and is the fastest way to pull
+   real production error logs directly instead of guessing at a failure
+   from the browser alone; that's exactly how the pdf-parse v2 crash
+   above was actually diagnosed.
