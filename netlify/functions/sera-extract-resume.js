@@ -4,37 +4,25 @@ import { generateJson } from '../lib/openai.js'
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
 
-// pdfjs-dist's legacy build is genuinely ESM-only (.mjs, no CJS fallback).
-// Netlify's esbuild bundler compiles this whole file to CJS output for the
-// Lambda runtime, and it silently rewrites ANY static `import` statement
-// into a `require()` call — regardless of external_node_modules settings,
-// which only control whether a package is bundled inline, not the output
-// format of this file. A static require() of an ESM-only file always
-// throws ERR_REQUIRE_ESM. The fix is a dynamic import() instead: Node
-// allows CJS files to call the real, async import() at runtime, and
-// esbuild does not downgrade dynamic import() the way it does static
-// imports. We cache the loaded module so repeat invocations on a warm
-// Lambda instance don't re-import on every call.
-let pdfjsModulePromise = null
-function loadPdfjs() {
-  if (!pdfjsModulePromise) {
-    pdfjsModulePromise = import('pdfjs-dist/legacy/build/pdf.mjs')
-  }
-  return pdfjsModulePromise
-}
-
-async function extractPdfText(buffer) {
-  const { getDocument } = await loadPdfjs()
-  const loadingTask = getDocument({ data: new Uint8Array(buffer) })
-  const pdf = await loadingTask.promise
-  let fullText = ''
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    fullText += content.items.map((item) => item.str).join(' ') + '\n'
-  }
-  return fullText.trim()
-}
+// Every local PDF-parsing path tried here — pdf-parse v2 (DOMMatrix is not
+// defined), unpdf (module is not defined), pdfjs-dist legacy build (module
+// is not defined inside pdf.mjs itself), pdfjs-dist non-legacy build
+// (DOMMatrix is not defined, and pdfjs-dist explicitly warns against using
+// it outside a real browser DOM) — has hit a confirmed crash in this exact
+// Netlify Lambda runtime (Node 24). All of those libraries wrap pdf.js
+// internally, which assumes browser globals (DOMMatrix, Canvas) that don't
+// exist here. pdf-parse@1.1.1, the one path that avoids pdf.js entirely,
+// was already tested against this project's real résumé file and failed
+// separately with "bad XRef entry" — a parsing bug in its old bundled
+// pdf.js, unrelated to the runtime issue.
+//
+// Rather than keep betting on that same failing library class, this sends
+// the PDF's raw bytes straight to OpenAI as a file input on the Responses
+// API, in the same call that already checks whether it's a résumé. No PDF
+// library runs in this function anymore, so none of the above failure
+// modes apply. The model is asked to return the résumé's text itself
+// (truncated to MAX_TEXT_LENGTH) since nothing here extracts it locally
+// any more, and downstream code still expects a resumeText value back.
 
 function getS3Client() {
   const accountId = process.env.R2_ACCOUNT_ID
@@ -68,8 +56,9 @@ const RESUME_CHECK_SCHEMA = {
     candidateFirstName: { type: 'string' },
     highlight: { type: 'string' },
     field: { type: 'string' },
+    resumeText: { type: 'string' },
   },
-  required: ['isResume', 'reason', 'candidateFirstName', 'highlight', 'field'],
+  required: ['isResume', 'reason', 'candidateFirstName', 'highlight', 'field', 'resumeText'],
   additionalProperties: false,
 }
 
@@ -89,11 +78,29 @@ export async function handler(event) {
     const object = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
     const buffer = await streamToBuffer(object.Body)
 
-    let extractedText = ''
+    let check
     try {
-      extractedText = await extractPdfText(buffer)
+      check = await generateJson({
+        schema: RESUME_CHECK_SCHEMA,
+        file: {
+          filename: objectKey.split('/').pop() || 'resume.pdf',
+          mimeType: 'application/pdf',
+          base64: buffer.toString('base64'),
+        },
+        prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
+
+Read the attached PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, a scanned page with no extractable text, or a corrupted/unreadable file.
+
+If it IS a résumé, also extract:
+- candidateFirstName: their first name if visible in the text, else an empty string
+- highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
+- field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
+- resumeText: the résumé's text content, as plain text (up to roughly ${MAX_TEXT_LENGTH} characters)
+
+If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeText with empty strings, and explain briefly in reason why (e.g. not a résumé, unreadable, no extractable text).`,
+      })
     } catch (err) {
-      console.error('Sera extract-resume: PDF parse failed', {
+      console.error('Sera extract-resume: OpenAI file read failed', {
         objectKey,
         bufferBytes: buffer.length,
         error: err?.stack || err?.message || err,
@@ -108,38 +115,6 @@ export async function handler(event) {
       }
     }
 
-    if (extractedText.length < 80) {
-      return {
-        statusCode: 200,
-        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          valid: false,
-          reason: "This PDF doesn't have enough readable text — please upload your actual résumé.",
-        }),
-      }
-    }
-
-    const safeText = extractedText.slice(0, MAX_TEXT_LENGTH)
-
-    const check = await generateJson({
-      schema: RESUME_CHECK_SCHEMA,
-      prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
-
-Below is the raw text extracted from the PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, or corrupted text.
-
-If it IS a résumé, also extract:
-- candidateFirstName: their first name if visible in the text, else an empty string
-- highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
-- field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
-
-If it is NOT a résumé, fill candidateFirstName, highlight, and field with empty strings.
-
-Résumé text:
-"""
-${safeText}
-"""`,
-    })
-
     if (!check.isResume) {
       return {
         statusCode: 200,
@@ -150,6 +125,19 @@ ${safeText}
         }),
       }
     }
+
+    if (!check.resumeText || check.resumeText.length < 80) {
+      return {
+        statusCode: 200,
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valid: false,
+          reason: "This PDF doesn't have enough readable text — please upload your actual résumé.",
+        }),
+      }
+    }
+
+    const safeText = check.resumeText.slice(0, MAX_TEXT_LENGTH)
 
     return {
       statusCode: 200,

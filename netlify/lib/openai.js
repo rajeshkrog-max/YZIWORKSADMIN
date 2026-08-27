@@ -4,12 +4,30 @@ const OPENAI_MODEL = 'gpt-5.6-terra'
 // json_schema output format so the model is constrained to the shape we ask
 // for. Same {prompt, schema} -> parsed-object contract as lib/gemini.js so
 // callers don't need to know which provider is behind this.
-export async function generateJson({ prompt, schema }) {
+//
+// Optional `file` lets a caller attach a PDF (or other supported document)
+// directly to the request instead of pre-extracting its text locally. Per
+// OpenAI's Responses API file-input format, this is sent as an `input_file`
+// content part alongside the `input_text` part, with the file bytes as a
+// base64 data URL. Existing callers that don't pass `file` are unaffected —
+// content is still sent as a plain string in that case.
+export async function generateJson({ prompt, schema, file }) {
   const apiKey = process.env.OPENAI_API_KEY
 
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured')
   }
+
+  const content = file
+    ? [
+        {
+          type: 'input_file',
+          filename: file.filename,
+          file_data: `data:${file.mimeType};base64,${file.base64}`,
+        },
+        { type: 'input_text', text: prompt },
+      ]
+    : prompt
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -19,7 +37,7 @@ export async function generateJson({ prompt, schema }) {
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      input: [{ role: 'user', content: prompt }],
+      input: [{ role: 'user', content }],
       text: {
         format: {
           type: 'json_schema',
