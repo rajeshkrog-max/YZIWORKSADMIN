@@ -10,6 +10,16 @@ function jsonResponse(statusCode, body) {
   }
 }
 
+// Comma-separated allowlist (env var, not hardcoded) so test/admin accounts
+// can run the interview repeatedly without tripping the one-per-account gate.
+function isAdminEmail(email) {
+  const allowlist = (process.env.SERA_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  return allowlist.includes(email.toLowerCase())
+}
+
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed' })
@@ -26,13 +36,16 @@ export async function handler(event) {
     }
 
     const store = getStore('sera-eligibility')
-    const existing = await store.get(email.toLowerCase())
+    const isAdmin = isAdminEmail(email)
 
-    if (existing) {
-      return jsonResponse(403, {
-        error: 'already-used',
-        message: "You've already completed your interview with Sera — thanks for stopping by!",
-      })
+    if (!isAdmin) {
+      const existing = await store.get(email.toLowerCase())
+      if (existing) {
+        return jsonResponse(403, {
+          error: 'already-used',
+          message: "You've already completed your interview with Sera — thanks for stopping by!",
+        })
+      }
     }
 
     // Reserve immediately so two tabs / a double-click can't both slip through

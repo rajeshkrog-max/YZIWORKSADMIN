@@ -22,7 +22,6 @@ export function useSeraInterview() {
   const [profile, setProfile] = useState(null)
   const [resumeFile, setResumeFile] = useState(null)
   const [resumeMeta, setResumeMeta] = useState(null)
-  const [resumeData, setResumeData] = useState(null)
 
   const [elapsed, setElapsed] = useState(0)
   const [turnState, setTurnState] = useState('sera-speaking') // sera-speaking | your-turn | wrapping-up
@@ -43,7 +42,6 @@ export function useSeraInterview() {
     setProfile(null)
     setResumeFile(null)
     setResumeMeta(null)
-    setResumeData(null)
     setElapsed(0)
     setTurnState('sera-speaking')
     setTurnElapsed(0)
@@ -87,27 +85,38 @@ export function useSeraInterview() {
     stopSessionTimer()
     setScreen('wrapup')
 
+    // The report is generated exactly once, server-side, by the Retell
+    // webhook — never here. Polling a cheap read-only endpoint instead of
+    // running our own LLM call means every interview costs one analysis
+    // call, not two.
+    const POLL_INTERVAL_MS = 2000
+    const MAX_ATTEMPTS = 30 // ~60s
+
     try {
-      const response = await fetch('/.netlify/functions/sera-analyze-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidateName: profile?.name,
-          resumeText: resumeData?.resumeText,
-          transcript: transcriptRef.current,
-        }),
-      })
-      const result = await response.json()
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Unable to prepare your report')
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+
+        const response = await fetch('/.netlify/functions/sera-get-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: profile?.email }),
+        })
+        const result = await response.json()
+
+        if (response.ok && result.ready && result.report) {
+          setReport(result.report)
+          setScreen('report')
+          return
+        }
       }
-      setReport(result.report)
+      throw new Error(
+        "Your report is taking longer than expected — it's still on its way to our team by email, and we'll make sure you see it."
+      )
     } catch (err) {
       setError(err.message || 'Unable to prepare your report')
-    } finally {
       setScreen('report')
     }
-  }, [profile, resumeData, stopSessionTimer])
+  }, [profile, stopSessionTimer])
 
   const startSessionTimer = useCallback(() => {
     stopSessionTimer()
@@ -206,8 +215,6 @@ export function useSeraInterview() {
         setScreen('upload')
         return
       }
-      setResumeData(extracted)
-
       const startResponse = await fetch('/.netlify/functions/sera-start-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

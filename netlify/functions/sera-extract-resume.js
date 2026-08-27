@@ -1,6 +1,6 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { PDFParse } from 'pdf-parse'
-import { generateJson } from '../lib/gemini.js'
+import { generateJson } from '../lib/openai.js'
 
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
@@ -38,7 +38,8 @@ const RESUME_CHECK_SCHEMA = {
     highlight: { type: 'string' },
     field: { type: 'string' },
   },
-  required: ['isResume', 'reason', 'highlight', 'field'],
+  required: ['isResume', 'reason', 'candidateFirstName', 'highlight', 'field'],
+  additionalProperties: false,
 }
 
 export async function handler(event) {
@@ -94,11 +95,11 @@ export async function handler(event) {
 Below is the raw text extracted from the PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, or corrupted text.
 
 If it IS a résumé, also extract:
-- candidateFirstName: their first name if visible in the text, else omit
+- candidateFirstName: their first name if visible in the text, else an empty string
 - highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
 - field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
 
-If it is NOT a résumé, still fill highlight and field with empty strings.
+If it is NOT a résumé, fill candidateFirstName, highlight, and field with empty strings.
 
 Résumé text:
 """

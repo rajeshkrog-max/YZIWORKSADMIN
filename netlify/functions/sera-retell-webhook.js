@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getStore } from '@netlify/blobs'
-import { generateJson } from '../lib/gemini.js'
+import { generateJson } from '../lib/openai.js'
 import { REPORT_SCHEMA, buildReportPrompt } from '../lib/seraReport.js'
 
 const BUCKET_NAME = 'yzi-application-files'
@@ -199,9 +199,13 @@ export async function handler(event) {
       console.error('Sera webhook: Resend error', errorBody)
     }
 
+    // Store the report itself (not just a "completed" flag) so the browser
+    // can read back this exact result instead of paying for a second,
+    // duplicate analysis call of its own.
     await store.setJSON(email.toLowerCase(), {
       ...record,
       status: 'completed',
+      report,
       completedAt: new Date().toISOString(),
     })
 

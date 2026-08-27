@@ -1,8 +1,8 @@
 export const REPORT_SCHEMA = {
   type: 'object',
   properties: {
-    strengths: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 3 },
-    growthAreas: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 3 },
+    strengths: { type: 'array', items: { type: 'string' } },
+    growthAreas: { type: 'array', items: { type: 'string' } },
     seraNote: { type: 'string' },
     roadmap: {
       type: 'array',
@@ -12,15 +12,15 @@ export const REPORT_SCHEMA = {
           tier: { type: 'string' },
           role: { type: 'string' },
           description: { type: 'string' },
-          skills: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 3 },
+          skills: { type: 'array', items: { type: 'string' } },
         },
         required: ['tier', 'role', 'description', 'skills'],
+        additionalProperties: false,
       },
-      minItems: 3,
-      maxItems: 3,
     },
   },
   required: ['strengths', 'growthAreas', 'seraNote', 'roadmap'],
+  additionalProperties: false,
 }
 
 export function buildReportPrompt({ candidateName, resumeText, transcript }) {
