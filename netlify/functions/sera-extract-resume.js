@@ -1,9 +1,16 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { extractText, getDocumentProxy } from 'unpdf'
+import { extractText, getDocumentProxy, definePDFJSModule } from 'unpdf'
 import { generateJson } from '../lib/openai.js'
 
 const BUCKET_NAME = 'yzi-application-files'
 const MAX_TEXT_LENGTH = 12000
+
+// unpdf's automatic "serverless PDF.js bundle" detection fails in Netlify's
+// runtime (ReferenceError: module is not defined in ES module scope,
+// confirmed via live production logs). Point it at the official pdfjs-dist
+// legacy build instead — the Node.js-recommended entry point, verified
+// locally against a real R2-stored résumé before this was ever deployed.
+const pdfjsReady = definePDFJSModule(() => import('pdfjs-dist/legacy/build/pdf.mjs'))
 
 function getS3Client() {
   const accountId = process.env.R2_ACCOUNT_ID
@@ -53,6 +60,8 @@ export async function handler(event) {
     if (typeof objectKey !== 'string' || !objectKey.startsWith('sera-interviews/')) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid attachment location' }) }
     }
+
+    await pdfjsReady
 
     const s3 = getS3Client()
     const object = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
