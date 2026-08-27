@@ -26,6 +26,14 @@ export async function handler(event) {
       }
     }
 
+    if (record?.status === 'incomplete') {
+      return {
+        statusCode: 200,
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ready: true, incomplete: true }),
+      }
+    }
+
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },

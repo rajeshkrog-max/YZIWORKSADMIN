@@ -63,6 +63,7 @@ function MeetSera() {
             profile={sera.profile}
             resumeMeta={sera.resumeMeta}
             report={sera.report}
+            incomplete={sera.incomplete}
             error={sera.error}
             onDone={sera.reset}
           />

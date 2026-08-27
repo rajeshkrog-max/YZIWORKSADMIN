@@ -30,6 +30,14 @@ function escapeHtml(value) {
 // here was wrong: that's the other key, not the webhook-badged one.
 const SIGNATURE_MAX_AGE_MS = 5 * 60 * 1000
 
+// Only these two disconnection reasons represent a genuinely finished
+// interview worth paying for an analysis call over. Anything else
+// (user_hangup, inactivity, error_*) means the call didn't really happen —
+// skip the OpenAI report call entirely (real cost savings) and skip the
+// admin email, but still record what happened so the candidate's report
+// screen can say something honest instead of hanging forever.
+const COMPLETE_REASONS = ['agent_hangup', 'max_duration_reached']
+
 function verifySignature(rawBody, signatureHeader, secret) {
   if (!signatureHeader || !secret) return false
 
@@ -171,6 +179,17 @@ export async function handler(event) {
     const candidateName = record.name || 'Candidate'
     const resumeText = record.resumeText || ''
     const resolvedObjectKey = objectKey || record.objectKey
+    const disconnectionReason = call.disconnection_reason
+
+    if (!COMPLETE_REASONS.includes(disconnectionReason)) {
+      await store.setJSON(email.toLowerCase(), {
+        ...record,
+        status: 'incomplete',
+        disconnectionReason,
+        completedAt: new Date().toISOString(),
+      })
+      return { statusCode: 200, body: JSON.stringify({ received: true }) }
+    }
 
     const report = await generateJson({
       schema: REPORT_SCHEMA,

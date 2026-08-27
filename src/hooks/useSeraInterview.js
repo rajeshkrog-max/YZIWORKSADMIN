@@ -7,6 +7,15 @@ const TURN_SECONDS = 35
 const PHASE_SKILLS_START = 55 // 0:55
 const PHASE_GOAL_START = 230 // 3:50
 
+// If the candidate's turn timer sits pegged at TURN_SECONDS this long with
+// no agent_start_talking firing, the call is treated as stalled/dropped
+// rather than the candidate just running long (Retell/the prompt already
+// enforces the real cutoff — this is purely a client-side dead-call guard).
+const STALL_GRACE_SECONDS = 15
+// A stall this early almost certainly means the call never really started —
+// don't burn the candidate's one-per-login slot over it.
+const STALL_FORGIVENESS_WINDOW_SECONDS = 90
+
 function phaseForElapsed(elapsed) {
   if (elapsed < PHASE_SKILLS_START) return 'warmup'
   if (elapsed < PHASE_GOAL_START) return 'skills'
@@ -28,12 +37,21 @@ export function useSeraInterview() {
   const [turnElapsed, setTurnElapsed] = useState(0)
   const [muted, setMuted] = useState(false)
   const [report, setReport] = useState(null)
+  const [incomplete, setIncomplete] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState(null)
 
   const retellRef = useRef(null)
   const transcriptRef = useRef('')
   const sessionTimerRef = useRef(null)
   const turnActiveRef = useRef(false)
+  const elapsedRef = useRef(0)
+  const profileRef = useRef(null)
+  const suppressCallEndedRef = useRef(false)
+  const stalledExtraSecondsRef = useRef(0)
+
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
 
   const reset = useCallback(() => {
     setScreen('hero')
@@ -48,6 +66,7 @@ export function useSeraInterview() {
     turnActiveRef.current = false
     setMuted(false)
     setReport(null)
+    setIncomplete(false)
     setBlockedMessage(null)
     transcriptRef.current = ''
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
@@ -81,6 +100,26 @@ export function useSeraInterview() {
     }
   }, [])
 
+  const handleStalledCall = useCallback(() => {
+    // We're stopping the call ourselves here, which would otherwise also
+    // fire the SDK's own call_ended event and race finishInterview() into
+    // overwriting the 'upload' screen we're about to set.
+    suppressCallEndedRef.current = true
+    stopSessionTimer()
+    retellRef.current?.stopCall()
+    setError("Sera's having a connection hiccup — let's try that again.")
+    setScreen('upload')
+
+    const email = profileRef.current?.email
+    if (elapsedRef.current < STALL_FORGIVENESS_WINDOW_SECONDS && email) {
+      fetch('/.netlify/functions/sera-release-reservation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      }).catch(() => {})
+    }
+  }, [stopSessionTimer])
+
   const finishInterview = useCallback(async () => {
     stopSessionTimer()
     setScreen('wrapup')
@@ -103,10 +142,17 @@ export function useSeraInterview() {
         })
         const result = await response.json()
 
-        if (response.ok && result.ready && result.report) {
-          setReport(result.report)
-          setScreen('report')
-          return
+        if (response.ok && result.ready) {
+          if (result.incomplete) {
+            setIncomplete(true)
+            setScreen('report')
+            return
+          }
+          if (result.report) {
+            setReport(result.report)
+            setScreen('report')
+            return
+          }
         }
       }
       throw new Error(
@@ -121,9 +167,12 @@ export function useSeraInterview() {
   const startSessionTimer = useCallback(() => {
     stopSessionTimer()
     setElapsed(0)
+    elapsedRef.current = 0
+    stalledExtraSecondsRef.current = 0
     sessionTimerRef.current = setInterval(() => {
       setElapsed((prev) => {
         const next = prev + 1
+        elapsedRef.current = next
         if (next >= SESSION_SECONDS) {
           stopSessionTimer()
           retellRef.current?.stopCall()
@@ -136,10 +185,20 @@ export function useSeraInterview() {
         return next
       })
       if (turnActiveRef.current) {
-        setTurnElapsed((prev) => Math.min(prev + 1, TURN_SECONDS))
+        setTurnElapsed((prev) => {
+          if (prev >= TURN_SECONDS) {
+            stalledExtraSecondsRef.current += 1
+            if (stalledExtraSecondsRef.current > STALL_GRACE_SECONDS) {
+              handleStalledCall()
+            }
+            return prev
+          }
+          stalledExtraSecondsRef.current = 0
+          return prev + 1
+        })
       }
     }, 1000)
-  }, [finishInterview, stopSessionTimer])
+  }, [finishInterview, stopSessionTimer, handleStalledCall])
 
   const connectRetell = useCallback(
     async (accessToken) => {
@@ -152,11 +211,13 @@ export function useSeraInterview() {
       })
       client.on('agent_start_talking', () => {
         turnActiveRef.current = false
+        stalledExtraSecondsRef.current = 0
         setTurnElapsed(0)
         setTurnState('sera-speaking')
       })
       client.on('agent_stop_talking', () => {
         turnActiveRef.current = true
+        stalledExtraSecondsRef.current = 0
         setTurnElapsed(0)
         setTurnState('your-turn')
       })
@@ -166,6 +227,10 @@ export function useSeraInterview() {
         }
       })
       client.on('call_ended', () => {
+        if (suppressCallEndedRef.current) {
+          suppressCallEndedRef.current = false
+          return
+        }
         finishInterview()
       })
       client.on('error', (err) => {
@@ -285,6 +350,7 @@ export function useSeraInterview() {
     turnSeconds: TURN_SECONDS,
     muted,
     report,
+    incomplete,
     goToSignIn,
     signIn,
     selectFile,

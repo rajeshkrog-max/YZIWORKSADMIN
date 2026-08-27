@@ -12,8 +12,26 @@ const TIER_META = [
   { label: 'Where this goes', accent: 'text-yzi-purple', dot: 'bg-yzi-purple' },
 ]
 
-function SeraReport({ profile, resumeMeta, report, error, onDone }) {
+function SeraReport({ profile, resumeMeta, report, incomplete, error, onDone }) {
   const firstName = profile?.name?.split(' ')[0] || ''
+
+  if (incomplete) {
+    return (
+      <div className="flex flex-col items-center text-center max-w-sm mx-auto">
+        <SeraOrb state="error" size={140} className="mb-6" />
+        <h2 className="text-2xl font-bold text-white mb-3">Interview ended early</h2>
+        <p className="text-white/60 text-sm leading-relaxed mb-8">
+          Looks like the interview ended early — no worries, we'll get you scheduled for another session soon.
+        </p>
+        <button
+          onClick={onDone}
+          className="px-6 py-3 rounded-full border border-white/20 text-white text-sm font-medium hover:bg-white/10 transition"
+        >
+          Back to YZI Works
+        </button>
+      </div>
+    )
+  }
 
   if (!report) {
     return (
@@ -128,6 +146,28 @@ function SeraReport({ profile, resumeMeta, report, error, onDone }) {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {report.resources?.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold text-white mb-4">Worth watching</h3>
+          <div className="grid md:grid-cols-3 gap-3.5">
+            {report.resources.map((resource, i) => (
+              <a
+                key={i}
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(resource.searchQuery)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-yzi-card/60 border border-white/10 rounded-2xl p-5 flex items-center gap-3 hover:bg-white/5 transition"
+              >
+                <svg className="w-6 h-6 text-yzi-pink flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.5v-7l6.3 3.5-6.3 3.5Z" />
+                </svg>
+                <span className="text-sm text-white/80">{resource.topic}</span>
+              </a>
+            ))}
           </div>
         </div>
       )}

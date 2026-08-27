@@ -18,8 +18,20 @@ export const REPORT_SCHEMA = {
         additionalProperties: false,
       },
     },
+    resources: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string' },
+          searchQuery: { type: 'string' },
+        },
+        required: ['topic', 'searchQuery'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['strengths', 'growthAreas', 'seraNote', 'roadmap'],
+  required: ['strengths', 'growthAreas', 'seraNote', 'roadmap', 'resources'],
   additionalProperties: false,
 }
 
@@ -40,5 +52,6 @@ Write the candidate's report:
 - strengths: 2-3 specific, concrete observations tied to something they actually said or something in their résumé. Never generic ("good communicator").
 - growthAreas: 2-3 specific, honest, constructive observations — real gaps, phrased kindly but directly.
 - seraNote: one short, warm, first-person closing line from Sera, in quotes-worthy voice — specific to this person, not a template.
-- roadmap: exactly 3 tiers — "now" (their current level, grounded in the résumé/interview), "next" (the realistic next step, with 2-3 skills to build), "later" (a longer-term aspiration, with 2-3 skills). Each needs a real one-line description tied to this candidate, not boilerplate career-ladder text.`
+- roadmap: exactly 3 tiers — "now" (their current level, grounded in the résumé/interview), "next" (the realistic next step, with 2-3 skills to build), "later" (a longer-term aspiration, with 2-3 skills). Each needs a real one-line description tied to this candidate, not boilerplate career-ladder text.
+- resources: 2-3 entries a candidate could search for on YouTube to build toward the "next" roadmap tier's skills, tied to their field. Each is {topic, searchQuery} — topic is a short human label (e.g. "Excel pivot tables"), searchQuery is a natural search phrase someone would actually type (e.g. "excel pivot tables tutorial for beginners"). searchQuery must be a plain search phrase, never a URL, and never a specific video title or channel name you're guessing exists.`
 }
