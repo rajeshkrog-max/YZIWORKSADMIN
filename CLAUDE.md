@@ -21,12 +21,39 @@ Builder / Early Partner application forms (`src/components/EarlyBuildersForm.jsx
 
 ## Current initiative: "Meet Ai Sera" — AI voice interview feature
 
-**Status as of 2026-08-27: design + prototype done, all API keys confirmed
-present (local `.env` and Netlify dashboard both verified), system prompt
-written and reviewed. Real implementation has NOT started yet — user must
-say "go" explicitly before writing real feature code. This has been true
-throughout the project; don't assume permission carries over from a
-previous chat.**
+**Status as of 2026-08-27: real implementation is BUILT and PUSHED to main
+(commit d37bd78). Route `/meet-sera` is live, all backend functions exist,
+build + lint verified clean, dev-server click-through of hero → sign-in →
+nav-link confirmed no console errors. See "What's NOT yet verified" below
+before assuming this works end-to-end — the actual paid API calls (Retell
+voice call, Gemini analysis, Resend email, the Blobs eligibility gate) have
+NOT been exercised with real traffic yet, only reviewed against real API
+docs and syntax-checked. If asked to keep building/fixing this feature,
+read the actual current source under `src/pages/MeetSera.jsx`,
+`src/components/sera/`, `src/hooks/useSeraInterview.js`, and
+`netlify/functions/sera-*.js` — don't rebuild from this doc's earlier
+planning notes below, which describe the *design*, not necessarily every
+exact implementation detail.
+
+**What's NOT yet verified (needs a real end-to-end test with a real
+Google account, a real résumé PDF, and willingness to spend a little real
+Retell/Gemini credit):**
+- The Retell webhook signature verification (`sera-retell-webhook.js`) —
+  built exactly to docs.retellai.com/features/secure-webhook, but never
+  received a real webhook call yet.
+- The Retell Client SDK event wiring in `useSeraInterview.js`
+  (`agent_start_talking`/`agent_stop_talking`/`update`/`call_ended`) — event
+  names confirmed from the SDK's real source on GitHub, but the actual
+  `update` event's transcript field shape is assumed, not confirmed live.
+- The Netlify Blobs one-per-account gate — logic is straightforward but
+  unexercised.
+- The interview screen's live "current question" caption was deliberately
+  NOT implemented in v1 (only a state indicator: Sera speaking / Your turn
+  / Wrapping up) — parsing the live question text from the transcript was
+  judged too uncertain to ship without live testing. Can be added once the
+  real `update` event shape is confirmed.
+- The "Worth watching" resource-links panel from the earlier prototype was
+  dropped from v1 scope — not in the real report screen yet.
 
 ### What it is
 
