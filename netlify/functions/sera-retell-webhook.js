@@ -20,7 +20,12 @@ function escapeHtml(value) {
 
 // Per docs.retellai.com/features/secure-webhook: header is
 // "X-Retell-Signature: v={timestamp},d={hex}", digest is
-// HMAC-SHA256(raw_body + timestamp) keyed with the webhook-badged API key.
+// HMAC-SHA256(raw_body + timestamp) keyed with the webhook-badged API key —
+// Retell doesn't issue a separate webhook secret, it's the account's own
+// RETELL_API_KEY (confirmed via live docs; using a made-up RETELL_WEBHOOK_SECRET
+// here was why every real webhook was failing verification with 401).
+const SIGNATURE_MAX_AGE_MS = 5 * 60 * 1000
+
 function verifySignature(rawBody, signatureHeader, secret) {
   if (!signatureHeader || !secret) return false
 
@@ -31,6 +36,8 @@ function verifySignature(rawBody, signatureHeader, secret) {
   const digest = parts.d
 
   if (!timestamp || !digest) return false
+
+  if (Math.abs(Date.now() - Number(timestamp)) > SIGNATURE_MAX_AGE_MS) return false
 
   const expected = crypto
     .createHmac('sha256', secret)
@@ -131,7 +138,7 @@ export async function handler(event) {
   const rawBody = event.body || ''
 
   const signatureHeader = event.headers['x-retell-signature'] || event.headers['X-Retell-Signature']
-  const isValid = verifySignature(rawBody, signatureHeader, process.env.RETELL_WEBHOOK_SECRET)
+  const isValid = verifySignature(rawBody, signatureHeader, process.env.RETELL_API_KEY)
 
   if (!isValid) {
     console.error('Sera webhook: invalid signature')
