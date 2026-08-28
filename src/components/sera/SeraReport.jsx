@@ -157,15 +157,25 @@ function SeraReport({ profile, resumeMeta, report, incomplete, error, onDone }) 
             {report.resources.map((resource, i) => (
               <a
                 key={i}
-                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(resource.searchQuery)}`}
+                href={resource.videoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-yzi-card/60 border border-white/10 rounded-2xl p-5 flex items-center gap-3 hover:bg-white/5 transition"
+                className="group bg-yzi-card/60 border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition"
               >
-                <svg className="w-6 h-6 text-yzi-pink flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.5v-7l6.3 3.5-6.3 3.5Z" />
-                </svg>
-                <span className="text-sm text-white/80">{resource.topic}</span>
+                <div className="aspect-video bg-black/40 overflow-hidden">
+                  <img
+                    src={resource.thumbnailUrl}
+                    alt={resource.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                </div>
+                <div className="p-4">
+                  <span className="text-[10.5px] font-mono uppercase tracking-wide text-yzi-cyan block mb-1.5">
+                    {resource.topic}
+                  </span>
+                  <p className="text-sm text-white/85 leading-snug line-clamp-2">{resource.title}</p>
+                </div>
               </a>
             ))}
           </div>

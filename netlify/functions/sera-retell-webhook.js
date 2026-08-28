@@ -63,6 +63,45 @@ function verifySignature(rawBody, signatureHeader, secret) {
   return crypto.timingSafeEqual(expectedBuffer, digestBuffer)
 }
 
+const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search'
+
+// Resolves one {topic, searchQuery} from the LLM into a real video. The
+// model still only decides WHAT to suggest (avoids the hallucinated-URL
+// risk from before) — this is the only place that decides WHICH specific
+// video, using the actual YouTube Data API. Never lets a lookup failure
+// (quota, no results, network) break the report itself — this is an
+// enhancement on top of the report, not something the report depends on.
+async function resolveYoutubeResource({ topic, searchQuery }) {
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return null
+
+  try {
+    const url = `${YOUTUBE_SEARCH_URL}?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=1&safeSearch=strict&key=${apiKey}`
+    const response = await fetch(url)
+    if (!response.ok) {
+      console.error('Sera webhook: YouTube API error', response.status, await response.text().catch(() => ''))
+      return null
+    }
+
+    const data = await response.json()
+    const item = data.items?.[0]
+    const videoId = item?.id?.videoId
+    const title = item?.snippet?.title
+    const thumbnailUrl = item?.snippet?.thumbnails?.medium?.url
+
+    if (!videoId || !title || !thumbnailUrl) return null
+
+    return { topic, title, thumbnailUrl, videoUrl: `https://www.youtube.com/watch?v=${videoId}` }
+  } catch (err) {
+    console.error('Sera webhook: YouTube resource lookup failed', {
+      topic,
+      searchQuery,
+      error: err?.message || err,
+    })
+    return null
+  }
+}
+
 function getS3Client() {
   return new S3Client({
     region: 'auto',
@@ -195,6 +234,13 @@ export async function handler(event) {
       schema: REPORT_SCHEMA,
       prompt: buildReportPrompt({ candidateName, resumeText, transcript }),
     })
+
+    // Replace the LLM's {topic, searchQuery} suggestions with real,
+    // verified videos before this is ever stored — the report never needs
+    // to hit the YouTube API again once this record is read back.
+    report.resources = (
+      await Promise.all((report.resources || []).map(resolveYoutubeResource))
+    ).filter(Boolean)
 
     let resumeUrl = '#'
     if (resolvedObjectKey) {
