@@ -17,10 +17,15 @@ function MeetSera() {
     <div className="min-h-screen bg-yzi-black text-white flex flex-col">
       <SeraNetworkBackground className="fixed inset-0 z-0" />
 
-      <div className="fixed top-6 left-6 z-50">
+      {/* AnnouncementBar (src/components/AnnouncementBar.jsx) is a global
+          fixed bar at z-[200], up to ~48.8px tall on desktop / ~44.8px on
+          mobile (measured, not assumed). top-16 (64px) clears it on both
+          with margin — top-6 (24px) used to sit entirely inside that band,
+          so the marquee's far higher z-index just won the overlap outright. */}
+      <div className="fixed top-16 left-6 z-50">
         <Link
           to="/"
-          className="px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-sm hover:bg-white/20 transition"
+          className="px-5 py-2.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-sm hover:bg-white/25 transition"
         >
           ← Back to YZI Works
         </Link>
