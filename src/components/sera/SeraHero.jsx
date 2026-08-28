@@ -3,14 +3,27 @@ import SeraOrb from './SeraOrb'
 function SeraHero({ onStart }) {
   return (
     <div className="flex flex-col items-center text-center max-w-xl mx-auto">
-      <SeraOrb state="idle" size={200} className="mb-2" />
+      <SeraOrb state="idle" size={280} className="mb-2" />
       <span className="text-xs font-medium tracking-widest uppercase text-yzi-cyan mb-4">
         YZI Works &middot; AI Interviewer
       </span>
-      <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-tight text-white">Sera</h1>
-      <p className="mt-4 text-white/70 text-base md:text-lg leading-relaxed max-w-md">
-        She reads your résumé before you say a word, asks the questions that actually matter,
-        and tells you — honestly — where you stand. Five minutes, spoken, private.
+      <h1
+        className="text-5xl md:text-6xl font-extrabold uppercase tracking-tight leading-none"
+        style={{
+          background:
+            'linear-gradient(90deg, #fff 0%, #fff 38%, var(--color-yzi-cyan) 70%, var(--color-yzi-purple) 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent',
+          filter: 'drop-shadow(0 0 34px rgba(139,92,246,0.35))',
+        }}
+      >
+        Sera
+      </h1>
+      <p className="mt-5 text-white/70 text-base md:text-lg leading-relaxed max-w-md">
+        Practice the interview <b className="text-white font-semibold">before</b> the real one.
+        Sera reads your resume, asks what actually matters, and tells you straight where you
+        stand — five honest minutes, completely private.
       </p>
       <button
         onClick={onStart}

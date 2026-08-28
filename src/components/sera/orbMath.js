@@ -117,14 +117,21 @@ export function createOrbRenderer({ ctx, points, size, colorsRef, stateRef }) {
 
     const level = clamp01(stateEnergy(st, t))
 
-    const spin = (0.14 + ripple * (0.9 + level * 1.6) + flow * 0.4 + wConn * 0.3) * motionScale
+    // Idle-only additive terms (zero whenever wIdle is 0, i.e. in every
+    // other single state at rest) — approximating the hero concept's
+    // drawOrb() idle behavior (rot = t * 0.5, radius = base + sin(t*1.3)*4)
+    // without touching the shared baseline terms the other states rely on.
+    const idleSpin = wIdle * 0.36 // 0.14 baseline + 0.36 = ~0.5 rad/s at full idle
+    const idleBreathe = wIdle * 0.0435 * Math.sin(t * 1.3) * motionScale // ~±4px at baseRadius≈92
+
+    const spin = (0.14 + idleSpin + ripple * (0.9 + level * 1.6) + flow * 0.4 + wConn * 0.3) * motionScale
     angleY += dt * spin
     connectingPhase = (connectingPhase + dt * 1.1) % TWO_PI
 
     const breathe = 0.05 * (0.25 + wIdle * 0.75) * Math.sin(t * 1.1) * motionScale
     const conv = pulse * (0.22 + 0.12 * Math.sin(t * 2.6 + 1))
     const expand = flow * (0.08 + level * 0.32)
-    const radius = baseRadius * (1 + breathe + level * 0.16 + expand - conv)
+    const radius = baseRadius * (1 + breathe + level * 0.16 + expand - conv + idleBreathe)
 
     const from = mixRgb(hexToRgb(colorsRef.current.from), ERROR_FROM_RGB, wError)
     const to = mixRgb(hexToRgb(colorsRef.current.to), ERROR_TO_RGB, wError)

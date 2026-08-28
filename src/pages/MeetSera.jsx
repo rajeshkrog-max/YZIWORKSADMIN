@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useSeraInterview } from '../hooks/useSeraInterview'
+import SeraNetworkBackground from '../components/sera/SeraNetworkBackground'
 import SeraHero from '../components/sera/SeraHero'
 import SeraSignIn from '../components/sera/SeraSignIn'
 import SeraUpload from '../components/sera/SeraUpload'
@@ -14,6 +15,8 @@ function MeetSera() {
 
   return (
     <div className="min-h-screen bg-yzi-black text-white flex flex-col">
+      <SeraNetworkBackground className="fixed inset-0 z-0" />
+
       <div className="fixed top-6 left-6 z-50">
         <Link
           to="/"
@@ -23,7 +26,7 @@ function MeetSera() {
         </Link>
       </div>
 
-      <main className="flex-1 flex items-center justify-center px-6 py-28">
+      <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-28">
         {sera.screen === 'hero' && <SeraHero onStart={sera.goToSignIn} />}
 
         {sera.screen === 'signin' && (
