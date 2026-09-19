@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useSeraInterview } from '../hooks/useSeraInterview'
 import SeraNetworkBackground from '../components/sera/SeraNetworkBackground'
@@ -12,6 +13,20 @@ import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
 
 function MeetSera() {
   const sera = useSeraInterview()
+
+  useEffect(() => {
+    const titles = {
+      hero: 'Meet AI Sera | YZI Works',
+      signin: 'Sign In - AI Sera | YZI Works',
+      upload: 'Upload Resume - AI Sera | YZI Works',
+      preparing: 'Preparing Session - AI Sera | YZI Works',
+      interview: 'Live Interview - AI Sera | YZI Works',
+      wrapup: 'Wrapping Up - AI Sera | YZI Works',
+      report: 'Assessment Report - AI Sera | YZI Works',
+      blocked: 'Access Restricted - AI Sera | YZI Works'
+    }
+    document.title = titles[sera.screen] || 'Meet AI Sera | YZI Works'
+  }, [sera.screen])
 
   return (
     <div className="min-h-screen bg-yzi-black text-white flex flex-col">
