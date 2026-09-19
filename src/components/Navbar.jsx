@@ -31,9 +31,6 @@ function Navbar() {
             <Link to="/meet-sera" className="hover:text-white transition">
               Meet Ai Sera
             </Link>
-            <Link to="/application-process" className="hover:text-white transition">
-              Application Process
-            </Link>
           </div>
 
           {/* Desktop CTA */}
@@ -71,13 +68,6 @@ function Navbar() {
               className="block text-white/90 py-2"
             >
               Meet Ai Sera
-            </Link>
-            <Link 
-              to="/application-process"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-white/90 py-2"
-            >
-              Application Process
             </Link>
             <button 
               onClick={() => {
