@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import ApplyTop from '../assets/Applytop.png'
 import ApplyBottom from '../assets/Applybottom.png'
+import FloatingThemeToggle from '../theme/FloatingThemeToggle'
 
 function ApplicationProcess() {
   const stages = [
@@ -73,6 +74,8 @@ function ApplicationProcess() {
           ← Back to Home
         </Link>
       </div>
+
+      <FloatingThemeToggle />
     </div>
   )
 }

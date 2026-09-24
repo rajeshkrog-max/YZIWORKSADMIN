@@ -8,7 +8,7 @@ function AIAdvantage() {
         
         {/* Title */}
         <div className="text-center mb-16">
-          <p className="text-yzi-cyan text-sm tracking-widest uppercase mb-3">The Real Power</p>
+          <p className="text-accent-cyan-fg text-sm tracking-widest uppercase mb-3">The Real Power</p>
           <h2 className="text-3xl md:text-5xl font-bold mb-4">
             Powered by AI 
           </h2>
@@ -21,15 +21,15 @@ function AIAdvantage() {
         <div className="relative">
           
           {/* The moving light beam */}
-          <div className="absolute top-0 left-0 h-full w-32 bg-gradient-to-r from-transparent via-white/10 to-transparent blur-xl animate-beam pointer-events-none z-10"></div>
+          <div className="absolute top-0 left-0 h-full w-32 bg-gradient-to-r from-transparent via-fg/10 to-transparent blur-xl animate-beam pointer-events-none z-10"></div>
 
           {/* Feature Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-0">
 
             {/* Card 1 */}
-            <div className="card-flow card-1 bg-yzi-card border border-white/10 rounded-2xl p-7">
+            <div className="card-flow card-1 bg-yzi-card border border-fg/10 rounded-2xl p-7">
               <div className="w-11 h-11 rounded-xl bg-yzi-cyan/10 flex items-center justify-center mb-5">
-                <span className="text-yzi-cyan text-xl font-medium">01</span>
+                <span className="text-accent-cyan-fg text-xl font-medium">01</span>
               </div>
               <h3 className="text-xl font-semibold mb-3">Smart Matching</h3>
               <p className="text-yzi-muted text-sm leading-relaxed">
@@ -38,9 +38,9 @@ function AIAdvantage() {
             </div>
 
             {/* Card 2 */}
-            <div className="card-flow card-2 bg-yzi-card border border-white/10 rounded-2xl p-7">
+            <div className="card-flow card-2 bg-yzi-card border border-fg/10 rounded-2xl p-7">
               <div className="w-11 h-11 rounded-xl bg-yzi-pink/10 flex items-center justify-center mb-5">
-                <span className="text-yzi-pink text-xl font-medium">02</span>
+                <span className="text-yzi-pink light:text-pink-600 text-xl font-medium">02</span>
               </div>
               <h3 className="text-xl font-semibold mb-3">Work & Payment Tracking</h3>
               <p className="text-yzi-muted text-sm leading-relaxed">
@@ -49,9 +49,9 @@ function AIAdvantage() {
             </div>
 
             {/* Card 3 */}
-            <div className="card-flow card-3 bg-yzi-card border border-white/10 rounded-2xl p-7">
+            <div className="card-flow card-3 bg-yzi-card border border-fg/10 rounded-2xl p-7">
               <div className="w-11 h-11 rounded-xl bg-yzi-orange/10 flex items-center justify-center mb-5">
-                <span className="text-yzi-orange text-xl font-medium">03</span>
+                <span className="text-yzi-orange light:text-orange-600 text-xl font-medium">03</span>
               </div>
               <h3 className="text-xl font-semibold mb-3">Complete Record Keeping</h3>
               <p className="text-yzi-muted text-sm leading-relaxed">
@@ -89,12 +89,12 @@ function AIAdvantage() {
         /* Sequential card highlight when beam passes */
         @keyframes cardHighlight {
           0%, 100% {
-            border-color: rgba(255, 255, 255, 0.1);
+            border-color: color-mix(in srgb, var(--theme-fg) 10%, transparent);
             box-shadow: none;
           }
           40%, 60% {
-            border-color: rgba(255, 255, 255, 0.35);
-            box-shadow: 0 0 30px rgba(255, 255, 255, 0.08);
+            border-color: color-mix(in srgb, var(--theme-fg) 35%, transparent);
+            box-shadow: 0 0 30px color-mix(in srgb, var(--theme-fg) 8%, transparent);
           }
         }
 

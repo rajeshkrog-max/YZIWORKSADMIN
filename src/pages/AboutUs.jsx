@@ -4,6 +4,8 @@ import Footer from '../components/Footer'
 import OurVerticals from '../components/OurVerticals'
 import PhotoWall from '../components/PhotoWall'
 import EarlyBuildersForm from '../components/EarlyBuildersForm'
+import EarlyPartnersForm from '../components/EarlyPartnersForm'
+import FloatingThemeToggle from '../theme/FloatingThemeToggle'
 import aboutHero from '../assets/aboutus/aboutushero.png'
 import onceImage from '../assets/aboutus/once.png'
 
@@ -37,9 +39,10 @@ const testimonials = [
 
 function AboutUs() {
   const [isBuildersOpen, setIsBuildersOpen] = useState(false)
+  const [isPartnersOpen, setIsPartnersOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-[#05050A] text-white">
+    <div className="min-h-screen bg-surface text-fg">
       {/* ========== HERO ========== */}
       <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center overflow-hidden">
         <img
@@ -48,14 +51,14 @@ function AboutUs() {
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#05050A]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 light:via-75% to-surface" />
 
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
           <p className="text-orange-400 text-sm md:text-base font-semibold tracking-[0.3em] uppercase mb-6">
             Since 2017
           </p>
 
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold leading-none mb-8">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold leading-none mb-8 text-white">
             Young Zone India
           </h1>
 
@@ -73,7 +76,7 @@ function AboutUs() {
       <OurVerticals />
 
       {/* ========== ORIGIN STORY ========== */}
-      <section className="py-24 px-6 border-t border-white/5">
+      <section className="py-24 px-6 border-t border-fg/5">
         <div className="max-w-6xl mx-auto">
 
           {/* Opening story */}
@@ -84,12 +87,12 @@ function AboutUs() {
               <img
                 src={onceImage}
                 alt="Once Upon A Time"
-                className="relative rounded-2xl w-full h-auto max-h-[620px] object-cover border border-white/10"
+                className="relative rounded-2xl w-full h-auto max-h-[620px] object-cover border border-fg/10"
               />
             </div>
 
             <div>
-              <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+              <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
                 Our Origin
               </p>
 
@@ -97,7 +100,7 @@ function AboutUs() {
                 It started with a simple belief
               </h2>
 
-              <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+              <div className="space-y-6 text-fg/60 leading-relaxed text-base md:text-lg">
                 <p>
                   It started with a simple belief: Young people deserve more
                   opportunities.
@@ -128,7 +131,7 @@ function AboutUs() {
                   And every chapter brought us closer to one larger question:
                 </p>
 
-                <p className="text-white text-xl md:text-2xl font-medium leading-relaxed">
+                <p className="text-fg text-xl md:text-2xl font-medium leading-relaxed">
                   What would it take to build an ecosystem where young people can
                   actually shape their own future?
                 </p>
@@ -138,7 +141,7 @@ function AboutUs() {
 
           {/* From an idea to an ecosystem */}
           <div className="max-w-4xl mx-auto mb-24">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               From an idea to an ecosystem
             </p>
 
@@ -146,7 +149,7 @@ function AboutUs() {
               From an idea to an ecosystem
             </h2>
 
-            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+            <div className="space-y-6 text-fg/60 leading-relaxed text-base md:text-lg">
               <p>
                 Over the years, YZI evolved through multiple initiatives and
                 experiments.
@@ -175,7 +178,7 @@ function AboutUs() {
                 But the underlying mission remained the same:
               </p>
 
-              <p className="text-white text-xl md:text-2xl font-medium">
+              <p className="text-fg text-xl md:text-2xl font-medium">
                 Create access to opportunities and help the next generation become
                 more independent.
               </p>
@@ -196,7 +199,7 @@ function AboutUs() {
 
           {/* And then we looked at work */}
           <div className="max-w-4xl mx-auto mb-24">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               The next question
             </p>
 
@@ -204,7 +207,7 @@ function AboutUs() {
               And then we looked at work.
             </h2>
 
-            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+            <div className="space-y-6 text-fg/60 leading-relaxed text-base md:text-lg">
               <p>
                 We realised that one of the biggest transitions in a young person's
                 life is the transition from education to work.
@@ -214,8 +217,8 @@ function AboutUs() {
                 Yet the traditional system often presents a very narrow path:
               </p>
 
-              <div className="my-8 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5 text-center">
-                <p className="text-white font-semibold text-lg md:text-xl">
+              <div className="my-8 rounded-2xl border border-fg/10 bg-fg/[0.03] px-6 py-5 text-center">
+                <p className="text-fg font-semibold text-lg md:text-xl">
                   Study → Graduate → Find a job → Work 9–5 → Repeat.
                 </p>
               </div>
@@ -224,7 +227,7 @@ function AboutUs() {
                 But the next generation is growing up differently.
               </p>
 
-              <ul className="space-y-4 pl-5 list-disc marker:text-orange-400">
+              <ul className="space-y-4 pl-5 list-disc marker:text-accent-orange-fg">
                 <li>Students want experience before graduation.</li>
                 <li>Creators want to build careers around their craft.</li>
                 <li>Freelancers want better opportunities and professional relationships.</li>
@@ -237,7 +240,7 @@ function AboutUs() {
                 changing.
               </p>
 
-              <p className="text-white text-xl md:text-2xl font-medium">
+              <p className="text-fg text-xl md:text-2xl font-medium">
                 YZI decided to build for that change.
               </p>
             </div>
@@ -245,7 +248,7 @@ function AboutUs() {
 
           {/* Introducing YZI Works */}
           <div className="mb-24 rounded-3xl border border-orange-500/20 bg-gradient-to-br from-orange-500/[0.08] via-pink-500/[0.04] to-transparent p-8 md:p-12">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               Introducing YZI Works
             </p>
 
@@ -253,37 +256,37 @@ function AboutUs() {
               YZI Works is the next evolution of that journey.
             </h2>
 
-            <div className="space-y-6 text-white/70 leading-relaxed text-base md:text-lg">
+            <div className="space-y-6 text-fg/70 leading-relaxed text-base md:text-lg">
               <p>
                 It is our attempt to build a better way for people and businesses to
                 discover, connect and collaborate around work.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 my-10">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
-                  <h3 className="text-white font-bold text-lg mb-4">
+                <div className="rounded-2xl border border-fg/10 bg-pure/20 p-6">
+                  <h3 className="text-fg font-bold text-lg mb-4">
                     For individuals
                   </h3>
 
-                  <p className="text-white/60 leading-relaxed">
+                  <p className="text-fg/60 leading-relaxed">
                     Discover work → Gain experience → Build your professional
                     identity → Grow on your terms.
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
-                  <h3 className="text-white font-bold text-lg mb-4">
+                <div className="rounded-2xl border border-fg/10 bg-pure/20 p-6">
+                  <h3 className="text-fg font-bold text-lg mb-4">
                     For businesses and service providers
                   </h3>
 
-                  <p className="text-white/60 leading-relaxed">
+                  <p className="text-fg/60 leading-relaxed">
                     Find people → Collaborate → Get work done → Build long-term
                     relationships.
                   </p>
                 </div>
               </div>
 
-              <p className="text-white text-xl md:text-2xl font-semibold">
+              <p className="text-fg text-xl md:text-2xl font-semibold">
                 But we're not trying to build another job portal.
               </p>
 
@@ -296,7 +299,7 @@ function AboutUs() {
 
           {/* We're still building */}
           <div className="max-w-4xl mx-auto mb-24">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               We're still building
             </p>
 
@@ -304,7 +307,7 @@ function AboutUs() {
               Built with the community.
             </h2>
 
-            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+            <div className="space-y-6 text-fg/60 leading-relaxed text-base md:text-lg">
               <p>
                 YZI Works is being developed with our community — not simply for it.
               </p>
@@ -327,7 +330,7 @@ function AboutUs() {
                 ].map((item) => (
                   <div
                     key={item}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-center text-white/70"
+                    className="rounded-xl border border-fg/10 bg-fg/[0.03] px-4 py-4 text-center text-fg/70"
                   >
                     {item}
                   </div>
@@ -339,12 +342,12 @@ function AboutUs() {
                 Works becomes.
               </p>
 
-              <p className="text-white text-xl md:text-2xl font-medium leading-relaxed">
+              <p className="text-fg text-xl md:text-2xl font-medium leading-relaxed">
                 Because we don't believe the future of work should be decided by a
                 few companies and handed to everyone else.
               </p>
 
-              <p className="text-white text-2xl md:text-3xl font-bold">
+              <p className="text-fg text-2xl md:text-3xl font-bold">
                 It should be built together.
               </p>
             </div>
@@ -352,7 +355,7 @@ function AboutUs() {
 
           {/* Timeline */}
           <div className="max-w-4xl mx-auto mb-24">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               From Young Zone India to YZI Works
             </p>
 
@@ -360,7 +363,7 @@ function AboutUs() {
               From Young Zone India to YZI Works
             </h2>
 
-            <div className="relative border-l border-white/10 ml-3 pl-8 space-y-10">
+            <div className="relative border-l border-fg/10 ml-3 pl-8 space-y-10">
               {[
                 {
                   year: '2017',
@@ -384,13 +387,13 @@ function AboutUs() {
                 },
               ].map((item) => (
                 <div key={item.year} className="relative">
-                  <span className="absolute -left-[41px] top-1.5 w-3 h-3 rounded-full bg-orange-500 ring-4 ring-[#05050A]" />
+                  <span className="absolute -left-[41px] top-1.5 w-3 h-3 rounded-full bg-orange-500 ring-4 ring-surface" />
 
-                  <p className="text-orange-400 font-bold text-lg mb-2">
+                  <p className="text-accent-orange-fg font-bold text-lg mb-2">
                     {item.year}
                   </p>
 
-                  <p className="text-white/60 leading-relaxed text-base md:text-lg">
+                  <p className="text-fg/60 leading-relaxed text-base md:text-lg">
                     {item.text}
                   </p>
                 </div>
@@ -399,8 +402,8 @@ function AboutUs() {
           </div>
 
           {/* Our belief */}
-          <div className="max-w-5xl mx-auto rounded-3xl border border-white/10 bg-white/[0.03] p-8 md:p-12">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">
+          <div className="max-w-5xl mx-auto rounded-3xl border border-fg/10 bg-fg/[0.03] p-8 md:p-12">
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">
               Our belief
             </p>
 
@@ -408,7 +411,7 @@ function AboutUs() {
               Choose Work Independence.
             </h2>
 
-            <div className="space-y-6 text-white/60 leading-relaxed text-base md:text-lg">
+            <div className="space-y-6 text-fg/60 leading-relaxed text-base md:text-lg">
               <p>
                 We believe the next generation shouldn't have to wait until they're
                 trapped in a career they don't enjoy to start looking for
@@ -429,12 +432,12 @@ function AboutUs() {
                 They can help build that change.
               </p>
 
-              <div className="pt-6 border-t border-white/10">
-                <p className="text-white font-semibold text-xl md:text-2xl mb-4">
+              <div className="pt-6 border-t border-fg/10">
+                <p className="text-fg font-semibold text-xl md:text-2xl mb-4">
                   This is YZI.
                 </p>
 
-                <p className="text-white/60">
+                <p className="text-fg/60">
                   Started with youth.
                   <br />
                   Built through experimentation.
@@ -446,15 +449,15 @@ function AboutUs() {
               </div>
 
               <div className="pt-6">
-                <p className="text-white text-2xl md:text-3xl font-bold">
+                <p className="text-fg text-2xl md:text-3xl font-bold">
                   Choose Work Independence.
                 </p>
 
-                <p className="text-orange-400 font-semibold mt-3">
+                <p className="text-accent-orange-fg font-semibold mt-3">
                   YZI Works
                 </p>
 
-                <p className="text-white/50 text-sm mt-1">
+                <p className="text-fg/50 text-sm mt-1">
                   An initiative by Young Zone India (YZI)
                 </p>
               </div>
@@ -464,10 +467,10 @@ function AboutUs() {
         </div>
       </section>
 
-      <section className="py-24 px-6 border-t border-white/5">
+      <section className="py-24 px-6 border-t border-fg/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">What Drives Us</p>
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">What Drives Us</p>
             <h2 className="text-3xl md:text-4xl font-bold">Vision, Mission & Values</h2>
           </div>
 
@@ -488,19 +491,19 @@ function AboutUs() {
             ].map((item) => (
               <div
                 key={item.title}
-                className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 hover:border-orange-500/40 transition-all duration-300"
+                className="bg-fg/[0.03] border border-fg/10 rounded-2xl p-8 hover:border-orange-500/40 transition-all duration-300"
               >
-                <h3 className="text-xl font-bold text-orange-400 mb-4">{item.title}</h3>
-                <p className="text-white/60 leading-relaxed">{item.body}</p>
+                <h3 className="text-xl font-bold text-accent-orange-fg mb-4">{item.title}</h3>
+                <p className="text-fg/60 leading-relaxed">{item.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="py-24 border-t border-white/5 overflow-hidden">
+      <section className="py-24 border-t border-fg/5 overflow-hidden">
         <div className="max-w-6xl mx-auto px-6 text-center mb-14">
-          <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">On The Ground</p>
+          <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">On The Ground</p>
           <h2 className="text-3xl md:text-4xl font-bold">Real youth. Real programs. Real impact.</h2>
         </div>
 
@@ -509,10 +512,10 @@ function AboutUs() {
         <PhotoWall />
       </section>
 
-      <section className="py-24 px-6 border-t border-white/5">
+      <section className="py-24 px-6 border-t border-fg/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-orange-400 text-sm font-semibold tracking-widest uppercase mb-4">What People Say</p>
+            <p className="text-accent-orange-fg text-sm font-semibold tracking-widest uppercase mb-4">What People Say</p>
             <h2 className="text-3xl md:text-4xl font-bold">Trusted by the people we've worked with</h2>
           </div>
 
@@ -520,13 +523,13 @@ function AboutUs() {
             {testimonials.map((t, i) => (
               <div
                 key={i}
-                className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 flex flex-col hover:border-orange-500/30 transition-all duration-300"
+                className="bg-fg/[0.03] border border-fg/10 rounded-2xl p-8 flex flex-col hover:border-orange-500/30 transition-all duration-300"
               >
-                <span className="text-orange-400 text-4xl leading-none mb-4">"</span>
-                <p className="text-white/70 text-sm leading-relaxed flex-1 mb-8">{t.quote}</p>
+                <span className="text-accent-orange-fg text-4xl leading-none mb-4">"</span>
+                <p className="text-fg/70 text-sm leading-relaxed flex-1 mb-8">{t.quote}</p>
                 <div>
-                  <p className="text-white font-semibold">{t.name}</p>
-                  <p className="text-orange-400/80 text-xs mt-1">{t.role}</p>
+                  <p className="text-fg font-semibold">{t.name}</p>
+                  <p className="text-accent-orange-fg/80 text-xs mt-1">{t.role}</p>
                 </div>
               </div>
             ))}
@@ -534,11 +537,11 @@ function AboutUs() {
         </div>
       </section>
 
-      <section className="py-24 px-6 text-center border-t border-white/5">
+      <section className="py-24 px-6 text-center border-t border-fg/5">
         <h2 className="text-3xl md:text-5xl font-bold mb-6">
           Now you know who we are.
         </h2>
-        <p className="text-white/50 text-lg max-w-xl mx-auto mb-10">
+        <p className="text-fg/50 text-lg max-w-xl mx-auto mb-10">
           Here's how to become part of the movement.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -548,12 +551,12 @@ function AboutUs() {
           >
             Join as Early Builder
           </button>
-          <Link
-            to="/application-process"
-            className="px-8 py-3.5 rounded-full font-semibold text-white border border-white/20 hover:bg-white/10 transition"
+          <button
+            onClick={() => setIsPartnersOpen(true)}
+            className="px-8 py-3.5 rounded-full font-semibold text-fg border border-fg/20 hover:bg-fg/10 transition"
           >
-            Application Process
-          </Link>
+            Join as Early Partner
+          </button>
         </div>
       </section>
 
@@ -562,7 +565,26 @@ function AboutUs() {
         onClose={() => setIsBuildersOpen(false)}
       />
 
+      <EarlyPartnersForm
+        isOpen={isPartnersOpen}
+        onClose={() => setIsPartnersOpen(false)}
+      />
+
       <Footer />
+
+      {/* Same back control as Meet Sera: top-16 clears the fixed AnnouncementBar.
+          One look in both themes (dark glass, white text) because it first sits
+          on the dark hero photo, and stays readable over light sections too. */}
+      <div className="fixed top-16 left-6 z-50">
+        <Link
+          to="/"
+          className="px-5 py-2.5 rounded-full bg-black/45 backdrop-blur-md border border-white/25 text-white text-sm hover:bg-black/60 transition"
+        >
+          ← Back to YZI Works
+        </Link>
+      </div>
+
+      <FloatingThemeToggle />
     </div>
   )
 }

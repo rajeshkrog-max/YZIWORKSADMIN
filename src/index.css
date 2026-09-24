@@ -1,21 +1,62 @@
 @import "tailwindcss";
 
-@theme {
-  /* Backgrounds */
-  --color-yzi-black: #05050A;
-  --color-yzi-dark: #0B0B14;
-  --color-yzi-card: #11111B;
+/* Planning docs quote class names; keep them out of the generated CSS. */
+@source not "../docs";
 
-  /* Main Gradient Colors (from your posters) */
+/* `light:` variant — applies when <html data-theme="light"> */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+@theme {
+  /* Main Gradient Colors (from your posters) — identical in both themes */
   --color-yzi-orange: #FF5E00;
   --color-yzi-pink: #FF008A;
   --color-yzi-purple: #8B5CF6;
   --color-yzi-blue: #3B82F6;
   --color-yzi-cyan: #22D3EE;
 
-  /* Text */
-  --color-yzi-text: #FFFFFF;
-  --color-yzi-muted: #A1A1AA;
+  /* Chip behind logo.png in light theme (its "WORKS" wordmark is white) */
+  --color-logo-chip: #0B0B14;
+}
+
+/* Theme-switched colours. `inline` makes utilities read --theme-* directly,
+   so opacity modifiers (text-fg/60) work in both themes. */
+@theme inline {
+  --color-yzi-black: var(--theme-surface);
+  --color-yzi-dark: var(--theme-surface-2);
+  --color-yzi-card: var(--theme-card);
+  --color-yzi-text: var(--theme-fg);
+  --color-yzi-muted: var(--theme-fg-muted);
+
+  --color-pure: var(--theme-pure);
+  --color-surface: var(--theme-surface);
+  --color-surface-2: var(--theme-surface-2);
+  --color-card: var(--theme-card);
+  --color-fg: var(--theme-fg);
+  --color-fg-muted: var(--theme-fg-muted);
+  --color-accent-cyan-fg: var(--theme-accent-cyan-fg);
+  --color-accent-orange-fg: var(--theme-accent-orange-fg);
+}
+
+:root {
+  --theme-pure: #000000;
+  --theme-surface: #05050A;
+  --theme-surface-2: #0B0B14;
+  --theme-card: #11111B;
+  --theme-fg: #FFFFFF;
+  --theme-fg-muted: #A1A1AA;
+  --theme-accent-cyan-fg: #22D3EE;
+  --theme-accent-orange-fg: #FB923C;
+}
+
+:root[data-theme="light"] {
+  --theme-pure: #FFFFFF;
+  --theme-surface: #F7F7FB;
+  --theme-surface-2: #EFEFF5;
+  --theme-card: #FFFFFF;
+  --theme-fg: #0B0B14;
+  --theme-fg-muted: #52525B;
+  --theme-accent-cyan-fg: #0E7490;
+  --theme-accent-orange-fg: #C2410C;
 }
 
 /* Smooth scrolling */
@@ -24,7 +65,7 @@ html {
 }
 
 body {
-  background-color: var(--color-yzi-black);
-  color: var(--color-yzi-text);
+  background-color: var(--theme-surface);
+  color: var(--theme-fg);
   font-family: system-ui, -apple-system, sans-serif;
 }

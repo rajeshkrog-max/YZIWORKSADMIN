@@ -93,15 +93,15 @@ function FlowConnector() {
             <stop offset="100%" stopColor="#22D3EE" />
           </linearGradient>
           <radialGradient id="dotGlow">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: 'var(--theme-fg)' }} stopOpacity="1" />
+            <stop offset="100%" style={{ stopColor: 'var(--theme-fg)' }} stopOpacity="0" />
           </radialGradient>
         </defs>
 
         {paths.map((d, i) => (
           <g key={i}>
             {/* base faint line */}
-            <path d={d} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
+            <path d={d} fill="none" style={{ stroke: 'color-mix(in srgb, var(--theme-fg) 8%, transparent)' }} strokeWidth="1.5" />
             {/* flowing dashed current */}
             <path
               d={d}
@@ -137,7 +137,7 @@ function FlowConnector() {
 function MobileFlowLine() {
   return (
     <div className="md:hidden relative flex justify-center h-10" aria-hidden="true">
-      <div className="w-px h-full bg-gradient-to-b from-white/25 via-white/10 to-white/25 overflow-hidden">
+      <div className="w-px h-full bg-gradient-to-b from-fg/25 via-fg/10 to-fg/25 overflow-hidden">
         <div className="w-full h-3 bg-gradient-to-b from-yzi-orange via-yzi-pink to-yzi-cyan animate-mobile-flow" />
       </div>
     </div>
@@ -146,12 +146,12 @@ function MobileFlowLine() {
 
 function OurVerticals() {
   return (
-    <section className="relative py-24 md:py-28 bg-yzi-black border-t border-white/5 overflow-hidden">
+    <section className="relative py-24 md:py-28 bg-yzi-black border-t border-fg/5 overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-yzi-purple/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative max-w-5xl mx-auto px-6">
         <div className="text-center mb-16 md:mb-20">
-          <p className="text-yzi-cyan text-xs md:text-sm tracking-[0.3em] uppercase mb-4 font-medium">
+          <p className="text-accent-cyan-fg text-xs md:text-sm tracking-[0.3em] uppercase mb-4 font-medium">
             Our Ecosystem
           </p>
           <h2 className="text-3xl md:text-5xl font-bold mb-4">
@@ -172,7 +172,7 @@ function OurVerticals() {
             <div className="relative flex flex-col items-center text-center px-8 py-10">
               {/* pulsing core ring — the "power source" */}
               <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full animate-core-pulse pointer-events-none" />
-              <span className="inline-block px-3 py-1 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-[10px] tracking-widest uppercase font-semibold mb-6">
+              <span className="inline-block px-3 py-1 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white text-[10px] tracking-widest uppercase font-semibold mb-6">
                 Parent Company
               </span>
               <img

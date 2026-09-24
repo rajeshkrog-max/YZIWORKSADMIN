@@ -3,6 +3,8 @@ import { useOtpLaunchGuard } from '../hooks/useOtpLaunchGuard'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
 import { uploadFilesToR2 } from '../utils/r2Upload'
 import youthImage from '../assets/youth.png'
+import youthImageLight from '../assets/slides-light/youth.png'
+import { useTheme } from '../theme/useTheme'
 
 const PRIVACY_NOTICE_VERSION = 'v1'
 
@@ -30,6 +32,10 @@ const INITIAL_FORM_DATA = {
 }
 
 function EarlyBuildersForm({ isOpen, onClose }) {
+  // Same photo slot in both themes; the theme picks which one is shown.
+  const { isDark } = useTheme()
+  const photo = isDark ? youthImage : youthImageLight
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
 
   const [errors, setErrors] = useState({})
@@ -351,14 +357,14 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 overflow-hidden">
-      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto overscroll-contain">
+      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-fg/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto overscroll-contain">
 
         <button
           onClick={() => {
             resetForm()
             onClose()
           }}
-          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 light:bg-black/40 light:hover:bg-black/55 flex items-center justify-center text-white"
         >
           ✕
         </button>
@@ -367,12 +373,12 @@ function EarlyBuildersForm({ isOpen, onClose }) {
         <div
           className="lg:hidden relative w-full h-40 overflow-hidden"
           style={{
-            backgroundImage: `url(${youthImage})`,
+            backgroundImage: `url(${photo})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center 25%',
           }}
         >
-          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-black/35 light:bg-transparent" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2">
@@ -397,10 +403,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.firstName && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.firstName}
                     </p>
                   )}
@@ -414,10 +420,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.lastName && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.lastName}
                     </p>
                   )}
@@ -434,10 +440,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="age"
                     value={formData.age}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.age && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.age}
                     </p>
                   )}
@@ -451,7 +457,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="gender"
                     value={formData.gender}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   >
                     <option value="">Select</option>
                     <option value="Male">Male</option>
@@ -460,7 +466,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     <option value="Prefer not to say">Prefer not to say</option>
                   </select>
                   {errors.gender && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.gender}
                     </p>
                   )}
@@ -475,7 +481,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   name="qualification"
                   value={formData.qualification}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                 >
                   <option value="">Select</option>
                   <option value="10th">10th</option>
@@ -486,7 +492,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   <option value="Other">Other</option>
                 </select>
                 {errors.qualification && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.qualification}
                   </p>
                 )}
@@ -501,7 +507,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="otherQualification"
                     value={formData.otherQualification}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                 </div>
               )}
@@ -514,7 +520,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   name="field"
                   value={formData.field}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                 >
                   <option value="">Select your field</option>
                   {industries.map(item => (
@@ -524,7 +530,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   ))}
                 </select>
                 {errors.field && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.field}
                   </p>
                 )}
@@ -539,10 +545,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="otherField"
                     value={formData.otherField}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.otherField && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.otherField}
                     </p>
                   )}
@@ -558,10 +564,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   value={formData.role}
                   onChange={handleChange}
                   placeholder="e.g. Student, Freelancer, Intern..."
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                 />
                 {errors.role && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.role}
                   </p>
                 )}
@@ -577,10 +583,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.email && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.email}
                     </p>
                   )}
@@ -597,10 +603,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     onChange={handleChange}
                     placeholder="10-digit number"
                     maxLength="10"
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                   {errors.phone && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.phone}
                     </p>
                   )}
@@ -616,10 +622,10 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   value={formData.about}
                   onChange={handleChange}
                   rows="3"
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange resize-none"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange resize-none"
                 />
                 {errors.about && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.about}
                   </p>
                 )}
@@ -633,7 +639,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   name="source"
                   value={formData.source}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                 >
                   <option value="">Select</option>
                   <option value="Instagram">Instagram</option>
@@ -643,7 +649,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   <option value="Other">Other</option>
                 </select>
                 {errors.source && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.source}
                   </p>
                 )}
@@ -658,7 +664,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     name="otherSource"
                     value={formData.otherSource}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-orange"
                   />
                 </div>
               )}
@@ -669,12 +675,12 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     Upload Documents
                   </label>
 
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-[10px] text-fg-muted">
                     Optional • Max 5 files • 20 MB total
                   </span>
                 </div>
 
-                <p className="text-[11px] text-gray-500 mb-3">
+                <p className="text-[11px] text-fg-muted mb-3">
                   Useful documents: resume, portfolio, certificates, work samples, etc.
                   You may upload any relevant file type.
                 </p>
@@ -684,12 +690,12 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   type="file"
                   multiple
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-400
+                  className="block w-full text-sm text-fg-muted
                     file:mr-4 file:py-2.5 file:px-4
                     file:rounded-full file:border-0
                     file:text-sm file:font-medium
-                    file:bg-white/10 file:text-white
-                    hover:file:bg-white/20
+                    file:bg-fg/10 file:text-fg
+                    hover:file:bg-fg/20
                     cursor-pointer"
                 />
 
@@ -698,14 +704,14 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     {selectedFiles.map((file, index) => (
                       <div
                         key={`${file.name}-${file.size}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-fg/10 bg-pure/20 px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs text-white truncate">
+                          <p className="text-xs text-fg truncate">
                             {file.name}
                           </p>
 
-                          <p className="text-[10px] text-gray-500">
+                          <p className="text-[10px] text-fg-muted">
                             {formatFileSize(file.size)}
                           </p>
                         </div>
@@ -713,14 +719,14 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="text-xs text-red-400 hover:text-red-300 shrink-0"
+                          className="text-xs text-red-400 light:text-red-600 hover:text-red-300 light:hover:text-red-700 shrink-0"
                         >
                           Remove
                         </button>
                       </div>
                     ))}
 
-                    <p className="text-[10px] text-gray-500">
+                    <p className="text-[10px] text-fg-muted">
                       {selectedFiles.length}/5 files •{' '}
                       {formatFileSize(
                         selectedFiles.reduce(
@@ -734,16 +740,16 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                 )}
 
                 {errors.attachments && (
-                  <p className="text-red-400 text-xs mt-2">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-2">
                     {errors.attachments}
                   </p>
                 )}
               </div>
 
               <div className="mt-6">
-                <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10">
-                    <p className="text-sm font-medium text-white/80">
+                <div className="rounded-xl border border-fg/10 bg-pure/20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-fg/10">
+                    <p className="text-sm font-medium text-fg/80">
                       Data Privacy Notice
                     </p>
                   </div>
@@ -751,7 +757,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   <div
                     ref={privacyNoticeRef}
                     onScroll={handlePrivacyScroll}
-                    className="h-[190px] overflow-y-auto px-4 py-4 text-[11px] md:text-xs text-gray-400 leading-relaxed scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+                    className="h-[190px] overflow-y-auto px-4 py-4 text-[11px] md:text-xs text-fg-muted leading-relaxed scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
                   >
                     <p className="mb-3">
                       Young Zone India collects your name, email address, and
@@ -770,7 +776,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                       Officer at{' '}
                       <a
                         href="mailto:admin@youngzoneindia.com"
-                        className="text-gray-300 underline underline-offset-2 hover:text-white transition-colors"
+                        className="text-fg/80 underline underline-offset-2 hover:text-fg transition-colors"
                       >
                         admin@youngzoneindia.com
                       </a>{' '}
@@ -783,7 +789,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                         href="https://www.youngzoneindia.com/privacy-policy/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-300 underline underline-offset-2 hover:text-white transition-colors"
+                        className="text-fg/80 underline underline-offset-2 hover:text-fg transition-colors"
                       >
                         Privacy Policy
                       </a>
@@ -791,13 +797,13 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     </p>
                   </div>
 
-                  <div className="px-4 py-2 border-t border-white/10 bg-white/[0.02]">
+                  <div className="px-4 py-2 border-t border-fg/10 bg-fg/[0.02]">
                     {privacyNoticeRead ? (
-                      <p className="text-[11px] text-green-400/80">
+                      <p className="text-[11px] text-green-400/80 light:text-green-700">
                         ✓ Privacy Notice reviewed
                       </p>
                     ) : (
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-[11px] text-fg-muted">
                         Please scroll through the notice to continue.
                       </p>
                     )}
@@ -823,19 +829,19 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     className={`text-xs leading-relaxed ${
                       privacyNoticeRead
                         ? 'text-yzi-muted cursor-pointer'
-                        : 'text-gray-500 cursor-not-allowed'
+                        : 'text-fg-muted cursor-not-allowed'
                     }`}
                   >
                     {PRIVACY_CONSENT_TEXT}
                   </label>
                 </div>
 
-                <p className="mt-2 ml-7 text-[10px] text-gray-500">
+                <p className="mt-2 ml-7 text-[10px] text-fg-muted">
                   * Required
                 </p>
 
                 {errors.consent && (
-                  <p className="text-red-400 text-xs mt-2">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-2">
                     {errors.consent}
                   </p>
                 )}
@@ -844,7 +850,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
               <button
                 type="submit"
                 disabled={isProcessingSubmission || isOtpLaunching}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isProcessingSubmission
                   ? 'Processing...'
@@ -858,24 +864,24 @@ function EarlyBuildersForm({ isOpen, onClose }) {
           <div
             className="hidden lg:block relative overflow-hidden"
             style={{
-              backgroundImage: `url(${youthImage})`,
+              backgroundImage: `url(${photo})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
           >
             {/* Dark readability overlay */}
-            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 bg-black/45 light:bg-transparent" />
 
             {/* Existing text remains above the image */}
             <div className="absolute inset-0 flex items-center justify-center p-10">
-              <div className="relative z-10 text-center">
-                <h3 className="text-3xl font-bold mb-4">
+              <div className="relative z-10 text-center light:bg-white/75 light:backdrop-blur-md light:rounded-2xl light:px-8 light:py-6 light:shadow-lg">
+                <h3 className="text-3xl font-bold mb-4 text-white light:text-[#0B0B14]">
                   Build Your
                   <br />
                   Work Identity
                 </h3>
 
-                <p className="text-yzi-muted">
+                <p className="text-[#A1A1AA] light:text-[#3F3F46]">
                   Join the first generation of Early Builders and shape the
                   future of work.
                 </p>
@@ -887,7 +893,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
 
       {showOtpModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90">
-          <div className="bg-yzi-card border border-white/10 rounded-2xl p-8 w-full max-w-md mx-4 text-center">
+          <div className="bg-yzi-card border border-fg/10 rounded-2xl p-8 w-full max-w-md mx-4 text-center">
 
             {!isVerified ? (
               <>
@@ -903,7 +909,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   <span className="text-lg font-medium">
                     +91 {formData.phone}
                   </span>
-                  <button className="text-yzi-cyan text-sm underline">
+                  <button className="text-accent-cyan-fg text-sm underline">
                     Edit
                   </button>
                 </div>
@@ -914,19 +920,19 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   onChange={(e) => setOtp(e.target.value)}
                   maxLength="6"
                   placeholder="Enter 6-digit OTP"
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-center text-lg tracking-widest mb-4 focus:outline-none focus:border-yzi-orange"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-center text-lg tracking-widest mb-4 focus:outline-none focus:border-yzi-orange"
                 />
 
                 <button
                   onClick={handleVerifyOtp}
-                  className="w-full py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold mb-3"
+                  className="w-full py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white font-semibold mb-3"
                 >
                   Verify OTP
                 </button>
 
                 <button
                   onClick={() => setShowOtpModal(false)}
-                  className="w-full py-3 rounded-full border border-white/20 text-white/80 hover:bg-white/5 transition mb-4"
+                  className="w-full py-3 rounded-full border border-fg/20 text-fg/80 hover:bg-fg/5 transition mb-4"
                 >
                   Cancel / Go Back
                 </button>
@@ -935,7 +941,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                   {canResend ? (
                     <button
                       onClick={startTimer}
-                      className="text-yzi-cyan underline"
+                      className="text-accent-cyan-fg underline"
                     >
                       Resend OTP
                     </button>
@@ -964,7 +970,7 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     resetForm()
                     onClose()
                   }}
-                  className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold"
+                  className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white font-semibold"
                 >
                   Close
                 </button>

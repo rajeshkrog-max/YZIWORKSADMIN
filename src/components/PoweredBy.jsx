@@ -74,7 +74,8 @@ function PoweredBy() {
         const scale = 1 + (MAX_SCALE - 1) * eased
         el.style.transform = `scale(${scale})`
         el.style.zIndex = Math.round(eased * 100)
-        const glow = 0.25 + eased * 0.55 // 0.25 -> 0.8
+        const lightFactor = document.documentElement.dataset.theme === 'light' ? 0.35 : 1
+        const glow = (0.25 + eased * 0.55) * lightFactor // dark: 0.25 -> 0.8
         const spread = 20 + eased * 40   // 20px -> 60px
         el.style.boxShadow = `0 ${8 + eased * 20}px ${spread}px rgba(0,0,0,${glow})`
       })
@@ -87,10 +88,10 @@ function PoweredBy() {
   }, [])
 
   return (
-    <section className="py-24 bg-[#05050A] border-t border-white/5 overflow-hidden">
+    <section className="py-24 bg-surface border-t border-fg/5 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-20">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-fg mb-4">
             Powered By
           </h2>
           <div className="w-24 h-1.5 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500 mx-auto rounded-full"></div>
@@ -113,7 +114,7 @@ function PoweredBy() {
                 ref={(el) => (tileRefs.current[i] = el)}
                 className="flex-shrink-0 w-44 h-24 flex items-center justify-center
                            bg-white rounded-2xl px-4 py-3
-                           border border-white/10
+                           border border-fg/10
                            shadow-[0_8px_30px_rgba(0,0,0,0.35)]
                            transition-shadow duration-200"
                 style={{ transition: 'transform 60ms linear' }}
