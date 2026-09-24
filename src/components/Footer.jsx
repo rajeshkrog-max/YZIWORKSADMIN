@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import logo from '../assets/logo.png'
+import Logo from './Logo'
 import partnerLogo from '../assets/partner1.png'
 
 const FacebookIcon = (props) => (
@@ -343,11 +343,8 @@ function Footer() {
 
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-12 pb-12">
           <div className="flex flex-col items-center md:items-start gap-4 text-center md:text-left">
-            <img
-              src={logo}
-              alt="YZI Works"
-              className="h-32 md:h-32 w-auto object-contain py-2 light:bg-logo-chip light:rounded-2xl light:px-4"
-            />
+            {/* h-28 + my-2 = the old h-32 img with py-2: same 112px logo, same 128px footprint */}
+            <Logo className="h-28 my-2" />
 
             <p className="text-fg/50 text-sm max-w-xs leading-relaxed">
               A flexible work and opportunity platform by Young Zone India, connecting people, businesses and service providers to discover, collaborate and grow through a better way of working.
