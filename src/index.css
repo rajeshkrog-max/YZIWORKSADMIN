@@ -13,9 +13,6 @@
   --color-yzi-purple: #8B5CF6;
   --color-yzi-blue: #3B82F6;
   --color-yzi-cyan: #22D3EE;
-
-  /* Chip behind logo.png in light theme (its "WORKS" wordmark is white) */
-  --color-logo-chip: #0B0B14;
 }
 
 /* Theme-switched colours. `inline` makes utilities read --theme-* directly,

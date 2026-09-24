@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import logo from '../assets/logo.png'
+import Logo from './Logo'
 import ChoiceModal from './ChoiceModal'
 import EarlyBuildersForm from './EarlyBuildersForm'
 import EarlyPartnersForm from './EarlyPartnersForm'
@@ -34,12 +34,8 @@ function Navbar() {
         <div className="max-w-6xl mx-auto px-5 md:pr-[92px] min-[1336px]:pr-5 h-16 flex items-center justify-between">
           
           {/* Logo */}
-          <div className="flex items-center light:bg-logo-chip light:rounded-xl light:px-2.5 light:py-1">
-            <img 
-              src={logo} 
-              alt="YZI Works" 
-              className="h-10 md:h-12 w-auto object-contain"
-            />
+          <div className="flex items-center">
+            <Logo className="h-10 md:h-12" />
           </div>
 
           {/* Desktop Menu */}

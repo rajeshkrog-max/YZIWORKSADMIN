@@ -6,10 +6,10 @@ function SeraWrapup({ profile }) {
   return (
     <div className="flex flex-col items-center text-center">
       <SeraOrb state="thinking" size={160} className="mb-6" />
-      <h2 className="text-2xl font-bold text-white mb-2">
+      <h2 className="text-2xl font-bold text-fg mb-2">
         Thank you{firstName ? `, ${firstName}` : ''} — that's everything I need.
       </h2>
-      <p className="text-white/60 text-sm">Preparing your report…</p>
+      <p className="text-fg/60 text-sm">Preparing your report…</p>
     </div>
   )
 }

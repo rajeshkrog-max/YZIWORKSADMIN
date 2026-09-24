@@ -16,7 +16,7 @@ function SeraPreparing() {
   return (
     <div className="flex flex-col items-center text-center">
       <SeraOrb state="thinking" size={180} className="mb-6" />
-      <p className="text-sm font-mono text-white/60 min-h-[20px]">{LINES[lineIndex]}</p>
+      <p className="text-sm font-mono text-fg/60 min-h-[20px]">{LINES[lineIndex]}</p>
     </div>
   )
 }
