@@ -1,0 +1,24 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Redirect work.youngzoneindia.com to yziworks.com
+  RewriteCond %{HTTP_HOST} ^work\.youngzoneindia\.com$ [NC]
+  RewriteRule ^(.*)$ https://yziworks.com/$1 [R=301,L]
+
+  # Security & Google Sign-In popup support
+  <IfModule mod_headers.c>
+    Header set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+  </IfModule>
+
+  # Forward Netlify functions to PHP proxy bridge
+  RewriteRule ^\.netlify/functions/(.*)$ api-proxy.php?fn=$1 [QSA,L]
+
+  # Direct file or directory requests pass through
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else routes to index.html (SPA client-side routing)
+  RewriteRule ^ index.html [L]
+</IfModule>
