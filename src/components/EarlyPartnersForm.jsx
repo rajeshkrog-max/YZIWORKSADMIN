@@ -3,6 +3,8 @@ import { useOtpLaunchGuard } from '../hooks/useOtpLaunchGuard'
 import { loadMsg91Script, openMsg91OTP } from '../utils/msg91'
 import { uploadFilesToR2 } from '../utils/r2Upload'
 import partnerImage from '../assets/partner.png'
+import partnerImageLight from '../assets/slides-light/partner.png'
+import { useTheme } from '../theme/useTheme'
 
 const PRIVACY_NOTICE_VERSION = 'v1'
 
@@ -29,6 +31,10 @@ const INITIAL_FORM_DATA = {
 }
 
 function EarlyPartnersForm({ isOpen, onClose }) {
+  // Same photo slot in both themes; the theme picks which one is shown.
+  const { isDark } = useTheme()
+  const photo = isDark ? partnerImage : partnerImageLight
+
   const [formData, setFormData] = useState(INITIAL_FORM_DATA)
 
   const [errors, setErrors] = useState({})
@@ -363,14 +369,14 @@ function EarlyPartnersForm({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden">
-      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto overscroll-contain">
+      <div className="relative w-full max-w-5xl bg-yzi-card rounded-3xl overflow-hidden border border-fg/10 shadow-2xl my-8 max-h-[90vh] overflow-y-auto overscroll-contain">
 
         <button
           onClick={() => {
             resetForm()
             onClose()
           }}
-          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 light:bg-black/40 light:hover:bg-black/55 flex items-center justify-center text-white"
         >
           ✕
         </button>
@@ -379,12 +385,12 @@ function EarlyPartnersForm({ isOpen, onClose }) {
         <div
           className="lg:hidden relative w-full h-40 overflow-hidden"
           style={{
-            backgroundImage: `url(${partnerImage})`,
+            backgroundImage: `url(${photo})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center 25%',
           }}
         >
-          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-black/35 light:bg-transparent" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2">
@@ -410,10 +416,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.fullName && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.fullName}
                     </p>
                   )}
@@ -428,10 +434,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     value={formData.role}
                     onChange={handleChange}
                     placeholder="e.g. Owner, Manager, HR..."
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.role && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.role}
                     </p>
                   )}
@@ -446,10 +452,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   name="businessName"
                   value={formData.businessName}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                 />
                 {errors.businessName && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.businessName}
                   </p>
                 )}
@@ -463,7 +469,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   name="businessType"
                   value={formData.businessType}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                 >
                   <option value="">Select</option>
                   <option value="Local Business / Shop">
@@ -476,7 +482,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   <option value="Other">Other</option>
                 </select>
                 {errors.businessType && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.businessType}
                   </p>
                 )}
@@ -490,7 +496,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   name="industry"
                   value={formData.industry}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                 >
                   <option value="">Select Industry</option>
                   {industries.map(item => (
@@ -500,7 +506,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   ))}
                 </select>
                 {errors.industry && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.industry}
                   </p>
                 )}
@@ -515,10 +521,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="otherIndustry"
                     value={formData.otherIndustry}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.otherIndustry && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.otherIndustry}
                     </p>
                   )}
@@ -534,10 +540,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="city"
                     value={formData.city}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.city && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.city}
                     </p>
                   )}
@@ -551,7 +557,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="years"
                     value={formData.years}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   >
                     <option value="">Select</option>
                     <option value="Less than 1 year">
@@ -562,7 +568,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     <option value="5+ years">5+ years</option>
                   </select>
                   {errors.years && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.years}
                     </p>
                   )}
@@ -579,10 +585,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   onChange={handleChange}
                   rows="3"
                   placeholder="Tell us briefly what kind of people you are looking for..."
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple resize-none"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple resize-none"
                 />
                 {errors.talentNeed && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.talentNeed}
                   </p>
                 )}
@@ -598,10 +604,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.email && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.email}
                     </p>
                   )}
@@ -618,10 +624,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     onChange={handleChange}
                     placeholder="10-digit number"
                     maxLength="10"
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.phone && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.phone}
                     </p>
                   )}
@@ -636,7 +642,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   name="source"
                   value={formData.source}
                   onChange={handleChange}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                 >
                   <option value="">Select</option>
                   <option value="Instagram">Instagram</option>
@@ -646,7 +652,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   <option value="Other">Other</option>
                 </select>
                 {errors.source && (
-                  <p className="text-red-400 text-xs mt-1">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-1">
                     {errors.source}
                   </p>
                 )}
@@ -661,10 +667,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     name="otherSource"
                     value={formData.otherSource}
                     onChange={handleChange}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
+                    className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple"
                   />
                   {errors.otherSource && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 light:text-red-600 text-xs mt-1">
                       {errors.otherSource}
                     </p>
                   )}
@@ -680,7 +686,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   value={formData.anythingElse}
                   onChange={handleChange}
                   rows="2"
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple resize-none"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-yzi-purple resize-none"
                 />
               </div>
 
@@ -690,12 +696,12 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     Upload Documents
                   </label>
 
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-[10px] text-fg-muted">
                     Optional • Max 5 files • 20 MB total
                   </span>
                 </div>
 
-                <p className="text-[11px] text-gray-500 mb-3">
+                <p className="text-[11px] text-fg-muted mb-3">
                   Useful documents: company profile, registration documents,
                   portfolio, requirements, etc. You may upload any relevant file type.
                 </p>
@@ -705,12 +711,12 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   type="file"
                   multiple
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-400
+                  className="block w-full text-sm text-fg-muted
                     file:mr-4 file:py-2.5 file:px-4
                     file:rounded-full file:border-0
                     file:text-sm file:font-medium
-                    file:bg-white/10 file:text-white
-                    hover:file:bg-white/20
+                    file:bg-fg/10 file:text-fg
+                    hover:file:bg-fg/20
                     cursor-pointer"
                 />
 
@@ -719,14 +725,14 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     {selectedFiles.map((file, index) => (
                       <div
                         key={`${file.name}-${file.size}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-fg/10 bg-pure/20 px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs text-white truncate">
+                          <p className="text-xs text-fg truncate">
                             {file.name}
                           </p>
 
-                          <p className="text-[10px] text-gray-500">
+                          <p className="text-[10px] text-fg-muted">
                             {formatFileSize(file.size)}
                           </p>
                         </div>
@@ -734,14 +740,14 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="text-xs text-red-400 hover:text-red-300 shrink-0"
+                          className="text-xs text-red-400 light:text-red-600 hover:text-red-300 light:hover:text-red-700 shrink-0"
                         >
                           Remove
                         </button>
                       </div>
                     ))}
 
-                    <p className="text-[10px] text-gray-500">
+                    <p className="text-[10px] text-fg-muted">
                       {selectedFiles.length}/5 files •{' '}
                       {formatFileSize(
                         selectedFiles.reduce(
@@ -755,16 +761,16 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                 )}
 
                 {errors.attachments && (
-                  <p className="text-red-400 text-xs mt-2">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-2">
                     {errors.attachments}
                   </p>
                 )}
               </div>
 
               <div className="mt-6">
-                <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10">
-                    <p className="text-sm font-medium text-white/80">
+                <div className="rounded-xl border border-fg/10 bg-pure/20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-fg/10">
+                    <p className="text-sm font-medium text-fg/80">
                       Data Privacy Notice
                     </p>
                   </div>
@@ -772,7 +778,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   <div
                     ref={privacyNoticeRef}
                     onScroll={handlePrivacyScroll}
-                    className="h-[190px] overflow-y-auto px-4 py-4 text-[11px] md:text-xs text-gray-400 leading-relaxed scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+                    className="h-[190px] overflow-y-auto px-4 py-4 text-[11px] md:text-xs text-fg-muted leading-relaxed scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
                   >
                     <p className="mb-3">
                       Young Zone India collects your name, email address, and
@@ -791,7 +797,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                       Officer at{' '}
                       <a
                         href="mailto:admin@youngzoneindia.com"
-                        className="text-gray-300 underline underline-offset-2 hover:text-white transition-colors"
+                        className="text-fg/80 underline underline-offset-2 hover:text-fg transition-colors"
                       >
                         admin@youngzoneindia.com
                       </a>{' '}
@@ -804,7 +810,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                         href="https://www.youngzoneindia.com/privacy-policy/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-300 underline underline-offset-2 hover:text-white transition-colors"
+                        className="text-fg/80 underline underline-offset-2 hover:text-fg transition-colors"
                       >
                         Privacy Policy
                       </a>
@@ -812,13 +818,13 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     </p>
                   </div>
 
-                  <div className="px-4 py-2 border-t border-white/10 bg-white/[0.02]">
+                  <div className="px-4 py-2 border-t border-fg/10 bg-fg/[0.02]">
                     {privacyNoticeRead ? (
-                      <p className="text-[11px] text-green-400/80">
+                      <p className="text-[11px] text-green-400/80 light:text-green-700">
                         ✓ Privacy Notice reviewed
                       </p>
                     ) : (
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-[11px] text-fg-muted">
                         Please scroll through the notice to continue.
                       </p>
                     )}
@@ -844,19 +850,19 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     className={`text-xs leading-relaxed ${
                       privacyNoticeRead
                         ? 'text-yzi-muted cursor-pointer'
-                        : 'text-gray-500 cursor-not-allowed'
+                        : 'text-fg-muted cursor-not-allowed'
                     }`}
                   >
                     {PRIVACY_CONSENT_TEXT}
                   </label>
                 </div>
 
-                <p className="mt-2 ml-7 text-[10px] text-gray-500">
+                <p className="mt-2 ml-7 text-[10px] text-fg-muted">
                   * Required
                 </p>
 
                 {errors.consent && (
-                  <p className="text-red-400 text-xs mt-2">
+                  <p className="text-red-400 light:text-red-600 text-xs mt-2">
                     {errors.consent}
                   </p>
                 )}
@@ -865,7 +871,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
               <button
                 type="submit"
                 disabled={isProcessingSubmission || isOtpLaunching}
-                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-white font-semibold hover:scale-[1.02] transition-transform mt-5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isProcessingSubmission
                   ? 'Processing...'
@@ -879,24 +885,24 @@ function EarlyPartnersForm({ isOpen, onClose }) {
           <div
             className="hidden lg:block relative overflow-hidden"
             style={{
-              backgroundImage: `url(${partnerImage})`,
+              backgroundImage: `url(${photo})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
           >
             {/* Dark readability overlay */}
-            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 bg-black/45 light:bg-transparent" />
 
             {/* Existing text remains above the image */}
             <div className="absolute inset-0 flex items-center justify-center p-10">
-              <div className="relative z-10 text-center">
-                <h3 className="text-3xl font-bold mb-4">
+              <div className="relative z-10 text-center light:bg-white/75 light:backdrop-blur-md light:rounded-2xl light:px-8 light:py-6 light:shadow-lg">
+                <h3 className="text-3xl font-bold mb-4 text-white light:text-[#0B0B14]">
                   Build Better
                   <br />
                   Workplaces
                 </h3>
 
-                <p className="text-yzi-muted">
+                <p className="text-[#A1A1AA] light:text-[#3F3F46]">
                   Join as an Early Partner and get access to verified, skilled
                   talent.
                 </p>
@@ -908,7 +914,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
 
       {showOtpModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90">
-          <div className="bg-yzi-card border border-white/10 rounded-2xl p-8 w-full max-w-md mx-4 text-center">
+          <div className="bg-yzi-card border border-fg/10 rounded-2xl p-8 w-full max-w-md mx-4 text-center">
 
             {!isVerified ? (
               <>
@@ -924,7 +930,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   <span className="text-lg font-medium">
                     +91 {formData.phone}
                   </span>
-                  <button className="text-yzi-cyan text-sm underline">
+                  <button className="text-accent-cyan-fg text-sm underline">
                     Edit
                   </button>
                 </div>
@@ -935,12 +941,12 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   onChange={(e) => setOtp(e.target.value)}
                   maxLength="6"
                   placeholder="Enter 6-digit OTP"
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-center text-lg tracking-widest mb-4 focus:outline-none focus:border-yzi-purple"
+                  className="w-full bg-pure/50 border border-fg/10 rounded-xl px-4 py-3 text-center text-lg tracking-widest mb-4 focus:outline-none focus:border-yzi-purple"
                 />
 
                 <button
                   onClick={handleVerifyOtp}
-                  className="w-full py-3 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold mb-3"
+                  className="w-full py-3 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-white font-semibold mb-3"
                 >
                   Verify OTP
                 </button>
@@ -950,7 +956,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     resetForm()
                     onClose()
                   }}
-                  className="w-full py-3 rounded-full border border-white/20 text-white/80 hover:bg-white/5 transition mb-4"
+                  className="w-full py-3 rounded-full border border-fg/20 text-fg/80 hover:bg-fg/5 transition mb-4"
                 >
                   Cancel / Go Back
                 </button>
@@ -959,7 +965,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                   {canResend ? (
                     <button
                       onClick={startTimer}
-                      className="text-yzi-cyan underline"
+                      className="text-accent-cyan-fg underline"
                     >
                       Resend OTP
                     </button>
@@ -987,7 +993,7 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                     resetForm()
                     onClose()
                   }}
-                  className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold"
+                  className="px-8 py-3 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-white font-semibold"
                 >
                   Close
                 </button>

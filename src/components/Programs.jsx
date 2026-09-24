@@ -24,8 +24,8 @@ function Programs() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
           {/* Early Builders Card */}
-          <div className="bg-yzi-card border border-white/10 rounded-3xl p-8 hover:border-yzi-orange/50 transition-all duration-300">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-sm font-medium mb-6">
+          <div className="bg-yzi-card border border-fg/10 rounded-3xl p-8 hover:border-yzi-orange/50 transition-all duration-300">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white text-sm font-medium mb-6">
               For Individuals
             </div>
 
@@ -58,15 +58,15 @@ function Programs() {
 
             <button
               onClick={() => setIsBuildersOpen(true)}
-              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink font-semibold hover:scale-[1.02] transition-transform"
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white font-semibold hover:scale-[1.02] transition-transform"
             >
               Build your work identity
             </button>
           </div>
 
           {/* Early Partners Card */}
-          <div className="bg-yzi-card border border-white/10 rounded-3xl p-8 hover:border-yzi-purple/50 transition-all duration-300">
-            <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-sm font-medium mb-6">
+          <div className="bg-yzi-card border border-fg/10 rounded-3xl p-8 hover:border-yzi-purple/50 transition-all duration-300">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-white text-sm font-medium mb-6">
               For Organizations
             </div>
 
@@ -99,7 +99,7 @@ function Programs() {
 
             <button
               onClick={() => setIsPartnersOpen(true)}
-              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue font-semibold hover:scale-[1.02] transition-transform"
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-yzi-purple to-yzi-blue text-white font-semibold hover:scale-[1.02] transition-transform"
             >
               Collaborate. Innovate. Build together.
             </button>

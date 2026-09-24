@@ -15,20 +15,19 @@ function Hero() {
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           
-          <p className="text-sm text-yzi-cyan tracking-widest uppercase mb-5 font-medium">
-            This Independence Week
+          <p className="text-sm text-accent-cyan-fg tracking-widest uppercase mb-5 font-medium">
+            Work is changing.
           </p>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-            CHOOSE<br />
+            BE PART OF<br />
             <span className="bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple bg-clip-text text-transparent">
-              WORK INDEPENDENCE.
+              WHAT’S NEXT.
             </span>
           </h1>
 
           <p className="text-base md:text-lg text-yzi-muted max-w-xl mx-auto mb-10 leading-relaxed">
-            The future of work won’t be built by one company.<br />
-            It will be built by a community.
+            For those ready to work differently, build something new, and create opportunities together.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -41,7 +40,7 @@ function Hero() {
             
             <button 
               onClick={() => setIsPartnersOpen(true)}
-              className="px-8 py-3.5 rounded-full border border-white/20 text-white font-semibold hover:bg-white/10 transition-colors duration-300"
+              className="px-8 py-3.5 rounded-full border border-fg/20 text-fg font-semibold hover:bg-fg/10 transition-colors duration-300"
             >
               Become Early Partner
             </button>

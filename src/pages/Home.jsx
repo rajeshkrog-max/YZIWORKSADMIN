@@ -9,7 +9,7 @@ import Footer from '../components/Footer'
 
 function Home() {
   return (
-    <div className="min-h-screen bg-yzi-black text-white">
+    <div className="min-h-screen bg-yzi-black text-fg">
       <Navbar />
       <HeroSlider />
       <Hero />

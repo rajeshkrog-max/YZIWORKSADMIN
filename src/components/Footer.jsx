@@ -160,17 +160,17 @@ function Footer() {
   }
 
   return (
-    <footer className="relative bg-[#05050A] pt-20 pb-10 overflow-hidden">
+    <footer className="relative bg-surface pt-20 pb-10 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 to-transparent" />
       <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-500/10 blur-3xl rounded-full" />
 
       <div className="relative max-w-7xl mx-auto px-6">
         {isContactOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="relative w-full max-w-4xl bg-[#0B0B14] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="relative w-full max-w-4xl bg-surface-2 border border-fg/10 rounded-3xl overflow-hidden shadow-2xl">
               <button
                 onClick={closeContactModal}
-                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-fg/10 hover:bg-fg/20 flex items-center justify-center text-fg z-10"
                 aria-label="Close contact form"
               >
                 ✕
@@ -184,13 +184,13 @@ function Footer() {
 
                   <h3 className="text-2xl font-bold mb-2">Message Sent</h3>
 
-                  <p className="text-white/60 mb-6">
+                  <p className="text-fg/60 mb-6">
                     Thank you. Our team will get back to you soon.
                   </p>
 
                   <button
                     onClick={closeContactModal}
-                    className="px-7 py-3 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 font-semibold hover:scale-[1.02] transition"
+                    className="px-7 py-3 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold hover:scale-[1.02] transition"
                   >
                     Close
                   </button>
@@ -199,13 +199,13 @@ function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   <div className="p-8 md:p-10">
                     <h3 className="text-2xl font-bold mb-1">Contact Us</h3>
-                    <p className="text-white/50 text-sm mb-8">
+                    <p className="text-fg/50 text-sm mb-8">
                       We usually reply within 24 hours.
                     </p>
 
                     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                       <div>
-                        <label htmlFor="contact-name" className="text-sm text-white/60 mb-1.5 block">
+                        <label htmlFor="contact-name" className="text-sm text-fg/60 mb-1.5 block">
                           Name
                         </label>
 
@@ -218,13 +218,13 @@ function Footer() {
                           autoComplete="name"
                           placeholder="Your full name"
                           maxLength="100"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          className="w-full bg-pure/40 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
                           required
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="contact-email" className="text-sm text-white/60 mb-1.5 block">
+                        <label htmlFor="contact-email" className="text-sm text-fg/60 mb-1.5 block">
                           Email Address
                         </label>
 
@@ -238,13 +238,13 @@ function Footer() {
                           inputMode="email"
                           placeholder="you@example.com"
                           maxLength="254"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          className="w-full bg-pure/40 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
                           required
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="contact-phone" className="text-sm text-white/60 mb-1.5 block">
+                        <label htmlFor="contact-phone" className="text-sm text-fg/60 mb-1.5 block">
                           Phone / WhatsApp
                         </label>
 
@@ -258,13 +258,13 @@ function Footer() {
                           inputMode="numeric"
                           placeholder="10-digit number"
                           maxLength="10"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          className="w-full bg-pure/40 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
                           required
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="contact-subject" className="text-sm text-white/60 mb-1.5 block">
+                        <label htmlFor="contact-subject" className="text-sm text-fg/60 mb-1.5 block">
                           Subject
                         </label>
 
@@ -277,13 +277,13 @@ function Footer() {
                           autoComplete="off"
                           placeholder="How can we help?"
                           maxLength="150"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
+                          className="w-full bg-pure/40 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500"
                           required
                         />
                       </div>
 
                       <div>
-                        <label htmlFor="contact-message" className="text-sm text-white/60 mb-1.5 block">
+                        <label htmlFor="contact-message" className="text-sm text-fg/60 mb-1.5 block">
                           Message
                         </label>
 
@@ -295,7 +295,7 @@ function Footer() {
                           rows="5"
                           maxLength="3000"
                           placeholder="Tell us how we can help..."
-                          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 resize-none"
+                          className="w-full bg-pure/40 border border-fg/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 resize-none"
                           required
                         />
                       </div>
@@ -303,7 +303,7 @@ function Footer() {
                       <button
                         type="submit"
                         disabled={sending}
-                        className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 font-semibold hover:scale-[1.02] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold hover:scale-[1.02] transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {sending ? 'Sending...' : 'Send Message'}
                       </button>
@@ -312,8 +312,8 @@ function Footer() {
                         <p
                           className={`text-sm text-center mt-3 ${
                             statusMessage.includes('successfully')
-                              ? 'text-green-400'
-                              : 'text-red-400'
+                              ? 'text-green-400 light:text-green-700'
+                              : 'text-red-400 light:text-red-600'
                           }`}
                         >
                           {statusMessage}
@@ -330,7 +330,7 @@ function Footer() {
                         to help
                       </h3>
 
-                      <p className="text-white/60 text-sm max-w-xs mx-auto">
+                      <p className="text-fg/60 text-sm max-w-xs mx-auto">
                         Have a question, partnership idea, or feedback? Reach out and our team will respond soon.
                       </p>
                     </div>
@@ -346,10 +346,10 @@ function Footer() {
             <img
               src={logo}
               alt="YZI Works"
-              className="h-32 md:h-32 w-auto object-contain py-2"
+              className="h-32 md:h-32 w-auto object-contain py-2 light:bg-logo-chip light:rounded-2xl light:px-4"
             />
 
-            <p className="text-white/50 text-sm max-w-xs leading-relaxed">
+            <p className="text-fg/50 text-sm max-w-xs leading-relaxed">
               A flexible work and opportunity platform by Young Zone India, connecting people, businesses and service providers to discover, collaborate and grow through a better way of working.
             </p>
           </div>
@@ -357,7 +357,7 @@ function Footer() {
           <div className="flex flex-col items-center md:items-end gap-5">
             <button
               onClick={() => setIsContactOpen(true)}
-              className="px-6 py-2.5 rounded-full border border-white/20 text-sm text-white font-medium hover:border-transparent hover:bg-gradient-to-r hover:from-orange-500 hover:via-pink-500 hover:to-purple-500 transition-all duration-300"
+              className="px-6 py-2.5 rounded-full border border-fg/20 text-sm text-fg hover:text-white font-medium hover:border-transparent hover:bg-gradient-to-r hover:from-orange-500 hover:via-pink-500 hover:to-purple-500 transition-all duration-300"
             >
               Contact Us
             </button>
@@ -370,27 +370,27 @@ function Footer() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={label}
-                  className="group w-10 h-10 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center hover:border-transparent hover:bg-gradient-to-br hover:from-orange-500 hover:via-pink-500 hover:to-purple-500 transition-all duration-300"
+                  className="group w-10 h-10 rounded-full border border-fg/10 bg-fg/[0.03] flex items-center justify-center hover:border-transparent hover:bg-gradient-to-br hover:from-orange-500 hover:via-pink-500 hover:to-purple-500 transition-all duration-300"
                 >
-                  <Icon className="w-4.5 h-4.5 text-white/60 group-hover:text-white transition-colors duration-300" />
+                  <Icon className="w-4.5 h-4.5 text-fg/60 group-hover:text-white transition-colors duration-300" />
                 </a>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="w-full h-px bg-white/10" />
+        <div className="w-full h-px bg-fg/10" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-center sm:text-left">
-          <p className="text-white/40 text-sm">
-            © 2026 Young Zone India. All rights reserved.
+          <p className="text-fg/40 text-sm">
+            © 2026 YZI Productions Private Limited. All rights reserved.
           </p>
 
-          <div className="flex items-center gap-2 text-white/50 text-sm">
+          <div className="flex items-center gap-2 text-fg/50 text-sm">
             <span>Made with</span>
             <span className="text-red-500">❤</span>
             <span>in India</span>
-            <span className="text-white/20">•</span>
+            <span className="text-fg/20">•</span>
             <span>Backed by</span>
 
             <span className="inline-flex items-center justify-center h-8 px-2 rounded-md bg-white ml-1">

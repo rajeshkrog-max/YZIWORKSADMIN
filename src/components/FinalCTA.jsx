@@ -13,7 +13,7 @@ function FinalCTA() {
       <section className="relative py-24 md:py-32 overflow-hidden">
         <div className="relative max-w-4xl mx-auto px-6 text-center">
 
-          <p className="text-yzi-cyan text-sm tracking-widest uppercase mb-4">
+          <p className="text-accent-cyan-fg text-sm tracking-widest uppercase mb-4">
             Early Access Is Now Open
           </p>
 
