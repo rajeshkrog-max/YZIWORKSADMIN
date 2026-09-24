@@ -858,6 +858,9 @@ function EarlyBuildersForm({ isOpen, onClose }) {
                     ? 'Opening verification...'
                     : 'Submit Application'}
               </button>
+              <p className="mt-2 text-xs text-fg/60 leading-relaxed text-center">
+                This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited.
+              </p>
             </form>
           </div>
 

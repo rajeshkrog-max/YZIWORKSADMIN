@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTheme } from '../../theme/useTheme'
 
 // Ambient network background — ported directly from the approved hero
 // concept's #net canvas (same node count, distance threshold, velocity/
@@ -9,8 +10,17 @@ import { useEffect, useRef } from 'react'
 const NODE_COUNT = 55
 const MAX_DIST = 150
 
+// Per-theme colours. Dark = the original values. Light: deeper line/dot
+// colours so they read on white, and an edge fade to the light page colour.
+const PALETTES = {
+  dark: { line: '139,92,246', lineAlpha: 0.35, dot: 'rgba(34,211,238,0.75)', edge: '5,5,10', opacity: 0.55 },
+  light: { line: '109,40,217', lineAlpha: 0.45, dot: 'rgba(8,145,178,0.8)', edge: '247,247,251', opacity: 0.7 },
+}
+
 function SeraNetworkBackground({ className }) {
   const canvasRef = useRef(null)
+  const { theme } = useTheme()
+  const palette = PALETTES[theme]
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -48,8 +58,8 @@ function SeraNetworkBackground({ className }) {
           const b = nodes[j]
           const d = Math.hypot(a.x - b.x, a.y - b.y)
           if (d < MAX_DIST) {
-            const alpha = (1 - d / MAX_DIST) * 0.35
-            ctx.strokeStyle = `rgba(139,92,246,${alpha})`
+            const alpha = (1 - d / MAX_DIST) * palette.lineAlpha
+            ctx.strokeStyle = `rgba(${palette.line},${alpha})`
             ctx.lineWidth = 1
             ctx.beginPath()
             ctx.moveTo(a.x, a.y)
@@ -59,7 +69,7 @@ function SeraNetworkBackground({ className }) {
         }
       }
       for (const n of nodes) {
-        ctx.fillStyle = 'rgba(34,211,238,0.75)'
+        ctx.fillStyle = palette.dot
         ctx.beginPath()
         ctx.arc(n.x, n.y, 1.6, 0, Math.PI * 2)
         ctx.fill()
@@ -116,20 +126,20 @@ function SeraNetworkBackground({ className }) {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, [palette]) // PALETTES entries are stable, so this re-runs only on a theme switch
 
   return (
     <div className={className} aria-hidden="true">
       <canvas
         ref={canvasRef}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.55 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: palette.opacity }}
       />
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background:
-            'radial-gradient(60% 50% at 50% 38%, rgba(5,5,10,0) 0%, rgba(5,5,10,0.55) 68%, rgba(5,5,10,0.96) 100%)',
+            `radial-gradient(60% 50% at 50% 38%, rgba(${palette.edge},0) 0%, rgba(${palette.edge},0.55) 68%, rgba(${palette.edge},0.96) 100%)`,
           pointerEvents: 'none',
         }}
       />

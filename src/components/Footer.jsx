@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import logo from '../assets/logo.png'
+import Logo from './Logo'
 import partnerLogo from '../assets/partner1.png'
 
 const FacebookIcon = (props) => (
@@ -343,11 +343,8 @@ function Footer() {
 
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-12 pb-12">
           <div className="flex flex-col items-center md:items-start gap-4 text-center md:text-left">
-            <img
-              src={logo}
-              alt="YZI Works"
-              className="h-32 md:h-32 w-auto object-contain py-2 light:bg-logo-chip light:rounded-2xl light:px-4"
-            />
+            {/* h-28 + my-2 = the old h-32 img with py-2: same 112px logo, same 128px footprint */}
+            <Logo className="h-28 my-2" />
 
             <p className="text-fg/50 text-sm max-w-xs leading-relaxed">
               A flexible work and opportunity platform by Young Zone India, connecting people, businesses and service providers to discover, collaborate and grow through a better way of working.
@@ -382,9 +379,14 @@ function Footer() {
         <div className="w-full h-px bg-fg/10" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-center sm:text-left">
-          <p className="text-fg/40 text-sm">
-            © 2026 YZI Productions Private Limited. All rights reserved.
-          </p>
+          <div className="max-w-xl sm:flex-1">
+            <p className="text-fg/40 text-sm">
+              © 2026 YZI Productions Private Limited. All rights reserved.
+            </p>
+            <p className="mt-1 text-xs text-fg/60 leading-relaxed">
+              This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited.
+            </p>
+          </div>
 
           <div className="flex items-center gap-2 text-fg/50 text-sm">
             <span>Made with</span>

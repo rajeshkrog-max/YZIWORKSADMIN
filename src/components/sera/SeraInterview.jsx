@@ -40,10 +40,10 @@ function SeraInterview({
           <span
             key={p.key}
             className={`flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wide ${
-              p.key === phase ? 'text-yzi-cyan' : 'text-white/30'
+              p.key === phase ? 'text-accent-cyan-fg' : 'text-fg/30'
             }`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${p.key === phase ? 'bg-yzi-cyan' : 'bg-white/20'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${p.key === phase ? 'bg-yzi-cyan' : 'bg-fg/20'}`} />
             {p.label}
           </span>
         ))}
@@ -51,13 +51,13 @@ function SeraInterview({
 
       <SeraOrb state={orbState} size={220} />
 
-      <div className="font-mono text-sm text-white/60 tabular-nums">{formatClock(sessionSecondsLeft)}</div>
+      <div className="font-mono text-sm text-fg/60 tabular-nums">{formatClock(sessionSecondsLeft)}</div>
 
-      <p className="text-sm text-white/70">{STATE_TEXT[turnState]}</p>
+      <p className="text-sm text-fg/70">{STATE_TEXT[turnState]}</p>
 
       {turnState === 'your-turn' && (
         <div className="w-40">
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-fg/10 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                 ringAmber ? 'bg-amber-400' : 'bg-yzi-cyan'
@@ -65,7 +65,7 @@ function SeraInterview({
               style={{ width: `${Math.min(100, ringProgress * 100)}%` }}
             />
           </div>
-          <p className="mt-1.5 text-[11px] font-mono text-white/40 tabular-nums">
+          <p className="mt-1.5 text-[11px] font-mono text-fg/40 tabular-nums">
             {String(turnElapsed).padStart(2, '0')} / {turnSeconds}s
           </p>
         </div>
@@ -78,8 +78,8 @@ function SeraInterview({
           aria-pressed={muted}
           className={`w-13 h-13 rounded-full flex items-center justify-center border transition ${
             muted
-              ? 'bg-yzi-cyan border-yzi-cyan text-yzi-black shadow-[0_0_0_5px_rgba(34,211,238,0.18),0_0_20px_rgba(34,211,238,0.5)]'
-              : 'bg-white/5 border-white/15 text-white hover:border-white/30'
+              ? 'bg-yzi-cyan border-yzi-cyan text-[#05050A] shadow-[0_0_0_5px_rgba(34,211,238,0.18),0_0_20px_rgba(34,211,238,0.5)]'
+              : 'bg-fg/5 border-fg/15 text-fg hover:border-fg/30'
           }`}
           style={{ width: 52, height: 52 }}
         >
@@ -91,7 +91,7 @@ function SeraInterview({
         <button
           onClick={onEndCall}
           aria-label="End interview"
-          className="rounded-full flex items-center justify-center border border-red-400/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+          className="rounded-full flex items-center justify-center border border-red-400/40 bg-red-500/10 text-red-400 light:text-red-600 hover:bg-red-500/20 transition"
           style={{ width: 52, height: 52 }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
