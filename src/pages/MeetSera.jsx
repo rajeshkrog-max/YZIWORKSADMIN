@@ -102,10 +102,23 @@ function MeetSera() {
       }
     : sera
 
-  // Each screen starts at the top — "Meet Sera" is clicked halfway down the landing.
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [view.screen])
+
+  useEffect(() => {
+    const titles = {
+      hero: 'Meet AI Sera | YZI Works',
+      signin: 'Sign In - AI Sera | YZI Works',
+      upload: 'Upload Resume - AI Sera | YZI Works',
+      preparing: 'Preparing Session - AI Sera | YZI Works',
+      interview: 'Live Interview - AI Sera | YZI Works',
+      wrapup: 'Wrapping Up - AI Sera | YZI Works',
+      report: 'Assessment Report - AI Sera | YZI Works',
+      blocked: 'Access Restricted - AI Sera | YZI Works'
+    }
+    document.title = titles[sera.screen] || 'Meet AI Sera | YZI Works'
+  }, [sera.screen])
 
   const topControls = (
     <>
