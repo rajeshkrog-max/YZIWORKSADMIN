@@ -18,7 +18,7 @@ function SeraHero({ onStart }) {
               'radial-gradient(55% 55% at 50% 50%, rgba(139,92,246,0.22), transparent 70%)',
           }}
         >
-          <SeraOrb state="idle" size={280} />
+          <SeraOrb state="idle" size={280} tone="dark" />
         </div>
 
         <div className="flex flex-col items-center md:items-start text-center md:text-left">

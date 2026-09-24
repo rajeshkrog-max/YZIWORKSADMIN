@@ -6,16 +6,16 @@ function SeraSignIn({ onSignIn, busy, error }) {
       <SeraOrb state="idle" size={120} className="mb-6" />
       <div
         className={`w-full max-w-sm bg-yzi-card/60 border rounded-2xl p-8 text-left backdrop-blur-md transition-shadow duration-300 ${
-          busy ? 'border-yzi-cyan/50 shadow-[0_0_34px_rgba(34,211,238,0.25)]' : 'border-white/10'
+          busy ? 'border-yzi-cyan/50 shadow-[0_0_34px_rgba(34,211,238,0.25)]' : 'border-fg/10'
         }`}
       >
-        <h2 className="text-2xl font-bold text-white mb-2">Sign in to begin.</h2>
-        <p className="text-white/60 text-sm mb-6 leading-relaxed">
+        <h2 className="text-2xl font-bold text-fg mb-2">Sign in to begin.</h2>
+        <p className="text-fg/60 text-sm mb-6 leading-relaxed">
           One tap with Google — Sera will greet you by name once she's read your résumé.
         </p>
 
         {error && (
-          <p className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+          <p className="mb-4 text-sm text-red-400 light:text-red-600 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
@@ -23,10 +23,10 @@ function SeraSignIn({ onSignIn, busy, error }) {
         <button
           onClick={onSignIn}
           disabled={busy}
-          className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/25 text-white font-medium transition disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-full bg-fg/5 border border-fg/10 hover:bg-fg/10 hover:border-fg/25 text-fg font-medium transition disabled:opacity-50"
         >
           {busy ? (
-            <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            <span className="w-4 h-4 rounded-full border-2 border-fg/30 border-t-fg animate-spin" />
           ) : (
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
               <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z" />

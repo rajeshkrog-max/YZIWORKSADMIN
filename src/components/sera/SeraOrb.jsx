@@ -1,25 +1,35 @@
 import { useEffect, useRef } from 'react'
+import { useTheme } from '../../theme/useTheme'
 import { buildSphere, createOrbRenderer, PARTICLE_COUNT } from './orbMath'
 
 // state: 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error' | 'disabled'
+// tone: 'dark' pins the dark-background look (bright colours, additive glow) in
+// both themes — for orbs that sit inside a dark container. Otherwise the orb
+// follows the page theme; on light pages additive blending would wash to white.
 function SeraOrb({
   state = 'idle',
   size = 168,
-  colorFrom = '#8b5cf6',
-  colorTo = '#22d3ee',
+  colorFrom,
+  colorTo,
+  tone,
   className,
 }) {
+  const { isDark } = useTheme()
+  const onDark = tone === 'dark' || isDark
+  const from = colorFrom ?? (onDark ? '#8b5cf6' : '#7c3aed')
+  const to = colorTo ?? (onDark ? '#22d3ee' : '#0891b2')
+
   const canvasRef = useRef(null)
   const stateRef = useRef(state)
-  const colorsRef = useRef({ from: colorFrom, to: colorTo })
+  const colorsRef = useRef({ from, to })
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
 
   useEffect(() => {
-    colorsRef.current = { from: colorFrom, to: colorTo }
-  }, [colorFrom, colorTo])
+    colorsRef.current = { from, to }
+  }, [from, to])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -35,7 +45,7 @@ function SeraOrb({
 
     const points = buildSphere(PARTICLE_COUNT)
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const render = createOrbRenderer({ ctx, points, size, colorsRef, stateRef })
+    const render = createOrbRenderer({ ctx, points, size, colorsRef, stateRef, additive: onDark })
 
     if (reduceMotion) {
       render(0)
@@ -90,7 +100,7 @@ function SeraOrb({
       observer.disconnect()
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [size])
+  }, [size, onDark])
 
   return (
     <div

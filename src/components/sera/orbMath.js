@@ -91,7 +91,7 @@ export function buildSphere(count) {
 }
 
 // Creates a render(dt) closure bound to one canvas/points/state-mix instance.
-export function createOrbRenderer({ ctx, points, size, colorsRef, stateRef }) {
+export function createOrbRenderer({ ctx, points, size, colorsRef, stateRef, additive = true }) {
   const center = size / 2
   const baseRadius = center * 0.62
   const stateMix = createStateMix(stateRef.current)
@@ -151,7 +151,7 @@ export function createOrbRenderer({ ctx, points, size, colorsRef, stateRef }) {
 
     ctx.clearRect(0, 0, size, size)
     const glow = ripple + pulse + flow
-    ctx.globalCompositeOperation = glow > 0.5 ? 'lighter' : 'source-over'
+    ctx.globalCompositeOperation = additive && glow > 0.5 ? 'lighter' : 'source-over'
 
     for (let i = 0; i < points.length; i++) {
       const p = points[i]
