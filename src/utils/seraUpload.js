@@ -20,6 +20,34 @@ export async function uploadResumeToR2(file) {
     throw new Error('That file is over 10 MB — please upload a smaller PDF')
   }
 
+  // 1. Try direct upload via multipart/form-data (avoids browser-to-R2 CORS preflight)
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('filename', file.name)
+    formData.append('contentType', file.type || 'application/pdf')
+    formData.append('size', file.size.toString())
+
+    const directResponse = await fetch(SERA_CREATE_UPLOAD_ENDPOINT, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (directResponse.ok) {
+      const directResult = await directResponse.json()
+      if (directResult.success && directResult.objectKey) {
+        return {
+          objectKey: directResult.objectKey,
+          originalFilename: file.name,
+          size: file.size,
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Direct upload attempt failed, falling back to presigned flow:', err)
+  }
+
+  // 2. Fallback: Presigned PUT URL flow
   const prepareResponse = await fetch(SERA_CREATE_UPLOAD_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

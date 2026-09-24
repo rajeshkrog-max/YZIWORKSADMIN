@@ -103,13 +103,15 @@ async function resolveYoutubeResource({ topic, searchQuery }) {
 }
 
 function getS3Client() {
+  const accountId = process.env.R2_ACCOUNT_ID || '28a24ac59a3cf4d9eb3f47d741bec429'
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID || 'ad51014b2e839d3e83b9bd531f4a1835'
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || '263f026c058249c2f4b6b0c9a73f70d7dd451230c5416ad9eb0d2383dd29a0eb'
+  const endpoint = process.env.R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com`
+
   return new S3Client({
     region: 'auto',
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
   })
 }
 

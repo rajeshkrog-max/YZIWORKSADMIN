@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-const BUCKET_NAME = 'yzi-application-files'
+const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'yzi-sera-storage'
 const MAX_SIZE = 10 * 1024 * 1024
 
 function jsonResponse(statusCode, body) {
@@ -9,7 +9,7 @@ function jsonResponse(statusCode, body) {
     statusCode,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': 'https://yziworks.netlify.app',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -18,17 +18,14 @@ function jsonResponse(statusCode, body) {
 }
 
 function getS3Client() {
-  const accountId = process.env.R2_ACCOUNT_ID
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-
-  if (!accountId || !accessKeyId || !secretAccessKey) {
-    throw new Error('R2 environment variables are not configured')
-  }
+  const accountId = process.env.R2_ACCOUNT_ID || '28a24ac59a3cf4d9eb3f47d741bec429'
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID || 'ad51014b2e839d3e83b9bd531f4a1835'
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || '263f026c058249c2f4b6b0c9a73f70d7dd451230c5416ad9eb0d2383dd29a0eb'
+  const endpoint = process.env.R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com`
 
   return new S3Client({
     region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    endpoint,
     credentials: { accessKeyId, secretAccessKey },
   })
 }
