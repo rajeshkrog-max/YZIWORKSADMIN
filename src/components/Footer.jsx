@@ -379,9 +379,14 @@ function Footer() {
         <div className="w-full h-px bg-fg/10" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-center sm:text-left">
-          <p className="text-fg/40 text-sm">
-            © 2026 YZI Productions Private Limited. All rights reserved.
-          </p>
+          <div className="max-w-xl sm:flex-1">
+            <p className="text-fg/40 text-sm">
+              © 2026 YZI Productions Private Limited. All rights reserved.
+            </p>
+            <p className="mt-1 text-xs text-fg/60 leading-relaxed">
+              This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited.
+            </p>
+          </div>
 
           <div className="flex items-center gap-2 text-fg/50 text-sm">
             <span>Made with</span>

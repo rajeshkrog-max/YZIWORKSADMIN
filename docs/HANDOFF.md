@@ -1,6 +1,6 @@
 # HANDOFF — read this first
 
-**Last updated: 2026-09-24 11:10 IST**
+**Last updated: 2026-09-24 11:38 IST**
 
 A new chat should be able to resume from this file without asking the owner.
 
@@ -21,11 +21,11 @@ A new chat should be able to resume from this file without asking the owner.
 |---|---|
 | Repo | https://github.com/rajeshkrog-max/YZIWORKSADMIN.git |
 | Working folder | `C:\Users\WCL CHA 28\Desktop\YZIWORKSADMIN` (git clone; ignore the old `YZIWORKSADMIN-main` ZIP folders) |
-| Checked-out branch | **`main`**. `feat/theme-landing-sera` is at the same commit (`e9702ee`) on GitHub. |
-| Last pushed commit | `e9702ee` "theme, meet sera marketing, about back, footer legal" (on `origin/main` and `origin/feat/theme-landing-sera`) |
+| Checked-out branch | **`main`**. `feat/theme-landing-sera` on GitHub is one commit behind, at `e9702ee`. |
+| Last pushed commit | `f38da63` "2026-09-24 logos + Sera light theme + handoff" (on `origin/main` only) |
 | Live site | https://yziworks.youngzoneindia.com (an Apache proxy in front of Netlify; the old Netlify URL is https://yziworks.netlify.app) |
 
-**Uncommitted right now (2026-09-24 work):** `Logo.jsx` and `logo_light.jpeg` (new), Navbar, Footer, `index.css`, `MeetSera.jsx`, and every `src/components/sera/*` screen plus `orbMath.js`. Check with `git status`. Don't lose it: no `git checkout .`, `stash` or `reset`.
+**Uncommitted right now (2026-09-24 11:38 DPDP notice):** `Footer.jsx`, `EarlyBuildersForm.jsx`, `EarlyPartnersForm.jsx`, `sera/SeraUpload.jsx`, and this file. Check with `git status`. Don't lose it: no `git checkout .`, `stash` or `reset`.
 
 ## Run and preview locally
 
@@ -63,12 +63,23 @@ Before any commit: `npm run build` must pass, and `npm run lint` must show 0 err
 - **Nav:** "Application Process" removed from the Navbar only (page and route still exist); hover underline glow on About Us / Meet Ai Sera.
 - **Footer legal:** "© 2026 YZI Productions Private Limited. All rights reserved."
 
-### 2026-09-24 11:10 IST — not committed yet
+### 2026-09-24 11:10 IST — pushed to `main` as `f38da63` at 11:28 IST
 - **Logos:** dark `src/assets/logo.png`, light **`src/assets/logo_light.jpeg`** (a JPEG, not `.png`: 1000×1000 on a white background). Used as-is via `src/components/Logo.jsx`, which frames the logo area to `logo.png`'s 520×354 so the size and position are unchanged, and multiply-blends the white away. Used in Navbar and Footer, the only two places a logo image renders. The old light-mode logo chip and its token are removed.
 - **Meet Sera flow screens** themed for light (colours only): sign-in, upload, preparing, interview, network background. The orb uses deeper colours and normal blending on light; the engine-well orb is pinned with `tone="dark"`.
 - **Report and after-call screens** themed: `SeraReport` (including the incomplete/error states), `SeraWrapup`, `SeraBlockedScreen`.
 - **Dev preview:** `?preview=` in `MeetSera.jsx`, dev-only, not in the production bundle.
 - Checked: a contrast scan of all 11 preview variants in both themes found nothing below 3:1; build and lint pass; hooks, utils, netlify and package files untouched.
+
+### 2026-09-24 11:38 IST — DPDP notice, not committed yet
+- **Exact text, used unchanged in all four places:** "This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited."
+- **Where it appears (only these four):**
+  - **Footer**, under the copyright. The copyright and the notice now share one column (`max-w-xl sm:flex-1`). Without `flex-1`, the "Made with ❤ … Backed by" block squeezed the notice to about 74px wide.
+  - **Early Builder form**, the last element in the `<form>`, directly under Submit Application.
+  - **Early Partner form**, in the same place.
+  - **Sera upload**, directly under "Begin the interview". The wrapper changed from `flex justify-end` to `flex flex-col items-end`, so the button stays right-aligned.
+- **Not added to:** Home hero, Meet Sera slider, Navbar, announcement bar or the report screen.
+- **Style:** `text-xs text-fg/60 leading-relaxed`, with no box, border, icon or heading. `fg/55` came out at 4.25:1 on the light footer, so it was raised to `/60`.
+- **Measured contrast:** footer 7.3 (dark) / 5.0 (light); forms 7.2 / 5.1; Sera upload 7.3 / 5.1. At 375px it wraps with no horizontal scroll. Build and lint pass.
 
 ## Roadmap — still open
 

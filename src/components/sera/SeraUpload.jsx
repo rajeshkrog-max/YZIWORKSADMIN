@@ -88,7 +88,7 @@ function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error })
           </div>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-col items-end">
           <button
             onClick={onBegin}
             disabled={!resumeFile || busy}
@@ -96,6 +96,9 @@ function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error })
           >
             Begin the interview
           </button>
+          <p className="mt-2 max-w-sm text-xs text-fg/60 leading-relaxed text-right">
+            This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited.
+          </p>
         </div>
       </div>
     </div>
