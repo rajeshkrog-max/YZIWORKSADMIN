@@ -1,7 +1,7 @@
-import SeraOrb from './SeraOrb'
+import SeraWave from './SeraWave'
 
-// "Engine" block under the Meet Sera hero slider. The orb always sits in a
-// dark well — its particles are drawn for a black background — while the copy
+// "Engine" block under the Meet Sera hero slider. The wave always sits in a
+// dark well — tone="dark" keeps its additive glow in both themes — while the copy
 // beside it follows the page theme. The whole block sits in a neon frame:
 // a 1.5px brand-gradient ring plus an outer glow that pulses softly.
 const NEON_RING = 'linear-gradient(135deg, #22D3EE 0%, #FF008A 38%, #8B5CF6 68%, #FF5E00 100%)'
@@ -18,7 +18,7 @@ function SeraHero({ onStart }) {
               'radial-gradient(55% 55% at 50% 50%, rgba(139,92,246,0.22), transparent 70%)',
           }}
         >
-          <SeraOrb state="idle" size={280} tone="dark" />
+          <SeraWave state="idle" tone="dark" width="100%" height="100%" />
         </div>
 
         <div className="flex flex-col items-center md:items-start text-center md:text-left">

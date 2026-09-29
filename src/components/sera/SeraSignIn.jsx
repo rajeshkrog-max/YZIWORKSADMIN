@@ -1,9 +1,11 @@
-import SeraOrb from './SeraOrb'
+import SeraWave from './SeraWave'
 
 function SeraSignIn({ onSignIn, busy, error }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <SeraOrb state="idle" size={120} className="mb-6" />
+      {/* Full-bleed band: stays in flow here, but the canvas stretches to the
+          viewport's left and right edges. */}
+      <SeraWave state="idle" bleed className="w-full h-[140px] md:h-[200px] mb-6" />
       <div
         className={`w-full max-w-sm bg-yzi-card/60 border rounded-2xl p-8 text-left backdrop-blur-md transition-shadow duration-300 ${
           busy ? 'border-yzi-cyan/50 shadow-[0_0_34px_rgba(34,211,238,0.25)]' : 'border-fg/10'
