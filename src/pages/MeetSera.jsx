@@ -9,11 +9,12 @@ import SeraSteps from '../components/sera/SeraSteps'
 import SeraLogin from '../components/sera/login/SeraLogin'
 import SeraUpload from '../components/sera/SeraUpload'
 import SeraPreparing from '../components/sera/SeraPreparing'
-import SeraInterview from '../components/sera/SeraInterview'
+import InterviewRoom from '../components/sera/interview/InterviewRoom'
 import SeraWrapup from '../components/sera/SeraWrapup'
 import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
+import { roundsFor } from '../config/seraRounds'
 import { getDevTestSession } from '../services/seraAuthService'
 import { isDevMock } from '../services/seraMockCall'
 import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
@@ -38,6 +39,8 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 //   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
 //           &muted=1 (interview), &variant=incomplete|error (report states)
+//           interview: &route=student|visitor, &round=screening|offer|hr|final,
+//                      &turn=sera-speaking|your-turn|wrapping-up
 // import.meta.env.DEV is replaced with `false` in production builds, so this
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
@@ -104,9 +107,15 @@ function MeetSera() {
         busy: false,
         sessionSecondsLeft: 187,
         phase: 'skills',
-        turnState: 'your-turn',
+        turnState: params.get('turn') ?? 'your-turn',
         turnElapsed: 27,
-        turnSeconds: 35,
+        turnSeconds: params.get('route') === 'visitor' ? 35 : 45,
+        rounds: roundsFor(params.get('route') ?? 'student'),
+        roundIndex: Math.max(0, roundsFor(params.get('route') ?? 'student').findIndex((r) => r.id === params.get('round'))),
+        roundSecondsLeft: 187,
+        offers: null,
+        chosenOffer: null,
+        chooseOffer: noop,
         muted: params.has('muted'),
         blockedMessage: null,
         goToSignIn: noop,
@@ -205,13 +214,17 @@ function MeetSera() {
         )}
 
         {view.screen === 'interview' && (
-          <SeraInterview
-            sessionSecondsLeft={view.sessionSecondsLeft}
-            phase={view.phase}
+          <InterviewRoom
+            rounds={view.rounds}
+            roundIndex={view.roundIndex}
+            roundSecondsLeft={view.roundSecondsLeft}
             turnState={view.turnState}
             turnElapsed={view.turnElapsed}
             turnSeconds={view.turnSeconds}
             muted={view.muted}
+            offers={view.offers}
+            chosenOffer={view.chosenOffer}
+            onChooseOffer={view.chooseOffer}
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
           />

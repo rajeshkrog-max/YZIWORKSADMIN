@@ -21,7 +21,8 @@ function DevButton({ onClick, disabled, active, children }) {
 
 function SeraDevPanel() {
   const { call, payOutcome } = useSyncExternalStore(subscribeDev, getDevState)
-  const [open, setOpen] = useState(true)
+  // Starts collapsed on phones so it doesn't cover the screen being tested.
+  const [open, setOpen] = useState(() => window.innerWidth >= 640)
 
   return (
     <div className="fixed bottom-4 right-4 z-[250] w-56 rounded-xl border border-amber-400/60 bg-black/85 text-white text-xs shadow-2xl backdrop-blur-md">
@@ -36,6 +37,8 @@ function SeraDevPanel() {
         <div className="px-3 pb-3 flex flex-col gap-1.5">
           <p className="text-white/50 mt-1">Call {call ? '(live)' : '(no call)'}</p>
           <DevButton disabled={!call} onClick={() => call?.skipToLast30()}>Skip to last 30s</DevButton>
+          <DevButton disabled={!call} onClick={() => call?.skipToEndOfRound()}>Skip to end of round</DevButton>
+          <DevButton disabled={!call?.jumpToOffers} onClick={() => call?.jumpToOffers()}>Jump to offers</DevButton>
           <DevButton disabled={!call} onClick={() => call?.endNow()}>End call now</DevButton>
           <DevButton disabled={!call} onClick={() => call?.drop()}>Simulate dropped call</DevButton>
           <p className="text-white/50 mt-2">Next “Pay” click</p>

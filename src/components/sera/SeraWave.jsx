@@ -285,7 +285,7 @@ const PARAMS = {
   connecting: { amp: 0.26, ampLevel: 0.05, freq: 2.6, freqLevel: 0, flow: 1.4, spread: 0, width: 0.5, wobble: 0.1, jitter: 0, line: 0.45, dim: 0.92, fill: 0.28, breathe: 0, f0: 1, f1: 0.3, f2: 0.18, f3: 0.1 },
   listening: { amp: 0.16, ampLevel: 0.12, freq: 2, freqLevel: 0.4, flow: 1.3, spread: 0.45, width: 1.2, wobble: 0.25, jitter: 0, line: 0.5, dim: 1, fill: 0.24, breathe: 0, f0: 1, f1: 0.75, f2: 0.55, f3: 0.4 },
   thinking: { amp: 0.1, ampLevel: 0.03, freq: 1.3, freqLevel: 0, flow: 0.35, spread: 0.3, width: 1.6, wobble: 0.2, jitter: 0, line: 0.7, dim: 1, fill: 0.2, breathe: 1, f0: 1, f1: 0.7, f2: 0.5, f3: 0.35 },
-  speaking: { amp: 0.12, ampLevel: 0.9, freq: 2.8, freqLevel: 2.2, flow: 3, spread: 1, width: 1.05, wobble: 0.3, jitter: 0, line: 0.25, dim: 1, fill: 0.3, breathe: 0, f0: 1, f1: 0.9, f2: 0.8, f3: 0.7 },
+  speaking: { amp: 0.1, ampLevel: 0.38, freq: 1.8, freqLevel: 0.8, flow: 3, spread: 1, width: 1.05, wobble: 0.3, jitter: 0, line: 0.25, dim: 1, fill: 0.3, breathe: 0, f0: 1, f1: 0.9, f2: 0.8, f3: 0.7 },
   paused: { amp: 0.025, ampLevel: 0, freq: 1.2, freqLevel: 0, flow: 0.18, spread: 0.2, width: 1.8, wobble: 0.1, jitter: 0, line: 0.4, dim: 0.6, fill: 0.14, breathe: 0, f0: 1, f1: 0.5, f2: 0.3, f3: 0.2 },
   error: { amp: 0.13, ampLevel: 0, freq: 7.5, freqLevel: 0, flow: 4, spread: 0.2, width: 0.55, wobble: 0, jitter: 0.8, line: 0.45, dim: 1, fill: 0.3, breathe: 0, f0: 1, f1: 0.8, f2: 0.6, f3: 0.45 },
   disabled: { amp: 0.006, ampLevel: 0, freq: 1.2, freqLevel: 0, flow: 0.2, spread: 0.2, width: 1.8, wobble: 0, jitter: 0, line: 0.35, dim: 0.45, fill: 0.15, breathe: 0, f0: 1, f1: 0.3, f2: 0.2, f3: 0.1 },
@@ -512,7 +512,8 @@ function SeraWave({
           const wob = 1 - p.wobble * (0.5 + 0.5 * Math.sin(frame.phase * WOBBLE_RATE[k] + SEED[k]))
           const jit =
             1 + p.jitter * (0.6 * Math.sin(frame.phase * 31 + k * 1.7) + 0.4 * Math.sin(frame.phase * 47 + k * 2.9))
-          const amp = ampS[k] * wob * jit * halfH
+          // Capped so peaks never clip the top/bottom of the canvas.
+          const amp = Math.min(ampS[k] * wob * jit * halfH, H * 0.42)
           if (amp < 0.05) continue
           const width = Math.max(0.2, p.width)
           const c = centerS[k]

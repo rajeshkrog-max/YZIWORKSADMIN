@@ -8,12 +8,7 @@ export const isDevMock = () => import.meta.env.DEV && isMockMode()
 
 const SPEAK_SECONDS = 6 // "Sera speaking" before each turn
 const ANSWER_SECONDS = 8 // "Your turn" advances early so you don't wait out the full turn
-const WRAP_SECONDS = 25 // matches the real screen's "Wrapping up" window
-const DROP_INCOMPLETE_BELOW = 120 // dropped under 2 min → incomplete report
 export const MOCK_REPORT_DELAY_MS = 3000
-
-// Session and turn lengths per route (visitor 5:00 / 35s, student 10:00 / 45s).
-const durationsFor = (route) => (route === 'student' ? { session: 600, turn: 45 } : { session: 300, turn: 35 })
 
 export const MOCK_REPORT = {
   strengths: [
@@ -55,11 +50,12 @@ export function takeMockPayOutcome() {
   return outcome
 }
 
-// Starts a fake call. onUpdate({ elapsed, turnState, turnElapsed }) every second;
-// onEnd({ incomplete }) once, when time runs out or the call is ended/dropped.
-export function createMockCall({ route, onUpdate, onEnd }) {
-  const durations = durationsFor(route)
-  const { session } = durations
+// Runs ONE fake round. onUpdate({ elapsed, turnState, turnElapsed }) every
+// second; onEnd({ reason, elapsed }) once — reason: 'time' (round ran out),
+// 'ended' (candidate ended) or 'dropped'. The last `wrapSeconds` show as
+// 'wrapping-up' (Sera analysing). `extra` controls (e.g. jumpToOffers) are
+// exposed to the DEV panel alongside the call controls.
+export function createMockCall({ seconds, wrapSeconds, onUpdate, onEnd, extra = {} }) {
   let elapsed = 0
   let turnState = 'sera-speaking'
   let turnElapsed = 0
@@ -73,16 +69,16 @@ export function createMockCall({ route, onUpdate, onEnd }) {
     clearInterval(timer)
     if (devState.call === controls) setDev({ call: null })
   }
-  const end = (incomplete) => {
+  const end = (reason) => {
     if (done) return
     stop()
-    onEnd({ incomplete })
+    onEnd({ reason, elapsed })
   }
 
   const tick = () => {
     elapsed += 1
-    if (elapsed >= session) return end(false)
-    if (session - elapsed <= WRAP_SECONDS) {
+    if (elapsed >= seconds) return end('time')
+    if (seconds - elapsed <= wrapSeconds) {
       turnState = 'wrapping-up'
       turnElapsed = 0
     } else if (turnState === 'your-turn') {
@@ -100,18 +96,21 @@ export function createMockCall({ route, onUpdate, onEnd }) {
     push()
   }
 
+  const jumpTo = (secondsLeft) => {
+    if (done) return
+    elapsed = Math.max(elapsed, seconds - secondsLeft)
+    turnState = 'sera-speaking'
+    turnElapsed = 0
+    stepLeft = SPEAK_SECONDS
+    push()
+  }
+
   const controls = {
-    durations,
-    skipToLast30: () => {
-      if (done) return
-      elapsed = Math.max(elapsed, session - 30)
-      turnState = 'sera-speaking'
-      turnElapsed = 0
-      stepLeft = SPEAK_SECONDS
-      push()
-    },
-    endNow: () => end(false),
-    drop: () => end(elapsed < DROP_INCOMPLETE_BELOW),
+    ...extra,
+    skipToLast30: () => jumpTo(30),
+    skipToEndOfRound: () => jumpTo(wrapSeconds + 2),
+    endNow: () => end('ended'),
+    drop: () => end('dropped'),
     stop,
   }
 

@@ -3,6 +3,8 @@ import { signInWithGoogle } from '../utils/googleAuth'
 import { uploadResumeToR2 } from '../utils/seraUpload'
 import { isMockMode } from '../services/seraAuthService'
 import { createMockCall, MOCK_REPORT, MOCK_REPORT_DELAY_MS } from '../services/seraMockCall'
+import { getOffers, saveOfferChoice } from '../services/seraOffersService'
+import { roundsFor, turnSecondsFor } from '../config/seraRounds'
 
 const SESSION_SECONDS = 5 * 60
 const TURN_SECONDS = 35
@@ -57,9 +59,15 @@ export function useSeraInterview() {
   // A verified payment whose interview never started (start-call failed): reused
   // on the next attempt so the visitor isn't charged twice.
   const paidPaymentIdRef = useRef(null)
-  // DEV ONLY — simulated call in mock mode (seraMockCall) and its clock lengths.
+  // Rounds (src/config/seraRounds.js): index into the route's rounds, the
+  // offers shown after screening (students) and the one they chose.
+  const [roundIndex, setRoundIndex] = useState(0)
+  const [offers, setOffers] = useState(null)
+  const [chosenOffer, setChosenOffer] = useState(null)
+  const sessionIdRef = useRef(null)
+  // DEV ONLY — the simulated call in mock mode (seraMockCall).
   const mockCallRef = useRef(null)
-  const [mockDurations, setMockDurations] = useState(null)
+  const mockTotalElapsedRef = useRef(0)
 
   useEffect(() => {
     profileRef.current = profile
@@ -83,10 +91,13 @@ export function useSeraInterview() {
     transcriptRef.current = ''
     preparedRef.current = null
     paidPaymentIdRef.current = null
+    setRoundIndex(0)
+    setOffers(null)
+    setChosenOffer(null)
+    sessionIdRef.current = null
     if (import.meta.env.DEV) {
       mockCallRef.current?.stop()
       mockCallRef.current = null
-      setMockDurations(null)
     }
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
   }, [])
@@ -280,32 +291,86 @@ export function useSeraInterview() {
     [finishInterview, startSessionTimer, stopSessionTimer]
   )
 
-  // DEV ONLY — drives the existing interview screen with a simulated call:
-  // no sera-start-call, no Retell. End → wrapup → mock report after ~3s.
-  const startMockCall = useCallback(() => {
+  // Students: load the offers early (they're generated at résumé-read time)
+  // so the tiles appear instantly when screening ends.
+  const loadOffers = useCallback(async () => {
+    if (profileRef.current?.route !== 'student') return
+    const result = await getOffers(sessionIdRef.current)
+    setOffers(result.offers)
+  }, [])
+
+  // DEV ONLY — walks the rounds with a simulated call: no sera-start-call, no
+  // Retell. Student: screening → offers → hr → final; visitor: screening.
+  // Then wrapup → mock report after ~3s.
+  const runMockRound = useCallback((startIndex) => {
     if (!import.meta.env.DEV) return // stripped from production builds
-    mockCallRef.current?.stop()
-    const call = createMockCall({
-      route: profileRef.current?.route,
-      onUpdate: (tick) => {
-        elapsedRef.current = tick.elapsed
-        setElapsed(tick.elapsed)
-        setTurnState(tick.turnState)
-        setTurnElapsed(tick.turnElapsed)
-      },
-      onEnd: ({ incomplete: dropped }) => {
-        mockCallRef.current = null
+    const run = (index) => {
+      mockCallRef.current?.stop()
+      mockCallRef.current = null
+      const route = profileRef.current?.route
+      const rounds = roundsFor(route)
+      const round = rounds[index]
+
+      const toReport = (incompleteReport) => {
         setScreen('wrapup')
         setTimeout(() => {
-          if (dropped) setIncomplete(true)
+          if (incompleteReport) setIncomplete(true)
           else setReport(MOCK_REPORT)
           setScreen('report')
         }, MOCK_REPORT_DELAY_MS)
-      },
-    })
-    mockCallRef.current = call
-    setMockDurations(call.durations)
+      }
+
+      setRoundIndex(index)
+      setElapsed(0)
+      elapsedRef.current = 0
+      setTurnElapsed(0)
+      setTurnState('sera-speaking')
+      if (!round) return toReport(false)
+      if (round.seconds == null) return // offer choice: no call runs until chooseOffer()
+
+      const offerIndex = rounds.findIndex((r) => r.id === 'offer')
+      mockCallRef.current = createMockCall({
+        seconds: round.seconds,
+        wrapSeconds: index === rounds.length - 1 ? 25 : 8,
+        onUpdate: (tick) => {
+          elapsedRef.current = tick.elapsed
+          setElapsed(tick.elapsed)
+          setTurnState(tick.turnState)
+          setTurnElapsed(tick.turnElapsed)
+        },
+        onEnd: ({ reason, elapsed: roundElapsed }) => {
+          mockCallRef.current = null
+          mockTotalElapsedRef.current += roundElapsed
+          if (reason === 'time') run(index + 1)
+          else if (reason === 'ended') toReport(false)
+          else toReport(mockTotalElapsedRef.current < 120) // dropped: under 2 min → incomplete
+        },
+        extra: offerIndex > index ? { jumpToOffers: () => run(offerIndex) } : {},
+      })
+    }
+    run(startIndex)
   }, [])
+
+  const startMockCall = useCallback(() => {
+    if (!import.meta.env.DEV) return
+    sessionIdRef.current = `mock-session-${Date.now()}`
+    mockTotalElapsedRef.current = 0
+    setChosenOffer(null)
+    loadOffers()
+    runMockRound(0)
+  }, [loadOffers, runMockRound])
+
+  // Student picks an offer → save it → next round (HR). Real mode: TODO(backend)
+  // — plan is two Retell calls: call 1 = screening, call 2 = HR + final with the
+  // chosen offer passed as dynamic variables. No call runs while choosing.
+  const chooseOffer = useCallback(
+    (offer) => {
+      setChosenOffer(offer)
+      saveOfferChoice(sessionIdRef.current, offer.id)
+      if (import.meta.env.DEV && isMockMode()) runMockRound(roundIndex + 1)
+    },
+    [roundIndex, runMockRound]
+  )
 
   // sera-start-call + Retell. Runs only after the résumé check passed, and for
   // visitors only after the server verified the payment.
@@ -355,6 +420,11 @@ export function useSeraInterview() {
         }
 
         paidPaymentIdRef.current = null
+        // TODO(backend): sera-start-call returns the session id; students then
+        // get offers + rounds 2–3 (second Retell call). Today: screening only.
+        sessionIdRef.current = startResult.sessionId ?? null
+        setRoundIndex(0)
+        loadOffers()
         setScreen('interview')
         setTurnState('sera-speaking')
         await connectRetell(startResult.accessToken)
@@ -365,7 +435,7 @@ export function useSeraInterview() {
         setBusy(false)
       }
     },
-    [profile, connectRetell, startMockCall]
+    [profile, connectRetell, startMockCall, loadOffers]
   )
 
   const beginInterview = useCallback(async () => {
@@ -466,11 +536,12 @@ export function useSeraInterview() {
   useEffect(() => stopSessionTimer, [stopSessionTimer])
   useEffect(() => () => import.meta.env.DEV && mockCallRef.current?.stop(), [])
 
-  // DEV ONLY — the mock call can run longer (student 10:00); phases scale to it.
-  const mock = import.meta.env.DEV ? mockDurations : null
-  const sessionSeconds = mock ? mock.session : SESSION_SECONDS
-  const sessionSecondsLeft = Math.max(0, sessionSeconds - elapsed)
-  const phase = phaseForElapsed(mock ? (elapsed * SESSION_SECONDS) / mock.session : elapsed)
+  const rounds = roundsFor(profile?.route)
+  const round = rounds[roundIndex] ?? rounds[0]
+  // Countdown for the current round (null during the untimed offer choice).
+  const roundSecondsLeft = round.seconds == null ? null : Math.max(0, round.seconds - elapsed)
+  const sessionSecondsLeft = roundSecondsLeft ?? Math.max(0, SESSION_SECONDS - elapsed)
+  const phase = phaseForElapsed(elapsed)
 
   return {
     screen,
@@ -484,7 +555,13 @@ export function useSeraInterview() {
     phase,
     turnState,
     turnElapsed,
-    turnSeconds: mock ? mock.turn : TURN_SECONDS,
+    turnSeconds: turnSecondsFor(profile?.route),
+    rounds,
+    roundIndex,
+    roundSecondsLeft,
+    offers,
+    chosenOffer,
+    chooseOffer,
     muted,
     report,
     incomplete,
