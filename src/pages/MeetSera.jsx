@@ -250,6 +250,7 @@ function MeetSera() {
         {view.screen === 'report' && (
           <SeraReport
             report={view.report}
+            sessionId={view.sessionId}
             incomplete={view.incomplete}
             error={view.error}
             onDone={view.reset}

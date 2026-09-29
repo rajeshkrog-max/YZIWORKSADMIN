@@ -63,3 +63,35 @@ transcript → buildReportPrompt → LLM → verifyReport → computeMetrics →
 ## Mock mode
 
 `src/services/seraMockReport.js` (DEV only) builds the sample report by running this same pipeline on `netlify/lib/seraReport/fixtures/sampleInterview.js`, so it passes `validate()` and all its quotes are real. None of it ships in a production build.
+
+## Download report (PDF)
+
+### Generating the PDF — once, when the report is created
+
+`netlify/lib/seraReport/renderReportPdf.js` (pure, uses `pdf-lib`):
+
+```js
+import fs from 'node:fs'
+import { renderReportPdf, reportFilename } from '../lib/seraReport/renderReportPdf.js'
+
+const pdfBytes = await renderReportPdf(report, { logoJpeg: fs.readFileSync(LOGO_PATH) }) // src/assets/logo_light.jpeg
+// store pdfBytes next to the report (e.g. R2: sera-reports/<sessionId>.pdf) with
+// Content-Disposition: attachment; filename="<reportFilename(report)>"
+```
+
+- A4, YZI Works logo top-left, the same sections in the same order as the page (**no transcript** in the candidate PDF), white page, navy headings, brand accent line, and the AI notice as the footer of every page.
+- Bundle the logo with the function (`[functions] included_files = ["src/assets/logo_light.jpeg"]` in `netlify.toml`) or pass `logoJpeg: null` (then the header says "YZI Works" in text).
+- Generated **once** from the stored JSON. The download never re-renders or re-runs the LLM.
+
+### `POST /api/sera/report/download` → `downloadReport(sessionId)` (`src/services/seraReportService.js`)
+
+- Body: `{ sessionId }`
+- Response: `{ ok: true, url, filename }` | `{ ok: false, error }`
+  - `url` — a **short-lived signed URL** (suggest ≤ 5 minutes) to the stored PDF. Set `Content-Disposition: attachment; filename="Sera-Report-{FirstName}-{YYYY-MM-DD}.pdf"` on the object/URL — the browser's `download` attribute is ignored for cross-origin links, so the filename must come from the server.
+- **Ownership check:** the session's email must match the signed-in candidate (verify the Google access token as in `/api/sera/login`). Never sign a URL for someone else's report.
+- **Team copy, once:** on the **first** successful download of a report, email the PDF to `RESEND_TO_EMAIL` (Resend, same as today's team email). Store `teamCopySentAt` on the report record and skip the email when it's set — later clicks only download. This must be idempotent (two clicks racing still send one email).
+- Errors: the page shows "Couldn't prepare your report. Try again." — return `{ ok: false }` rather than a 500 with HTML.
+
+### Mock mode
+
+With `VITE_SERA_MOCK=true` on the dev server, `downloadReport` builds the PDF in the browser from the sample report (so you can open the real file) and logs `Would email a team copy…` on the first click, `Team copy already sent… download only` after that. `pdf-lib` and the renderer are loaded only in that DEV branch — they are not in the production bundle.

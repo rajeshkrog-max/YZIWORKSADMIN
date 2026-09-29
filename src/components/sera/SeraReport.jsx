@@ -13,6 +13,7 @@ import SpeakingStats from './report/SpeakingStats'
 import ReportPlan from './report/ReportPlan'
 import CommunityCta from './report/CommunityCta'
 import DownloadReportButton from './report/DownloadReportButton'
+import { downloadReport } from '../../services/seraReportService'
 
 // No report to show (ended early, still on its way, or it didn't validate).
 function ReportNotice({ title, text, onDone }) {
@@ -36,7 +37,7 @@ function ReportNotice({ title, text, onDone }) {
 
 // The report page. Renders ONLY a report that passes validate(); every section
 // whose data is missing is hidden (reportSections), never shown empty.
-function SeraReport({ report, incomplete, error, onDone, onDownload }) {
+function SeraReport({ report, sessionId, incomplete, error, onDone }) {
   if (incomplete) {
     return (
       <ReportNotice
@@ -70,6 +71,8 @@ function SeraReport({ report, incomplete, error, onDone, onDownload }) {
   }
 
   const show = reportSections(report)
+  // Both buttons use the same call; the server emails the team copy only once.
+  const onDownload = () => downloadReport(sessionId, { report })
 
   return (
     <div className="relative w-full max-w-5xl flex flex-col gap-5 text-left">
