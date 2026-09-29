@@ -1,10 +1,23 @@
 import { useRef, useState } from 'react'
-import SeraOrb from './SeraOrb'
+import SeraWave from './SeraWave'
+import GlassCard from './glass/GlassCard'
+import VerifiedRow from './glass/VerifiedRow'
 
 function formatSize(bytes) {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${Math.max(0.1, bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+const UploadIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 16V4m0 0 4.5 4.5M12 4 7.5 8.5M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" />
+  </svg>
+)
+
+const PdfIcon = () => (
+  <span className="w-7 h-7 rounded-lg shrink-0 grid place-items-center bg-red-500/15 text-red-500 light:text-red-600 text-[9px] font-bold tracking-wide">
+    PDF
+  </span>
+)
 
 function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error }) {
   const inputRef = useRef(null)
@@ -26,25 +39,50 @@ function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error })
     onSelectFile(file)
   }
 
+  const browse = () => inputRef.current?.click()
+
   return (
-    <div className="flex flex-col items-center text-center">
-      <SeraOrb state="idle" size={110} className="mb-6" />
-      <div className="w-full max-w-sm bg-yzi-card/60 border border-fg/10 rounded-2xl p-8 text-left backdrop-blur-md">
-        <h2 className="text-2xl font-bold text-fg mb-2">Good to have you, {firstName}.</h2>
-        <p className="text-fg/60 text-sm mb-6 leading-relaxed">
+    <div className="w-full flex flex-col items-center text-center">
+      {/* Same full-bleed wave band as the login, so the two screens read as one. */}
+      <SeraWave state="idle" bleed className="w-full h-[140px] md:h-[200px] mb-6" />
+
+      <GlassCard>
+        <h2 className="text-2xl font-bold text-fg">Good to have you, {firstName}.</h2>
+        <p className="mt-1.5 mb-6 text-sm text-fg/60 leading-relaxed">
           Now, your résumé — Sera reads it in seconds and already knows your background when the
           call starts.
         </p>
 
-        {error && (
-          <p className="mb-4 text-sm text-red-400 light:text-red-600 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={(e) => {
+            handleFiles(e.target.files)
+            e.target.value = '' // lets "Change" pick the same file again
+          }}
+        />
 
-        {!resumeFile && (
+        {resumeFile ? (
+          <VerifiedRow
+            icon={<PdfIcon />}
+            extra={<span className="text-xs text-fg/50 tabular-nums shrink-0">{formatSize(resumeFile.size)}</span>}
+            onChange={browse}
+          >
+            <span title={resumeFile.name}>{resumeFile.name}</span>
+          </VerifiedRow>
+        ) : (
           <div
-            onClick={() => inputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onClick={browse}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                browse()
+              }
+            }}
             onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
             onDragLeave={() => setDragActive(false)}
             onDrop={(e) => {
@@ -52,55 +90,43 @@ function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error })
               setDragActive(false)
               handleFiles(e.dataTransfer.files)
             }}
-            className={`border-2 border-dashed rounded-2xl px-4 py-8 text-center cursor-pointer transition ${
-              dragActive ? 'border-yzi-cyan bg-yzi-cyan/5' : 'border-fg/15 hover:border-fg/30'
+            className={`rounded-[18px] border-2 border-dashed px-4 py-7 cursor-pointer transition motion-reduce:transition-none outline-none focus-visible:border-yzi-cyan/70 ${
+              dragActive
+                ? 'border-yzi-cyan bg-yzi-cyan/10 shadow-[0_0_28px_rgba(34,211,238,0.3)]'
+                : 'border-white/20 light:border-black/15 bg-fg/5 light:bg-white/60 hover:border-white/35 light:hover:border-black/25'
             }`}
           >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-            <svg
-              className="w-6 h-6 mx-auto mb-3 text-fg/50"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-            >
-              <path d="M12 3v12m0-12 4 4m-4-4-4 4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
-            </svg>
+            <span className="mx-auto mb-3 w-11 h-11 rounded-full grid place-items-center text-white bg-gradient-to-br from-yzi-cyan to-yzi-purple shadow-[0_6px_18px_rgba(139,92,246,0.35)]">
+              <UploadIcon />
+            </span>
             <p className="text-sm font-medium text-fg">Drop your résumé here, or click to browse</p>
-            <p className="text-xs text-fg/40 mt-1">One PDF, up to 10 MB</p>
+            <p className="text-xs text-fg/45 mt-1">PDF only · up to 10 MB</p>
           </div>
         )}
 
-        {resumeFile && (
-          <div className="flex items-center gap-3 rounded-xl bg-yzi-cyan/10 border border-yzi-cyan/30 px-4 py-3">
-            <span className="flex-1 text-sm font-medium text-fg truncate">{resumeFile.name}</span>
-            <span className="text-xs text-fg/50 font-mono">{formatSize(resumeFile.size)}</span>
-            <button
-              onClick={() => onSelectFile(null)}
-              aria-label="Remove file"
-              className="text-fg/40 hover:text-fg text-lg leading-none"
-            >
-              &times;
-            </button>
-          </div>
-        )}
+        {error && <p className="mt-1.5 text-xs text-left text-red-400 light:text-red-600">{error}</p>}
 
-        <div className="mt-6 flex flex-col items-end">
-          <button
-            onClick={onBegin}
-            disabled={!resumeFile || busy}
-            className="px-8 py-3.5 rounded-full bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple text-white font-semibold hover:scale-105 transition-transform duration-300 disabled:opacity-35 disabled:hover:scale-100"
-          >
-            Begin the interview
-          </button>
-          <p className="mt-2 max-w-sm text-xs text-fg/60 leading-relaxed text-right">
-            This site processes personal data under the Digital Personal Data Protection Act, 2023. Unauthorised extraction or copying of records is prohibited.
+        <button
+          type="button"
+          onClick={onBegin}
+          disabled={!resumeFile || busy}
+          className="mt-6 w-full h-[50px] rounded-full bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple text-white font-semibold transition hover:brightness-110 disabled:from-fg/15 disabled:via-fg/15 disabled:to-fg/15 disabled:text-fg/40 disabled:cursor-not-allowed disabled:hover:brightness-100"
+        >
+          Begin the interview
+        </button>
+
+        <div className="mt-6 pt-5 border-t border-fg/10 flex flex-col gap-2 text-xs text-fg/45 leading-relaxed">
+          <p>
+            Sera is an AI interviewer. Its questions and feedback are generated by AI, can contain
+            mistakes, and are meant for practice only. Please review them before relying on them for
+            any decision.
+          </p>
+          <p>
+            We process your data under the Digital Personal Data Protection Act, 2023. Unauthorised
+            extraction or copying of records is prohibited.
           </p>
         </div>
-      </div>
+      </GlassCard>
     </div>
   )
 }
