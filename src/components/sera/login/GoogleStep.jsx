@@ -79,10 +79,8 @@ function GoogleStep({ google, onSignedIn, onChange }) {
     }
     setBusy(true)
     try {
-      const profile = await signInWithGoogle()
-      // TODO(backend): signInWithGoogle() doesn't return the access token yet,
-      // so the server can't verify the email until googleAuth.js exposes it.
-      onSignedIn({ ...profile, accessToken: null })
+      // { name, email, picture, accessToken } — the server re-checks the email with the token.
+      onSignedIn(await signInWithGoogle())
     } catch (err) {
       setError(err.message || 'Google sign-in failed. Please try again.')
     } finally {

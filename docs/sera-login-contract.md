@@ -60,9 +60,9 @@ Both must return `Content-Type: application/json`. Netlify functions live at `/.
 
 Until they exist, the service returns a friendly error ("We couldn't reach the server…") and the code check shows "Couldn't check the code right now". Search for `TODO(backend)`.
 
-## Known gap on the frontend
+## Google access token
 
-`signInWithGoogle()` in `src/utils/googleAuth.js` gets the Google access token internally but only returns `{ name, email, picture }`. So outside mock mode `google.accessToken` is currently `null`. It's a small change in `googleAuth.js` (return the token too), but that file is shared with the live flow, so it hasn't been changed yet.
+`signInWithGoogle()` in `src/utils/googleAuth.js` returns `{ name, email, picture, accessToken }`, and the login passes it through unchanged as `google.accessToken` in `completeLogin`. Use it for the server-side email check above. (In mock mode it's the placeholder `mock-google-token`.)
 
 ## Env
 
