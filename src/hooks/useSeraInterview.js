@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '../utils/googleAuth'
 import { uploadResumeToR2 } from '../utils/seraUpload'
+import { isMockMode } from '../services/seraAuthService'
 
 const SESSION_SECONDS = 5 * 60
 const TURN_SECONDS = 35
@@ -22,7 +23,8 @@ function phaseForElapsed(elapsed) {
   return 'goal'
 }
 
-// Screens: hero | signin | upload | preparing | interview | wrapup | report | blocked
+// Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | blocked
+// `pay` is visitor-only: students go from preparing straight to the interview.
 export function useSeraInterview() {
   const [screen, setScreen] = useState('hero')
   const [error, setError] = useState(null)
@@ -48,6 +50,12 @@ export function useSeraInterview() {
   const profileRef = useRef(null)
   const suppressCallEndedRef = useRef(false)
   const stalledExtraSecondsRef = useRef(0)
+  // Result of the résumé check ({ uploaded, extracted }) — kept for startInterview,
+  // which runs after the pay screen for visitors.
+  const preparedRef = useRef(null)
+  // A verified payment whose interview never started (start-call failed): reused
+  // on the next attempt so the visitor isn't charged twice.
+  const paidPaymentIdRef = useRef(null)
 
   useEffect(() => {
     profileRef.current = profile
@@ -69,6 +77,8 @@ export function useSeraInterview() {
     setIncomplete(false)
     setBlockedMessage(null)
     transcriptRef.current = ''
+    preparedRef.current = null
+    paidPaymentIdRef.current = null
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
   }, [])
 
@@ -261,31 +271,106 @@ export function useSeraInterview() {
     [finishInterview, startSessionTimer, stopSessionTimer]
   )
 
+  // sera-start-call + Retell. Runs only after the résumé check passed, and for
+  // visitors only after the server verified the payment.
+  const startInterview = useCallback(
+    async ({ paymentId } = {}) => {
+      const prepared = preparedRef.current
+      if (!prepared || !profile) return
+      const { uploaded, extracted } = prepared
+      setBusy(true)
+      setError(null)
+      if (paymentId) paidPaymentIdRef.current = paymentId
+
+      // Mock mode stops at the interview screen — no real call is created.
+      if (isMockMode()) {
+        setScreen('interview')
+        setTurnState('sera-speaking')
+        setBusy(false)
+        return
+      }
+
+      try {
+        const startResponse = await fetch('/.netlify/functions/sera-start-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: profile.email,
+            name: profile.name,
+            resumeText: extracted.resumeText,
+            highlight: extracted.highlight,
+            field: extracted.field,
+            objectKey: uploaded.objectKey,
+            route: profile.route,
+            studentCode: profile.studentCode ?? null,
+            paymentId: paymentId ?? null,
+          }),
+        })
+        const startResult = await startResponse.json()
+
+        if (startResponse.status === 403 && startResult.error === 'already-used') {
+          setBlockedMessage(startResult.message)
+          setScreen('blocked')
+          return
+        }
+        if (!startResponse.ok || !startResult.success) {
+          throw new Error(startResult.error || 'Unable to start the interview')
+        }
+
+        paidPaymentIdRef.current = null
+        setScreen('interview')
+        setTurnState('sera-speaking')
+        await connectRetell(startResult.accessToken)
+      } catch (err) {
+        setError(err.message || 'Something went wrong — please try again')
+        setScreen('upload')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [profile, connectRetell]
+  )
+
   const beginInterview = useCallback(async () => {
     if (!resumeFile || !profile) return
     setBusy(true)
     setError(null)
     setScreen('preparing')
+    preparedRef.current = null
 
     try {
-      const uploaded = await uploadResumeToR2(resumeFile)
-      setResumeMeta(uploaded)
+      let uploaded
+      let extracted
 
-      const extractResponse = await fetch('/.netlify/functions/sera-extract-resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ objectKey: uploaded.objectKey }),
-      })
-      const extracted = await extractResponse.json()
+      if (isMockMode()) {
+        // Plain `vite` has no Netlify functions: fake the upload + résumé check.
+        // A file name containing "bad" simulates a rejected résumé.
+        await new Promise((resolve) => setTimeout(resolve, 900))
+        uploaded = { objectKey: `sera-interviews/mock/${resumeFile.name}`, originalFilename: resumeFile.name, size: resumeFile.size }
+        extracted = /bad/i.test(resumeFile.name)
+          ? { valid: false, reason: "That doesn't look like a résumé — please try another file." }
+          : { valid: true, resumeText: '', highlight: '', field: '' }
+        setResumeMeta(uploaded)
+      } else {
+        uploaded = await uploadResumeToR2(resumeFile)
+        setResumeMeta(uploaded)
 
-      if (!extractResponse.ok) {
-        // A genuine server/API failure — NOT the same as "this isn't a résumé".
-        // Don't blame the candidate's file for something on our end.
-        setError(extracted.error || 'Something went wrong reading your résumé — please try again in a moment.')
-        setResumeFile(null)
-        setResumeMeta(null)
-        setScreen('upload')
-        return
+        const extractResponse = await fetch('/.netlify/functions/sera-extract-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ objectKey: uploaded.objectKey }),
+        })
+        extracted = await extractResponse.json()
+
+        if (!extractResponse.ok) {
+          // A genuine server/API failure — NOT the same as "this isn't a résumé".
+          // Don't blame the candidate's file for something on our end.
+          setError(extracted.error || 'Something went wrong reading your résumé — please try again in a moment.')
+          setResumeFile(null)
+          setResumeMeta(null)
+          setScreen('upload')
+          return
+        }
       }
 
       if (!extracted.valid) {
@@ -295,39 +380,34 @@ export function useSeraInterview() {
         setScreen('upload')
         return
       }
-      const startResponse = await fetch('/.netlify/functions/sera-start-call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: profile.email,
-          name: profile.name,
-          resumeText: extracted.resumeText,
-          highlight: extracted.highlight,
-          field: extracted.field,
-          objectKey: uploaded.objectKey,
-        }),
-      })
-      const startResult = await startResponse.json()
 
-      if (startResponse.status === 403 && startResult.error === 'already-used') {
-        setBlockedMessage(startResult.message)
-        setScreen('blocked')
-        return
+      preparedRef.current = { uploaded, extracted }
+      setBusy(false)
+      if (profile.route === 'student') {
+        await startInterview()
+      } else if (paidPaymentIdRef.current) {
+        await startInterview({ paymentId: paidPaymentIdRef.current })
+      } else {
+        setScreen('pay')
       }
-      if (!startResponse.ok || !startResult.success) {
-        throw new Error(startResult.error || 'Unable to start the interview')
-      }
-
-      setScreen('interview')
-      setTurnState('sera-speaking')
-      await connectRetell(startResult.accessToken)
     } catch (err) {
       setError(err.message || 'Something went wrong — please try again')
       setScreen('upload')
     } finally {
       setBusy(false)
     }
-  }, [resumeFile, profile, connectRetell])
+  }, [resumeFile, profile, startInterview])
+
+  const onPaymentSuccess = useCallback((paymentId) => startInterview({ paymentId }), [startInterview])
+
+  // "Use a different résumé" from the pay screen.
+  const changeResume = useCallback(() => {
+    preparedRef.current = null
+    setError(null)
+    setResumeFile(null)
+    setResumeMeta(null)
+    setScreen('upload')
+  }, [])
 
   const toggleMute = useCallback(() => {
     const client = retellRef.current
@@ -371,6 +451,9 @@ export function useSeraInterview() {
     completeLogin,
     selectFile,
     beginInterview,
+    startInterview,
+    onPaymentSuccess,
+    changeResume,
     toggleMute,
     endCallEarly,
     reset,

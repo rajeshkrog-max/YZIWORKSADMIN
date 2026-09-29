@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useSeraInterview } from '../hooks/useSeraInterview'
 import HeroSlider from '../components/HeroSlider'
@@ -24,18 +24,22 @@ import seraSlide3Light from '../assets/sera_hero/slide3light.png'
 import seraSlide4Light from '../assets/sera_hero/slide4light.png'
 
 // Same index = same slide; the theme picks the set. Always 4.
+// Visitor-only pay screen, loaded on demand so students never download the
+// payment code (Razorpay loader, pricing, payment service).
+const SeraPay = lazy(() => import('../components/sera/pay/SeraPay'))
+
 const SERA_DARK_SLIDES = [seraSlide1Dark, seraSlide2Dark, seraSlide3Dark, seraSlide4Dark]
 const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, seraSlide4Light]
 
 // DEV ONLY — design review of the flow screens without sign-in, upload or a call:
-//   /meet-sera?preview=signin|upload|preparing|interview|wrapup|report|blocked
+//   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
 //           &muted=1 (interview), &variant=incomplete|error (report states)
 // import.meta.env.DEV is replaced with `false` in production builds, so this
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
   ? {
-      screens: ['signin', 'upload', 'preparing', 'interview', 'wrapup', 'report', 'blocked'],
+      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked'],
       profile: { name: 'Priya Sharma', email: 'priya@example.com' },
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
       resumeMeta: { originalFilename: 'Priya_Sharma_Resume.pdf', size: 245760 },
@@ -97,6 +101,9 @@ function MeetSera() {
         completeLogin: noop,
         selectFile: noop,
         beginInterview: noop,
+        startInterview: noop,
+        onPaymentSuccess: noop,
+        changeResume: noop,
         toggleMute: noop,
         endCallEarly: noop,
         reset: noop,
@@ -168,6 +175,18 @@ function MeetSera() {
         )}
 
         {view.screen === 'preparing' && <SeraPreparing />}
+
+        {view.screen === 'pay' && (
+          <Suspense fallback={null}>
+            <SeraPay
+              profile={view.profile}
+              fileName={view.resumeFile?.name ?? view.resumeMeta?.originalFilename}
+              objectKey={view.resumeMeta?.objectKey}
+              onPaymentSuccess={view.onPaymentSuccess}
+              onChangeResume={view.changeResume}
+            />
+          </Suspense>
+        )}
 
         {view.screen === 'interview' && (
           <SeraInterview
