@@ -3,6 +3,15 @@ import SeraWave from './SeraWave'
 import GlassCard from './glass/GlassCard'
 import VerifiedRow from './glass/VerifiedRow'
 
+async function hasPdfSignature(file) {
+  try {
+    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer())
+    return String.fromCharCode(...head) === '%PDF-'
+  } catch {
+    return false
+  }
+}
+
 function formatSize(bytes) {
   return `${Math.max(0.1, bytes / (1024 * 1024)).toFixed(1)} MB`
 }
@@ -24,16 +33,21 @@ function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error })
   const [dragActive, setDragActive] = useState(false)
   const firstName = profile?.name?.split(' ')[0] || 'there'
 
-  const handleFiles = (fileList) => {
+  const handleFiles = async (fileList) => {
     const file = fileList?.[0]
     if (!file) return
-    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
-    if (!isPdf) {
+    if (!/\.pdf$/i.test(file.name)) {
       onSelectFile(null, 'Sera only reads PDF résumés — please upload a .pdf file')
       return
     }
     if (file.size > 10 * 1024 * 1024) {
       onSelectFile(null, 'That file is over 10 MB — please upload a smaller PDF')
+      return
+    }
+    // A real PDF starts with "%PDF-" — catches a .docx/.jpg renamed to .pdf.
+    // The server's résumé check still runs after this.
+    if (!(await hasPdfSignature(file))) {
+      onSelectFile(null, "This file isn't a real PDF. Please upload your résumé as a PDF.")
       return
     }
     onSelectFile(file)

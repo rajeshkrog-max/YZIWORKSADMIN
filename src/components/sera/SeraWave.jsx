@@ -36,7 +36,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { useTheme } from '../../theme/useTheme'
 
 // ── orb-state ───────────────────────────────────────────────────────────────
-const STATES = ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'error', 'disabled']
+const STATES = ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'paused', 'error', 'disabled']
 const ERROR_COLOR_FROM = '#fb7185'
 const ERROR_COLOR_TO = '#f43f5e'
 
@@ -68,10 +68,11 @@ const stateEnergy = (state, t) => {
 
 const approach = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt))
 
+// Slower than upstream so state changes ease in rather than snap.
 const stateRate = (state) => {
-  if (state === 'idle' || state === 'disabled') return 5
+  if (state === 'idle' || state === 'disabled' || state === 'paused') return 3.5
   if (state === 'error') return 10
-  return 14
+  return 4.5
 }
 
 const createStateMix = (initial = 'idle') => {
@@ -273,16 +274,21 @@ const CURVES = 4
 const SAMPLES = 160
 const X_RANGE = 2
 
-// Per-state look. `idle` differs from upstream (amp 0.035 → 0.3, slower flow)
-// so the resting wave visibly breathes instead of sitting almost flat.
+// Per-state look. Tuned for Sera (upstream values differ):
+//   idle      resting wave that visibly breathes (hero, login, upload)
+//   speaking  highest amplitude, voice-like pulsing, full brand palette
+//   listening calm medium amplitude, cyan palette (see LISTEN)
+//   thinking  "analysing": flatter, slower, glow breathing (`breathe`)
+//   paused    nearly flat and slow (offer choice)
 const PARAMS = {
-  idle: { amp: 0.3, ampLevel: 0, freq: 1.6, freqLevel: 0, flow: 0.55, spread: 0.35, width: 1.5, wobble: 0.35, jitter: 0, line: 0.6, dim: 1, fill: 0.22, f0: 1, f1: 0.7, f2: 0.5, f3: 0.35 },
-  connecting: { amp: 0.26, ampLevel: 0.05, freq: 2.6, freqLevel: 0, flow: 1.4, spread: 0, width: 0.5, wobble: 0.1, jitter: 0, line: 0.45, dim: 0.92, fill: 0.28, f0: 1, f1: 0.3, f2: 0.18, f3: 0.1 },
-  listening: { amp: 0.06, ampLevel: 0.5, freq: 2.6, freqLevel: 1.6, flow: 2.4, spread: 0.55, width: 1, wobble: 0.3, jitter: 0, line: 0.35, dim: 1, fill: 0.26, f0: 1, f1: 0.8, f2: 0.65, f3: 0.5 },
-  thinking: { amp: 0.22, ampLevel: 0.05, freq: 3.4, freqLevel: 0, flow: 2, spread: 0, width: 0.5, wobble: 0.15, jitter: 0, line: 0.4, dim: 1, fill: 0.28, f0: 1, f1: 0.85, f2: 0.7, f3: 0.55 },
-  speaking: { amp: 0.06, ampLevel: 0.6, freq: 2.8, freqLevel: 3.2, flow: 3.4, spread: 1, width: 1.05, wobble: 0.3, jitter: 0, line: 0.25, dim: 1, fill: 0.3, f0: 1, f1: 0.9, f2: 0.8, f3: 0.7 },
-  error: { amp: 0.13, ampLevel: 0, freq: 7.5, freqLevel: 0, flow: 4, spread: 0.2, width: 0.55, wobble: 0, jitter: 0.8, line: 0.45, dim: 1, fill: 0.3, f0: 1, f1: 0.8, f2: 0.6, f3: 0.45 },
-  disabled: { amp: 0.006, ampLevel: 0, freq: 1.2, freqLevel: 0, flow: 0.2, spread: 0.2, width: 1.8, wobble: 0, jitter: 0, line: 0.35, dim: 0.45, fill: 0.15, f0: 1, f1: 0.3, f2: 0.2, f3: 0.1 },
+  idle: { amp: 0.3, ampLevel: 0, freq: 1.6, freqLevel: 0, flow: 0.55, spread: 0.35, width: 1.5, wobble: 0.35, jitter: 0, line: 0.6, dim: 1, fill: 0.22, breathe: 0, f0: 1, f1: 0.7, f2: 0.5, f3: 0.35 },
+  connecting: { amp: 0.26, ampLevel: 0.05, freq: 2.6, freqLevel: 0, flow: 1.4, spread: 0, width: 0.5, wobble: 0.1, jitter: 0, line: 0.45, dim: 0.92, fill: 0.28, breathe: 0, f0: 1, f1: 0.3, f2: 0.18, f3: 0.1 },
+  listening: { amp: 0.16, ampLevel: 0.12, freq: 2, freqLevel: 0.4, flow: 1.3, spread: 0.45, width: 1.2, wobble: 0.25, jitter: 0, line: 0.5, dim: 1, fill: 0.24, breathe: 0, f0: 1, f1: 0.75, f2: 0.55, f3: 0.4 },
+  thinking: { amp: 0.1, ampLevel: 0.03, freq: 1.3, freqLevel: 0, flow: 0.35, spread: 0.3, width: 1.6, wobble: 0.2, jitter: 0, line: 0.7, dim: 1, fill: 0.2, breathe: 1, f0: 1, f1: 0.7, f2: 0.5, f3: 0.35 },
+  speaking: { amp: 0.12, ampLevel: 0.9, freq: 2.8, freqLevel: 2.2, flow: 3, spread: 1, width: 1.05, wobble: 0.3, jitter: 0, line: 0.25, dim: 1, fill: 0.3, breathe: 0, f0: 1, f1: 0.9, f2: 0.8, f3: 0.7 },
+  paused: { amp: 0.025, ampLevel: 0, freq: 1.2, freqLevel: 0, flow: 0.18, spread: 0.2, width: 1.8, wobble: 0.1, jitter: 0, line: 0.4, dim: 0.6, fill: 0.14, breathe: 0, f0: 1, f1: 0.5, f2: 0.3, f3: 0.2 },
+  error: { amp: 0.13, ampLevel: 0, freq: 7.5, freqLevel: 0, flow: 4, spread: 0.2, width: 0.55, wobble: 0, jitter: 0.8, line: 0.45, dim: 1, fill: 0.3, breathe: 0, f0: 1, f1: 0.8, f2: 0.6, f3: 0.45 },
+  disabled: { amp: 0.006, ampLevel: 0, freq: 1.2, freqLevel: 0, flow: 0.2, spread: 0.2, width: 1.8, wobble: 0, jitter: 0, line: 0.35, dim: 0.45, fill: 0.15, breathe: 0, f0: 1, f1: 0.3, f2: 0.2, f3: 0.1 },
 }
 
 const BASE_CENTER = [-0.35, 0.4, 0.05, -0.7]
@@ -295,13 +301,16 @@ const WHITE = [255, 255, 255]
 
 // One brand colour per curve: cyan, pink, purple, orange.
 const BRAND = ['#22D3EE', '#FF008A', '#8B5CF6', '#FF5E00']
+// Listening blends every curve toward cyan shades.
+const LISTEN = ['#22D3EE', '#67E8F9', '#06B6D4', '#A5F3FC']
 
 const desaturate = (c, t) => {
   const g = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722
   return mixRgb(c, [g, g, g], t)
 }
 
-// state: 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error' | 'disabled'
+// state: 'idle' | 'speaking' | 'listening' | 'thinking' | 'paused' | 'connecting' | 'error' | 'disabled'
+// Changing `state` eases between looks (no jumps).
 // Size it with `width`/`height` props or with className (e.g. h-[200px] w-full).
 // bleed: stretch the canvas to the full viewport width while the component
 // stays in normal flow (the sign-in band). tone: 'dark' pins the dark look.
@@ -430,12 +439,14 @@ function SeraWave({
       return g
     }
 
-    const ensureColors = (errW, disW) => {
+    const ensureColors = (errW, disW, listenW) => {
       const list = colorRef.current
-      const key = `${list.join('|')}|${Math.round(errW * 100)}|${Math.round(disW * 100)}|${Math.round(lightMix * 100)}`
+      const key = `${list.join('|')}|${Math.round(errW * 100)}|${Math.round(disW * 100)}|${Math.round(listenW * 40)}|${Math.round(lightMix * 100)}`
       if (key === colorKey) return
       colorKey = key
-      const palette = list.map((hex, i) => mixRgb(hexToRgb(hex), i % 2 ? errTo : errFrom, errW))
+      const palette = list.map((hex, i) =>
+        mixRgb(mixRgb(hexToRgb(hex), hexToRgb(LISTEN[i % LISTEN.length]), listenW), i % 2 ? errTo : errFrom, errW),
+      )
       for (let i = 0; i < CURVES; i += 1) {
         const base = mixRgb(desaturate(palette[i % palette.length], disW * 0.8), BLACK, lightMix * 0.2)
         fillStr[i] = rgba(base, 1)
@@ -457,7 +468,9 @@ function SeraWave({
       const isDarkNow = darkRef.current
 
       lightMix = frame.reduced || dt === 0 ? (isDarkNow ? 0 : 1) : approach(lightMix, isDarkNow ? 0 : 1, 6, dt)
-      ensureColors(clamp01(w.error), clamp01(w.disabled))
+      ensureColors(clamp01(w.error), clamp01(w.disabled), clamp01(w.listening))
+      // Thinking: the glow slowly swells and fades.
+      const breath = p.breathe * (0.5 + 0.5 * Math.sin(frame.phase * 1.8))
 
       const targetFreq = p.freq + p.freqLevel * level
       freqS = snap ? targetFreq : approach(freqS, targetFreq, 6, dt)
@@ -474,7 +487,7 @@ function SeraWave({
         const rate = target > ampS[i] ? 12 : 5
         ampS[i] = snap ? target : approach(ampS[i], target, rate, dt)
         const center =
-          p.spread * BASE_CENTER[i] + w.thinking * Math.sin(thinkT + i * 1.35) * 1.2 + w.connecting * sweep
+          p.spread * BASE_CENTER[i] + w.thinking * Math.sin(thinkT + i * 1.35) * 0.25 + w.connecting * sweep
         centerS[i] = snap ? center : approach(centerS[i], center, 10, dt)
         phs[i] += dPhase * p.flow * FLOW_MUL[i]
       }
@@ -521,9 +534,9 @@ function SeraWave({
           ctx.fillStyle = fillStr[k]
           ctx.fill()
 
-          ctx.globalAlpha = clamp01(0.14 * dim * passW)
+          ctx.globalAlpha = clamp01(0.14 * (1 + 1.6 * breath) * dim * passW)
           ctx.strokeStyle = glowGrad[k] ?? fillStr[k]
-          ctx.lineWidth = 4.5 * unit
+          ctx.lineWidth = 4.5 * (1 + 0.8 * breath) * unit
           ctx.stroke()
 
           ctx.globalAlpha = clamp01(0.85 * dim * passW)
