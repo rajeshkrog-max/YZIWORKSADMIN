@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '../utils/googleAuth'
 import { uploadResumeToR2 } from '../utils/seraUpload'
 import { isMockMode } from '../services/seraAuthService'
-import { createMockCall, MOCK_REPORT, MOCK_REPORT_DELAY_MS } from '../services/seraMockCall'
+import { createMockCall, MOCK_REPORT, MOCK_REPORT_DELAY_MS, saveMockSession } from '../services/seraMockCall'
+import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
 import { getOffers, saveOfferChoice } from '../services/seraOffersService'
 import { roundsFor, turnSecondsFor } from '../config/seraRounds'
 
@@ -26,7 +27,8 @@ function phaseForElapsed(elapsed) {
   return 'goal'
 }
 
-// Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | blocked
+// Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | blocked | lost
+// `lost` = the call dropped without the candidate pressing End (rejoin comes by WhatsApp).
 // `pay` is visitor-only: students go from preparing straight to the interview.
 export function useSeraInterview() {
   const [screen, setScreen] = useState('hero')
@@ -64,6 +66,7 @@ export function useSeraInterview() {
   const [roundIndex, setRoundIndex] = useState(0)
   const [offers, setOffers] = useState(null)
   const [chosenOffer, setChosenOffer] = useState(null)
+  const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   const sessionIdRef = useRef(null)
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
   const mockCallRef = useRef(null)
@@ -94,6 +97,7 @@ export function useSeraInterview() {
     setRoundIndex(0)
     setOffers(null)
     setChosenOffer(null)
+    setLostInfo(null)
     sessionIdRef.current = null
     if (import.meta.env.DEV) {
       mockCallRef.current?.stop()
@@ -299,6 +303,20 @@ export function useSeraInterview() {
     setOffers(result.offers)
   }, [])
 
+  // The call dropped without the candidate pressing End: tell the server (it
+  // decides whether a rejoin link/code is issued) and show the lost screen.
+  // TODO(backend): real Retell drops — call this from the Retell disconnect
+  // handling once the server confirms the disconnection reason.
+  const handleConnectionLost = useCallback(
+    async (roundId) => {
+      stopSessionTimer()
+      const result = await reportConnectionLost(sessionIdRef.current, roundId)
+      setLostInfo({ rejoinIssued: result.rejoinIssued })
+      setScreen('lost')
+    },
+    [stopSessionTimer]
+  )
+
   // DEV ONLY — walks the rounds with a simulated call: no sera-start-call, no
   // Retell. Student: screening → offers → hr → final; visitor: screening.
   // Then wrapup → mock report after ~3s.
@@ -343,17 +361,28 @@ export function useSeraInterview() {
           mockTotalElapsedRef.current += roundElapsed
           if (reason === 'time') run(index + 1)
           else if (reason === 'ended') toReport(false)
-          else toReport(mockTotalElapsedRef.current < 120) // dropped: under 2 min → incomplete
+          else handleConnectionLost(round.id)
         },
         extra: offerIndex > index ? { jumpToOffers: () => run(offerIndex) } : {},
       })
     }
     run(startIndex)
-  }, [])
+  }, [handleConnectionLost])
 
   const startMockCall = useCallback(() => {
     if (!import.meta.env.DEV) return
     sessionIdRef.current = `mock-session-${Date.now()}`
+    const current = profileRef.current
+    saveMockSession(sessionIdRef.current, {
+      route: current?.route,
+      email: current?.email,
+      phone: current?.phone,
+      resumeMeta: preparedRef.current?.uploaded ?? null,
+      chosenOffer: null,
+      round: 'screening',
+      status: 'live',
+      rejoinCount: 0,
+    })
     mockTotalElapsedRef.current = 0
     setChosenOffer(null)
     loadOffers()
@@ -367,7 +396,10 @@ export function useSeraInterview() {
     (offer) => {
       setChosenOffer(offer)
       saveOfferChoice(sessionIdRef.current, offer.id)
-      if (import.meta.env.DEV && isMockMode()) runMockRound(roundIndex + 1)
+      if (import.meta.env.DEV && isMockMode()) {
+        saveMockSession(sessionIdRef.current, { chosenOffer: offer })
+        runMockRound(roundIndex + 1)
+      }
     },
     [roundIndex, runMockRound]
   )
@@ -528,10 +560,50 @@ export function useSeraInterview() {
     }
   }, [muted])
 
-  const endCallEarly = useCallback(() => {
+  // Candidate confirmed "End interview". Tell the server it was intentional
+  // BEFORE hanging up (ended_by_candidate → no rejoin), but never wait long.
+  const endCallEarly = useCallback(async () => {
+    await Promise.race([
+      markCandidateEnded(sessionIdRef.current),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ])
     if (import.meta.env.DEV) mockCallRef.current?.endNow()
     retellRef.current?.stopCall()
   }, [])
+
+  // Rejoin after a dropped call (session from redeemRejoin): skip upload and
+  // pay, restart the dropped round with the chosen offer (earlier rounds kept).
+  const resumeSession = useCallback(
+    (session) => {
+      const nextProfile = {
+        name: session.name,
+        email: session.email,
+        phone: session.phone,
+        route: session.route,
+        studentCode: null,
+        instituteName: null,
+      }
+      profileRef.current = nextProfile
+      setProfile(nextProfile)
+      setError(null)
+      setLostInfo(null)
+      setResumeMeta(session.resumeMeta ?? null)
+      setChosenOffer(session.chosenOffer ?? null)
+      sessionIdRef.current = session.sessionId
+      const index = Math.max(0, roundsFor(session.route).findIndex((r) => r.id === session.round))
+      setScreen('interview')
+      if (import.meta.env.DEV && isMockMode()) {
+        mockTotalElapsedRef.current = 0
+        if (!session.chosenOffer) loadOffers()
+        runMockRound(index)
+        return
+      }
+      // TODO(backend): start the rejoin call via sera-start-call with the
+      // session id (no payment, no seat) and resume at this round.
+      setRoundIndex(index)
+    },
+    [loadOffers, runMockRound]
+  )
 
   useEffect(() => stopSessionTimer, [stopSessionTimer])
   useEffect(() => () => import.meta.env.DEV && mockCallRef.current?.stop(), [])
@@ -562,6 +634,8 @@ export function useSeraInterview() {
     offers,
     chosenOffer,
     chooseOffer,
+    lostInfo,
+    resumeSession,
     muted,
     report,
     incomplete,

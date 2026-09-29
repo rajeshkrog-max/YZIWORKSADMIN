@@ -2,7 +2,8 @@
 // call and arm the next mock payment's outcome. Mounted only when
 // import.meta.env.DEV && mock mode, so it never ships.
 import { useState, useSyncExternalStore } from 'react'
-import { getDevState, setDev, subscribeDev } from '../../../services/seraMockCall'
+import { useNavigate } from 'react-router-dom'
+import { MOCK_REJOIN_CODE, MOCK_REJOIN_TOKEN, getDevState, setDev, subscribeDev } from '../../../services/seraMockCall'
 
 function DevButton({ onClick, disabled, active, children }) {
   return (
@@ -21,6 +22,7 @@ function DevButton({ onClick, disabled, active, children }) {
 
 function SeraDevPanel() {
   const { call, payOutcome } = useSyncExternalStore(subscribeDev, getDevState)
+  const navigate = useNavigate()
   // Starts collapsed on phones so it doesn't cover the screen being tested.
   const [open, setOpen] = useState(() => window.innerWidth >= 640)
 
@@ -41,6 +43,9 @@ function SeraDevPanel() {
           <DevButton disabled={!call?.jumpToOffers} onClick={() => call?.jumpToOffers()}>Jump to offers</DevButton>
           <DevButton disabled={!call} onClick={() => call?.endNow()}>End call now</DevButton>
           <DevButton disabled={!call} onClick={() => call?.drop()}>Simulate dropped call</DevButton>
+          <p className="text-white/50 mt-2">Rejoin (after a dropped call)</p>
+          <DevButton onClick={() => navigate(`/meet-sera?rejoin=${MOCK_REJOIN_TOKEN}`)}>Open rejoin link (visitor)</DevButton>
+          <DevButton onClick={() => navigate(`/meet-sera?rejoincode=${MOCK_REJOIN_CODE}`)}>Use rejoin code (student)</DevButton>
           <p className="text-white/50 mt-2">Next “Pay” click</p>
           <DevButton
             active={payOutcome === 'fail'}

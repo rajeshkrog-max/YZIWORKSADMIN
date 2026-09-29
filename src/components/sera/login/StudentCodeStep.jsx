@@ -6,7 +6,17 @@ const CapIcon = () => (
   </svg>
 )
 
-// status.state: idle | checking | valid | full | invalid | unavailable
+// status.state: idle | checking | valid | rejoin | full | invalid | unavailable
+//               | expired | used | mismatch (rejoin code problems)
+const ERRORS = {
+  full: 'No seats left for this code',
+  invalid: "This code isn't valid. Check with your campus.",
+  unavailable: "Couldn't check the code right now. Please try again in a minute.",
+  expired: 'This code has expired.',
+  used: 'This code has already been used.',
+  mismatch: "This code doesn't match this account.",
+}
+
 function StatusLine({ status }) {
   if (status.state === 'checking') {
     return <p className="mt-1.5 text-xs text-left text-fg/50">Checking code…</p>
@@ -19,20 +29,23 @@ function StatusLine({ status }) {
       </p>
     )
   }
-  const message = {
-    full: 'No seats left for this code',
-    invalid: "This code isn't valid. Check with your campus.",
-    unavailable: "Couldn't check the code right now. Please try again in a minute.",
-  }[status.state]
+  if (status.state === 'rejoin') {
+    return (
+      <p className="mt-1.5 text-xs text-left text-emerald-500 light:text-emerald-600">
+        ✓ Rejoin code · you'll continue where you left off
+      </p>
+    )
+  }
+  const message = ERRORS[status.state]
   return message ? <p className="mt-1.5 text-xs text-left text-red-400 light:text-red-600">{message}</p> : null
 }
 
 // Student step 2 — code input, checked while typing (debounce lives in SeraLogin).
 function StudentCodeStep({ code, status, locked, onCodeChange }) {
   const border =
-    status.state === 'valid'
+    status.state === 'valid' || status.state === 'rejoin'
       ? 'border-emerald-500/50'
-      : ['full', 'invalid', 'unavailable'].includes(status.state)
+      : ERRORS[status.state]
         ? 'border-red-500/50'
         : 'border-fg/10 focus-within:border-yzi-cyan/60'
 

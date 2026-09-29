@@ -6,6 +6,14 @@ import { isMockMode } from '../../../services/seraAuthService'
 const MOCK_ACCOUNTS = [
   { name: 'Priya Sharma', email: 'priya.sharma@gmail.com' },
   { name: 'Arjun Mehta', email: 'arjun.mehta@gmail.com' },
+  // DEV ONLY — same accounts as ?testlogin=visitor|student, so a test session
+  // can be rejoined. Stripped from production builds.
+  ...(import.meta.env.DEV
+    ? [
+        { name: 'Test Visitor', email: 'visitor.test@gmail.com' },
+        { name: 'Test Student', email: 'student.test@gmail.com' },
+      ]
+    : []),
 ]
 
 const GoogleLogo = () => (

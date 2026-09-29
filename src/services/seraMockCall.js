@@ -119,3 +119,37 @@ export function createMockCall({ seconds, wrapSeconds, onUpdate, onEnd, extra = 
   push()
   return controls
 }
+
+// ── Mock interview sessions (dropped-call / rejoin testing) ──────────────────
+// Kept in sessionStorage so a rejoin link opened with a full page load still
+// finds the dropped session. Test values: visitor link token and student code.
+export const MOCK_REJOIN_TOKEN = 'REJOIN-LINK-TEST'
+export const MOCK_REJOIN_CODE = 'REJOIN-TEST'
+const SESSIONS_KEY = 'sera-mock-sessions'
+
+export function readMockSessions() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSIONS_KEY)) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveMockSession(sessionId, patch) {
+  if (!sessionId) return null
+  const sessions = readMockSessions()
+  sessions[sessionId] = { ...sessions[sessionId], sessionId, ...patch, updatedAt: Date.now() }
+  try {
+    sessionStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions))
+  } catch {
+    // Storage blocked: rejoin testing just won't survive a reload.
+  }
+  return sessions[sessionId]
+}
+
+// Latest session whose rejoin link token or code matches.
+export function findMockSessionByRejoin({ token, code }) {
+  return Object.values(readMockSessions())
+    .filter((s) => (token && s.rejoinToken === token) || (code && s.rejoinCode === code))
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+}

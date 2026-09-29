@@ -13,6 +13,7 @@ import InterviewRoom from '../components/sera/interview/InterviewRoom'
 import SeraWrapup from '../components/sera/SeraWrapup'
 import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
+import SeraConnectionLost from '../components/sera/SeraConnectionLost'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
 import { roundsFor } from '../config/seraRounds'
 import { getDevTestSession } from '../services/seraAuthService'
@@ -36,7 +37,7 @@ const SERA_DARK_SLIDES = [seraSlide1Dark, seraSlide2Dark, seraSlide3Dark, seraSl
 const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, seraSlide4Light]
 
 // DEV ONLY — design review of the flow screens without sign-in, upload or a call:
-//   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked
+//   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked|lost
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
 //           &muted=1 (interview), &variant=incomplete|error (report states)
 //           interview: &route=student|visitor, &round=screening|offer|hr|final,
@@ -45,7 +46,7 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
   ? {
-      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked'],
+      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked', 'lost'],
       profile: { name: 'Priya Sharma', email: 'priya@example.com' },
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
       resumeMeta: { originalFilename: 'Priya_Sharma_Resume.pdf', size: 245760 },
@@ -85,12 +86,23 @@ function MeetSera() {
   // DEV ONLY — ?testlogin=visitor|student signs in a fake profile and opens
   // upload (mock mode on the dev server only; see getDevTestSession).
   const testLogin = import.meta.env.DEV ? params.get('testlogin') : null
-  const { completeLogin } = sera
+  const { completeLogin, goToSignIn, reset } = sera
   useEffect(() => {
     if (!import.meta.env.DEV) return
     const session = getDevTestSession(testLogin)
     if (session) completeLogin(session)
   }, [testLogin, completeLogin])
+
+  // Rejoin after a dropped call: /meet-sera?rejoin=TOKEN (visitor link from
+  // WhatsApp) opens the login with a "Continue your interview" banner.
+  // DEV ONLY — ?rejoincode=CODE pre-fills the Student tab with a rejoin code.
+  const rejoinToken = params.get('rejoin')
+  const devRejoinCode = import.meta.env.DEV ? params.get('rejoincode') : null
+  useEffect(() => {
+    if (!rejoinToken && !devRejoinCode) return
+    reset()
+    goToSignIn()
+  }, [rejoinToken, devRejoinCode, reset, goToSignIn])
 
   const view = previewScreen
     ? {
@@ -129,6 +141,8 @@ function MeetSera() {
         toggleMute: noop,
         endCallEarly: noop,
         reset: noop,
+        lostInfo: { rejoinIssued: true },
+        resumeSession: noop,
       }
     : sera
 
@@ -186,7 +200,15 @@ function MeetSera() {
       {import.meta.env.DEV && isDevMock() && <SeraDevPanel />}
 
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-28">
-        {view.screen === 'signin' && <SeraLogin onDone={view.completeLogin} />}
+        {view.screen === 'signin' && (
+          <SeraLogin
+            key={rejoinToken ?? devRejoinCode ?? 'login'}
+            onDone={view.completeLogin}
+            onRejoin={view.resumeSession}
+            rejoinToken={rejoinToken}
+            initialCode={devRejoinCode}
+          />
+        )}
 
         {view.screen === 'upload' && (
           <SeraUpload
@@ -228,6 +250,10 @@ function MeetSera() {
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
           />
+        )}
+
+        {view.screen === 'lost' && (
+          <SeraConnectionLost profile={view.profile} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />
         )}
 
         {view.screen === 'wrapup' && <SeraWrapup profile={view.profile} />}

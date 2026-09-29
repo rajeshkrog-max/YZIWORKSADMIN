@@ -5,6 +5,8 @@
 // steps swap the Google / MSG91 popups for small fake ones — no real OTP cost,
 // no Google setup needed on localhost.
 
+import { MOCK_REJOIN_CODE, findMockSessionByRejoin } from './seraMockCall'
+
 const MOCK_CODES = {
   'YZI-PUNE-OCT26': { instituteName: 'Pune Institute', seatsLeft: 42 },
   'YZI-FULL-TEST': { instituteName: 'Full Test Institute', seatsLeft: 0 },
@@ -34,12 +36,22 @@ async function postJson(path, body) {
   }
 }
 
-// → { valid: true, instituteName, seatsLeft } | { valid: false, reason }
+// → { valid: true, instituteName, seatsLeft } — a campus code
+//   | { valid: true, kind: 'rejoin' } — a one-time code to continue a dropped interview
+//   | { valid: false, reason } — reason: 'not_found' | 'expired' | 'used' | 'unavailable'
 export async function checkStudentCode(code) {
   const clean = String(code || '').trim().toUpperCase()
 
   if (isMockMode()) {
     await wait(350)
+    // DEV ONLY — rejoin codes from a mock dropped call (seraSessionService).
+    if (import.meta.env.DEV && clean.startsWith('REJOIN-')) {
+      if (clean === 'REJOIN-EXPIRED') return { valid: false, reason: 'expired' }
+      const dropped = findMockSessionByRejoin({ code: clean })
+      if (dropped?.rejoinUsed) return { valid: false, reason: 'used' }
+      if (dropped || clean === MOCK_REJOIN_CODE) return { valid: true, kind: 'rejoin' }
+      return { valid: false, reason: 'not_found' }
+    }
     const hit = MOCK_CODES[clean]
     return hit ? { valid: true, ...hit } : { valid: false, reason: 'not_found' }
   }

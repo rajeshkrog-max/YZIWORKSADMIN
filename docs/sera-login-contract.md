@@ -23,6 +23,7 @@ through `src/services/seraAuthService.js`.
   - `{ valid: false, reason: string }`
 - `valid: true` with `seatsLeft: 0` is shown as "No seats left for this code" and blocks the next step.
 - If the endpoint is unreachable, the frontend treats it as `{ valid: false, reason: 'unavailable' }` and shows "Couldn't check the code right now".
+- The same field also takes **one-time rejoin codes** after a dropped call: return `{ valid: true, kind: 'rejoin' }`, or `{ valid: false, reason: 'expired' | 'used' }`. The login then calls `redeemRejoin` instead of `completeLogin`. See `docs/sera-interview-contract.md`.
 
 ### `completeLogin({ route, google, phone, msg91Token, studentCode })`
 
