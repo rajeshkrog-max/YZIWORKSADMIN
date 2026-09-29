@@ -1,7 +1,20 @@
 import SeraWave from './SeraWave'
 import GlassCard from './glass/GlassCard'
+import GlassBlobs from './login/GlassBlobs'
+import { REPORT_FINE_PRINT, reportSections, validate } from '../../shared/seraReportSchema'
+import ReportHeader from './report/ReportHeader'
+import ScoreSummary from './report/ScoreSummary'
+import RoundScores from './report/RoundScores'
+import SkillEvidence from './report/SkillEvidence'
+import StrengthsGrowth from './report/StrengthsGrowth'
+import AnswerRewrite from './report/AnswerRewrite'
+import OfferFit from './report/OfferFit'
+import SpeakingStats from './report/SpeakingStats'
+import ReportPlan from './report/ReportPlan'
+import CommunityCta from './report/CommunityCta'
+import DownloadReportButton from './report/DownloadReportButton'
 
-// No report to show (ended early, or it's taking too long): wave + glass card.
+// No report to show (ended early, still on its way, or it didn't validate).
 function ReportNotice({ title, text, onDone }) {
   return (
     <div className="w-full flex flex-col items-center text-center">
@@ -21,21 +34,9 @@ function ReportNotice({ title, text, onDone }) {
   )
 }
 
-function formatSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-const TIER_META = [
-  { label: 'Where you are', accent: 'text-yzi-orange light:text-orange-600', dot: 'bg-yzi-orange' },
-  { label: 'Next step', accent: 'text-yzi-pink light:text-pink-600', dot: 'bg-yzi-pink' },
-  { label: 'Where this goes', accent: 'text-yzi-purple light:text-purple-700', dot: 'bg-yzi-purple' },
-]
-
-function SeraReport({ profile, resumeMeta, report, incomplete, error, onDone }) {
-  const firstName = profile?.name?.split(' ')[0] || ''
-
+// The report page. Renders ONLY a report that passes validate(); every section
+// whose data is missing is hidden (reportSections), never shown empty.
+function SeraReport({ report, incomplete, error, onDone, onDownload }) {
   if (incomplete) {
     return (
       <ReportNotice
@@ -56,178 +57,40 @@ function SeraReport({ profile, resumeMeta, report, incomplete, error, onDone }) 
     )
   }
 
+  const { valid, errors } = validate(report)
+  if (!valid) {
+    console.warn('Sera report failed validation — not rendered', errors)
+    return (
+      <ReportNotice
+        title="Your report hit a snag"
+        text="We couldn't display your report. Our team has your interview and will follow up."
+        onDone={onDone}
+      />
+    )
+  }
+
+  const show = reportSections(report)
+
   return (
-    <div className="w-full max-w-4xl mx-auto text-left">
-      <div className="flex items-center gap-4 mb-8">
-        <div>
-          <span className="text-xs font-medium tracking-widest uppercase text-accent-cyan-fg block mb-1">
-            Sera's assessment
-          </span>
-          <h2 className="text-2xl md:text-3xl font-bold text-fg">
-            Your reading{firstName ? `, ${firstName}` : ''}.
-          </h2>
-          <p className="text-fg/50 text-sm mt-1">Private to you — a copy has also been sent to the YZI team.</p>
-        </div>
+    <div className="relative w-full max-w-5xl flex flex-col gap-5 text-left">
+      <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-24 h-[70vh] max-w-5xl mx-auto -z-10">
+        <GlassBlobs />
       </div>
 
-      <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-5">
-        <div className="bg-yzi-card/60 border border-fg/10 rounded-2xl p-6">
-          <h3 className="text-[11px] font-mono uppercase tracking-wide text-fg/40 mb-4">Résumé</h3>
-          {resumeMeta && (
-            <div className="flex items-center gap-3 pb-4 mb-4 border-b border-fg/10">
-              <svg className="w-7 h-7 text-yzi-pink flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-                <path d="M6 2h9l5 5v15H6z" />
-                <path d="M14 2v6h6" />
-              </svg>
-              <div>
-                <div className="text-sm font-medium text-fg truncate">{resumeMeta.originalFilename}</div>
-                <div className="text-xs text-fg/40 font-mono">{formatSize(resumeMeta.size)}</div>
-              </div>
-            </div>
-          )}
-        </div>
+      <ReportHeader report={report} onDownload={onDownload} />
+      <ScoreSummary report={report} sections={show} />
+      {show.rounds && <RoundScores rounds={report.rounds} />}
+      {show.skills && <SkillEvidence skills={report.skills} showBar={show.skillBar} />}
+      {(show.strengths || show.growth) && <StrengthsGrowth strengths={report.strengths} growth={report.growth} />}
+      {show.rewrite && <AnswerRewrite rewrite={report.rewrite} />}
+      {show.offerFit && <OfferFit offerFit={report.offerFit} />}
+      {show.speaking && <SpeakingStats speaking={report.speaking} />}
+      {show.plan && <ReportPlan plan={report.plan} />}
+      <CommunityCta />
 
-        <div className="bg-yzi-card/60 border border-fg/10 rounded-2xl p-6">
-          <h3 className="text-[11px] font-mono uppercase tracking-wide text-fg/40 mb-4">Strengths &amp; growth areas</h3>
-
-          <div className="flex items-center gap-2 text-sm font-semibold text-fg mb-3">
-            <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-            Where you're strong
-          </div>
-          <ul className="space-y-2 mb-5">
-            {(report.strengths || []).map((s, i) => (
-              <li key={i} className="text-sm text-fg/80 leading-relaxed pl-4 relative before:content-[''] before:absolute before:left-0 before:top-2 before:w-1 before:h-1 before:rounded-full before:bg-fg/40">
-                {s}
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex items-center gap-2 text-sm font-semibold text-fg mb-3">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-            Where to grow
-          </div>
-          <ul className="space-y-2">
-            {(report.growthAreas || []).map((s, i) => (
-              <li key={i} className="text-sm text-fg/80 leading-relaxed pl-4 relative before:content-[''] before:absolute before:left-0 before:top-2 before:w-1 before:h-1 before:rounded-full before:bg-fg/40">
-                {s}
-              </li>
-            ))}
-          </ul>
-
-          {report.seraNote && (
-            <p className="mt-5 pt-4 border-t border-fg/10 text-fg text-[15px] leading-relaxed">
-              "{report.seraNote}"
-              <span className="block mt-2 text-[11px] font-mono uppercase tracking-wide text-accent-cyan-fg">— Sera</span>
-            </p>
-          )}
-        </div>
-      </div>
-
-      {report.roadmap?.length === 3 && (
-        <div className="mt-8">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h3 className="text-xl font-bold text-fg">Your roadmap, from here</h3>
-            <span className="text-xs text-fg/40">Based on this interview, not just your résumé</span>
-          </div>
-          <div className="grid md:grid-cols-3 gap-3.5">
-            {report.roadmap.map((tier, i) => {
-              const meta = TIER_META[i]
-              return (
-                <div key={i} className="bg-yzi-card/60 border border-fg/10 rounded-2xl p-5 flex flex-col gap-3">
-                  <span className={`inline-flex items-center gap-1.5 text-[10.5px] font-mono uppercase tracking-wide ${meta.accent}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                    {meta.label}
-                  </span>
-                  <div className="font-bold text-[19px] text-fg">{tier.role}</div>
-                  <p className="text-[13px] text-fg/60 leading-relaxed">{tier.description}</p>
-                  <div className="mt-auto pt-1 flex flex-wrap gap-1.5">
-                    {(tier.skills || []).map((skill, j) => (
-                      <span key={j} className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-fg/5 border border-fg/10 text-fg/60">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {report.resources?.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-xl font-bold text-fg mb-4">Worth watching</h3>
-          <div className="grid md:grid-cols-3 gap-3.5">
-            {report.resources.map((resource, i) => (
-              <a
-                key={i}
-                href={resource.videoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group bg-yzi-card/60 border border-fg/10 rounded-2xl overflow-hidden hover:border-fg/25 transition"
-              >
-                <div className="aspect-video bg-pure/40 overflow-hidden">
-                  <img
-                    src={resource.thumbnailUrl}
-                    alt={resource.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="p-4">
-                  <span className="text-[10.5px] font-mono uppercase tracking-wide text-accent-cyan-fg block mb-1.5">
-                    {resource.topic}
-                  </span>
-                  <p className="text-sm text-fg/85 leading-snug line-clamp-2">{resource.title}</p>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-8 bg-yzi-card/60 border border-fg/10 rounded-2xl p-8 md:p-10 relative overflow-hidden">
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(60% 120% at 0% 0%, rgba(255,94,0,0.14), transparent 60%), radial-gradient(60% 120% at 100% 100%, rgba(139,92,246,0.16), transparent 60%)',
-          }}
-        />
-        <div className="relative flex items-center justify-between gap-7 flex-wrap">
-          <div className="max-w-md">
-            <span className="text-xs font-medium tracking-widest uppercase text-accent-cyan-fg block mb-3">
-              YZI Works Community
-            </span>
-            <h3 className="text-xl md:text-2xl font-bold text-fg mb-2">
-              You don't have to figure this out alone.
-            </h3>
-            <p className="text-fg/60 text-sm leading-relaxed">
-              This is exactly what the YZI community exists for — help finding the right placement
-              at the right company, and real support behind you the whole way: mentorship,
-              referrals, and people in your corner, not just an interview and a PDF.
-            </p>
-          </div>
-          <a
-            href="/"
-            className="px-8 py-3.5 rounded-full bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple text-white font-semibold hover:scale-105 transition-transform duration-300 flex-shrink-0"
-          >
-            Join the YZI Community
-          </a>
-        </div>
-      </div>
-
-      <div className="mt-6 flex items-center justify-between gap-5 flex-wrap">
-        <p className="text-xs text-fg/40 max-w-md leading-relaxed">
-          This is yours to read, not to keep — there's no download, and nothing here is stored
-          beyond this session.
-        </p>
-        <button
-          onClick={onDone}
-          className="px-6 py-2.5 rounded-full border border-fg/15 text-fg text-sm hover:bg-fg/10 transition"
-        >
-          Done
-        </button>
+      <div className="mt-2 flex flex-col items-center gap-5 text-center">
+        <DownloadReportButton onDownload={onDownload} className="items-center" />
+        <p className="max-w-2xl text-xs text-fg/45 leading-relaxed">{REPORT_FINE_PRINT}</p>
       </div>
     </div>
   )

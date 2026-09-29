@@ -19,6 +19,7 @@ import { roundsFor } from '../config/seraRounds'
 import { getDevTestSession } from '../services/seraAuthService'
 import { isDevMock } from '../services/seraMockCall'
 import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
+import { buildMockReport } from '../services/seraMockReport'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -39,7 +40,8 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 // DEV ONLY — design review of the flow screens without sign-in, upload or a call:
 //   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked|lost
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
-//           &muted=1 (interview), &variant=incomplete|error (report states)
+//           &muted=1 (interview), &variant=incomplete|error|gaps (report states;
+//           gaps = a skill with no evidence + a cut-short round), &route=visitor
 //           interview: &route=student|visitor, &round=screening|offer|hr|final,
 //                      &turn=sera-speaking|your-turn|wrapping-up
 // import.meta.env.DEV is replaced with `false` in production builds, so this
@@ -50,27 +52,6 @@ const PREVIEW = import.meta.env.DEV
       profile: { name: 'Priya Sharma', email: 'priya@example.com' },
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
       resumeMeta: { originalFilename: 'Priya_Sharma_Resume.pdf', size: 245760 },
-      report: {
-        strengths: [
-          'Explains past work clearly, with concrete examples from real projects.',
-          'Calm under a follow-up question — stays on the point.',
-        ],
-        growthAreas: [
-          'Quantify results: numbers make impact easier to believe.',
-          'Shorter answers — lead with the outcome, then the detail.',
-        ],
-        seraNote: 'You clearly know your tools. Now tell the story of what changed because of your work.',
-        roadmap: [
-          { role: 'Junior Data Analyst', description: 'Where your current skills already fit today.', skills: ['Excel', 'SQL basics'] },
-          { role: 'Data Analyst', description: 'One focused step up within 6–12 months.', skills: ['Power BI', 'Python', 'Stakeholder updates'] },
-          { role: 'Analytics Lead', description: 'Where this path can go with steady growth.', skills: ['Team leading', 'Data strategy'] },
-        ],
-        resources: [
-          { topic: 'SQL', title: 'SQL for analysts — the queries you use every week', videoUrl: '#', thumbnailUrl: seraSlide1Dark },
-          { topic: 'Storytelling', title: 'How to present numbers so people remember them', videoUrl: '#', thumbnailUrl: seraSlide2Dark },
-          { topic: 'Interviews', title: 'Answering “tell me about a project” with impact', videoUrl: '#', thumbnailUrl: seraSlide3Dark },
-        ],
-      },
     }
   : null
 
@@ -111,7 +92,15 @@ function MeetSera() {
         profile: PREVIEW.profile,
         resumeFile: params.has('file') ? PREVIEW.resumeFile : null,
         resumeMeta: PREVIEW.resumeMeta,
-        report: params.get('variant') === 'error' ? null : PREVIEW.report,
+        // DEV ONLY — the sample report built by the real pipeline.
+        report:
+          import.meta.env.DEV && params.get('variant') !== 'error'
+            ? buildMockReport({
+                route: params.get('route') ?? 'student',
+                firstName: 'Priya',
+                variant: params.get('variant') === 'gaps' ? 'gaps' : null,
+              })
+            : null,
         incomplete: params.get('variant') === 'incomplete',
         error: params.has('error') || params.get('variant') === 'error'
           ? 'Sample error — this is how a problem message looks.'
@@ -260,8 +249,6 @@ function MeetSera() {
 
         {view.screen === 'report' && (
           <SeraReport
-            profile={view.profile}
-            resumeMeta={view.resumeMeta}
             report={view.report}
             incomplete={view.incomplete}
             error={view.error}

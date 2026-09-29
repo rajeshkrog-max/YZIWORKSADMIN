@@ -10,25 +10,6 @@ const SPEAK_SECONDS = 6 // "Sera speaking" before each turn
 const ANSWER_SECONDS = 8 // "Your turn" advances early so you don't wait out the full turn
 export const MOCK_REPORT_DELAY_MS = 7000 // long enough to watch the wrap-up checklist
 
-export const MOCK_REPORT = {
-  strengths: [
-    'Explained your recent project clearly, with a concrete example of what you built.',
-    'Stayed calm on the follow-up question and kept your answer on point.',
-    'Clear about the role you want next and a realistic timeline for it.',
-  ],
-  growthAreas: [
-    'Add numbers to your results — "cut report time from 2 hours to 20 minutes" lands harder.',
-    'Lead with the outcome, then the detail; a couple of answers took a while to reach the point.',
-  ],
-  seraNote:
-    "You clearly know your tools. Next step: tell the story of what changed because of your work — that's what interviewers remember.",
-  roadmap: [
-    { role: 'Junior Data Analyst', description: 'Where your current skills already fit today.', skills: ['Excel', 'SQL basics', 'Reporting'] },
-    { role: 'Data Analyst', description: 'One focused step up within 6–12 months.', skills: ['Power BI', 'Python', 'Stakeholder updates'] },
-    { role: 'Analytics Lead', description: 'Where this path can go with steady growth.', skills: ['Team leading', 'Data strategy'] },
-  ],
-}
-
 // ── Tiny store shared by the DEV panel, the fake call and the pay screen ─────
 let devState = { call: null, payOutcome: 'success' }
 let devListeners = null

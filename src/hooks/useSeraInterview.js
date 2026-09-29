@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '../utils/googleAuth'
 import { uploadResumeToR2 } from '../utils/seraUpload'
 import { isMockMode } from '../services/seraAuthService'
-import { createMockCall, MOCK_REPORT, MOCK_REPORT_DELAY_MS, saveMockSession } from '../services/seraMockCall'
+import { createMockCall, MOCK_REPORT_DELAY_MS, saveMockSession } from '../services/seraMockCall'
+import { buildMockReport } from '../services/seraMockReport'
 import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
 import { getOffers, saveOfferChoice } from '../services/seraOffersService'
 import { roundsFor, turnSecondsFor } from '../config/seraRounds'
@@ -71,6 +72,7 @@ export function useSeraInterview() {
   const [chosenOffer, setChosenOffer] = useState(null)
   const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   const sessionIdRef = useRef(null)
+  const [sessionId, setSessionId] = useState(null) // same id, for rendering (report download)
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
   const mockCallRef = useRef(null)
   const mockTotalElapsedRef = useRef(0)
@@ -103,6 +105,7 @@ export function useSeraInterview() {
     setChosenOffer(null)
     setLostInfo(null)
     sessionIdRef.current = null
+    setSessionId(null)
     if (import.meta.env.DEV) {
       mockCallRef.current?.stop()
       mockCallRef.current = null
@@ -345,7 +348,8 @@ export function useSeraInterview() {
             setScreen('report')
             return
           }
-          setReport(MOCK_REPORT)
+          const current = profileRef.current
+          setReport(buildMockReport({ route: current?.route, firstName: current?.name?.split(' ')[0] || 'there' }))
           setReportReady(true)
           setTimeout(() => setScreen('report'), REPORT_FADE_MS)
         }, MOCK_REPORT_DELAY_MS)
@@ -385,6 +389,7 @@ export function useSeraInterview() {
   const startMockCall = useCallback(() => {
     if (!import.meta.env.DEV) return
     sessionIdRef.current = `mock-session-${Date.now()}`
+    setSessionId(sessionIdRef.current)
     const current = profileRef.current
     saveMockSession(sessionIdRef.current, {
       route: current?.route,
@@ -468,6 +473,7 @@ export function useSeraInterview() {
         // TODO(backend): sera-start-call returns the session id; students then
         // get offers + rounds 2–3 (second Retell call). Today: screening only.
         sessionIdRef.current = startResult.sessionId ?? null
+        setSessionId(sessionIdRef.current)
         setRoundIndex(0)
         loadOffers()
         setScreen('interview')
@@ -603,6 +609,7 @@ export function useSeraInterview() {
       setResumeMeta(session.resumeMeta ?? null)
       setChosenOffer(session.chosenOffer ?? null)
       sessionIdRef.current = session.sessionId
+      setSessionId(session.sessionId)
       const index = Math.max(0, roundsFor(session.route).findIndex((r) => r.id === session.round))
       setScreen('interview')
       if (import.meta.env.DEV && isMockMode()) {
@@ -641,6 +648,7 @@ export function useSeraInterview() {
     turnState,
     turnElapsed,
     turnSeconds: turnSecondsFor(profile?.route),
+    sessionId,
     rounds,
     roundIndex,
     roundSecondsLeft,
