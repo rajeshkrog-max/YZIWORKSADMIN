@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import GlassBlobs from '../login/GlassBlobs'
 import OrderSummary from './OrderSummary'
 import PriceBreakdown from './PriceBreakdown'
@@ -7,6 +6,7 @@ import { SERA_VISITOR_PLAN, formatRupees } from '../../../config/seraPricing'
 import { createOrder, verifyPayment } from '../../../services/seraPaymentService'
 import { isMockMode } from '../../../services/seraAuthService'
 import { loadRazorpayScript, openRazorpayCheckout } from '../../../utils/razorpay'
+import { takeMockPayOutcome } from '../../../services/seraMockCall'
 
 const FAILED = "Payment didn't go through. You haven't been charged — try again."
 const METHODS = ['UPI', 'Cards', 'Netbanking', 'Wallets']
@@ -20,55 +20,21 @@ const LockIcon = () => (
 
 const Spinner = () => <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin motion-reduce:animate-none" />
 
-// Mock mode only: stands in for Razorpay Checkout. Portalled to <body> so the
-// glass card's backdrop-filter doesn't trap the fixed overlay inside it.
-function MockCheckout({ amountPaise, onPay, onFail, onClose }) {
-  return createPortal(
-    <div className="fixed inset-0 z-[300] grid place-items-center bg-black/50 backdrop-blur-sm px-6" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label="Checkout (mock)"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xs rounded-2xl bg-card border border-fg/10 p-5 text-left shadow-2xl"
-      >
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-accent-orange-fg mb-1">Mock Razorpay</p>
-        <h3 className="text-fg font-semibold">YZI Works</h3>
-        <p className="text-xs text-fg/55 mt-1 mb-4">Sera AI Interview · {SERA_VISITOR_PLAN.minutes} min</p>
-        <div className="flex flex-col gap-2">
-          <button type="button" onClick={onPay} className="h-10 rounded-xl bg-emerald-500 text-white text-sm font-semibold">
-            Pay {formatRupees(amountPaise)} (test)
-          </button>
-          <button type="button" onClick={onFail} className="h-10 rounded-xl border border-red-500/40 text-red-500 text-sm font-medium">
-            Simulate failure
-          </button>
-          <button type="button" onClick={onClose} className="h-10 rounded-xl text-fg/60 hover:text-fg text-sm">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
 // Visitor pay screen. The interview starts only after the SERVER verifies the
 // payment (verifyPayment) — never on the checkout callback alone.
 function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResume }) {
   // idle | opening | checkout | verifying
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState(null)
-  const [mockOrder, setMockOrder] = useState(null)
   const lockRef = useRef(false) // one order per click, even on a fast double-click
 
   const release = (message = null) => {
     lockRef.current = false
     setStatus('idle')
-    setMockOrder(null)
     if (message) setError(message)
   }
 
   const confirm = async ({ orderId, paymentId, signature }) => {
-    setMockOrder(null)
     setStatus('verifying')
     const result = await verifyPayment({ orderId, paymentId, signature })
     if (result.ok) onPaymentSuccess(result.paymentId)
@@ -87,9 +53,14 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
       return
     }
 
-    if (isMockMode()) {
-      setMockOrder(order)
-      setStatus('checkout')
+    // DEV ONLY — mock pass-through: a short "Processing…", then straight into
+    // the interview. Failure / closed are armed from the DEV panel instead.
+    if (import.meta.env.DEV && isMockMode()) {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      const outcome = takeMockPayOutcome()
+      if (outcome === 'fail') release(FAILED)
+      else if (outcome === 'close') release()
+      else confirm({ orderId: order.orderId, paymentId: `pay_mock_${Date.now()}`, signature: 'mock-signature' })
       return
     }
 
@@ -121,11 +92,12 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
   }
 
   const busy = status !== 'idle'
+  const mockPay = import.meta.env.DEV && isMockMode()
   const label = {
     idle: `Pay ${formatRupees(SERA_VISITOR_PLAN.pricePaise)}`,
-    opening: 'Opening payment…',
+    opening: mockPay ? 'Processing…' : 'Opening payment…',
     checkout: 'Complete payment in the popup…',
-    verifying: 'Confirming payment…',
+    verifying: mockPay ? 'Processing…' : 'Confirming payment…',
   }[status]
 
   return (
@@ -173,15 +145,6 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
           </section>
         </div>
       </div>
-
-      {mockOrder && (
-        <MockCheckout
-          amountPaise={mockOrder.amountPaise}
-          onPay={() => confirm({ orderId: mockOrder.orderId, paymentId: `pay_mock_${Date.now()}`, signature: 'mock-signature' })}
-          onFail={() => release(FAILED)}
-          onClose={() => release()}
-        />
-      )}
     </div>
   )
 }

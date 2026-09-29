@@ -15,6 +15,8 @@ import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
 import { getDevTestSession } from '../services/seraAuthService'
+import { isDevMock } from '../services/seraMockCall'
+import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -170,6 +172,9 @@ function MeetSera() {
       <SeraNetworkBackground className="fixed inset-0 z-0" />
 
       {topControls}
+
+      {/* DEV ONLY — mock-mode controls (simulated call, payment outcomes). */}
+      {import.meta.env.DEV && isDevMock() && <SeraDevPanel />}
 
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-28">
         {view.screen === 'signin' && <SeraLogin onDone={view.completeLogin} />}

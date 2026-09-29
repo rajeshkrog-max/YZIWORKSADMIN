@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '../utils/googleAuth'
 import { uploadResumeToR2 } from '../utils/seraUpload'
 import { isMockMode } from '../services/seraAuthService'
+import { createMockCall, MOCK_REPORT, MOCK_REPORT_DELAY_MS } from '../services/seraMockCall'
 
 const SESSION_SECONDS = 5 * 60
 const TURN_SECONDS = 35
@@ -56,6 +57,9 @@ export function useSeraInterview() {
   // A verified payment whose interview never started (start-call failed): reused
   // on the next attempt so the visitor isn't charged twice.
   const paidPaymentIdRef = useRef(null)
+  // DEV ONLY — simulated call in mock mode (seraMockCall) and its clock lengths.
+  const mockCallRef = useRef(null)
+  const [mockDurations, setMockDurations] = useState(null)
 
   useEffect(() => {
     profileRef.current = profile
@@ -79,6 +83,11 @@ export function useSeraInterview() {
     transcriptRef.current = ''
     preparedRef.current = null
     paidPaymentIdRef.current = null
+    if (import.meta.env.DEV) {
+      mockCallRef.current?.stop()
+      mockCallRef.current = null
+      setMockDurations(null)
+    }
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
   }, [])
 
@@ -271,6 +280,33 @@ export function useSeraInterview() {
     [finishInterview, startSessionTimer, stopSessionTimer]
   )
 
+  // DEV ONLY — drives the existing interview screen with a simulated call:
+  // no sera-start-call, no Retell. End → wrapup → mock report after ~3s.
+  const startMockCall = useCallback(() => {
+    if (!import.meta.env.DEV) return // stripped from production builds
+    mockCallRef.current?.stop()
+    const call = createMockCall({
+      route: profileRef.current?.route,
+      onUpdate: (tick) => {
+        elapsedRef.current = tick.elapsed
+        setElapsed(tick.elapsed)
+        setTurnState(tick.turnState)
+        setTurnElapsed(tick.turnElapsed)
+      },
+      onEnd: ({ incomplete: dropped }) => {
+        mockCallRef.current = null
+        setScreen('wrapup')
+        setTimeout(() => {
+          if (dropped) setIncomplete(true)
+          else setReport(MOCK_REPORT)
+          setScreen('report')
+        }, MOCK_REPORT_DELAY_MS)
+      },
+    })
+    mockCallRef.current = call
+    setMockDurations(call.durations)
+  }, [])
+
   // sera-start-call + Retell. Runs only after the résumé check passed, and for
   // visitors only after the server verified the payment.
   const startInterview = useCallback(
@@ -282,11 +318,12 @@ export function useSeraInterview() {
       setError(null)
       if (paymentId) paidPaymentIdRef.current = paymentId
 
-      // Mock mode stops at the interview screen — no real call is created.
+      // Mock mode never creates a real call. On the dev server it simulates one.
       if (isMockMode()) {
         setScreen('interview')
         setTurnState('sera-speaking')
         setBusy(false)
+        if (import.meta.env.DEV) startMockCall()
         return
       }
 
@@ -328,7 +365,7 @@ export function useSeraInterview() {
         setBusy(false)
       }
     },
-    [profile, connectRetell]
+    [profile, connectRetell, startMockCall]
   )
 
   const beginInterview = useCallback(async () => {
@@ -422,13 +459,18 @@ export function useSeraInterview() {
   }, [muted])
 
   const endCallEarly = useCallback(() => {
+    if (import.meta.env.DEV) mockCallRef.current?.endNow()
     retellRef.current?.stopCall()
   }, [])
 
   useEffect(() => stopSessionTimer, [stopSessionTimer])
+  useEffect(() => () => import.meta.env.DEV && mockCallRef.current?.stop(), [])
 
-  const sessionSecondsLeft = Math.max(0, SESSION_SECONDS - elapsed)
-  const phase = phaseForElapsed(elapsed)
+  // DEV ONLY — the mock call can run longer (student 10:00); phases scale to it.
+  const mock = import.meta.env.DEV ? mockDurations : null
+  const sessionSeconds = mock ? mock.session : SESSION_SECONDS
+  const sessionSecondsLeft = Math.max(0, sessionSeconds - elapsed)
+  const phase = phaseForElapsed(mock ? (elapsed * SESSION_SECONDS) / mock.session : elapsed)
 
   return {
     screen,
@@ -442,7 +484,7 @@ export function useSeraInterview() {
     phase,
     turnState,
     turnElapsed,
-    turnSeconds: TURN_SECONDS,
+    turnSeconds: mock ? mock.turn : TURN_SECONDS,
     muted,
     report,
     incomplete,

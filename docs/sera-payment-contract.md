@@ -64,4 +64,4 @@ Both must return `Content-Type: application/json`. Netlify functions live at `/.
 
 ## Mock mode (localhost)
 
-`VITE_SERA_MOCK=true`: no Razorpay script loads. `createOrder` returns a fake order for 24900 paise, a fake checkout offers "Pay ₹249 (test)", "Simulate failure" and "Close", and `verifyPayment` returns `ok`. Mock mode also fakes the résumé upload + check (plain `vite` has no Netlify functions; a file name containing "bad" is rejected) and stops at the interview screen without creating a call.
+`VITE_SERA_MOCK=true` on the dev server: no Razorpay script loads. "Pay ₹249" shows a short "Processing…" and goes straight into the interview (`createOrder` / `verifyPayment` return fake success). Payment failure and "popup closed" are tested from the floating DEV panel, which arms the outcome of the next Pay click. Mock mode also fakes the résumé upload + check (plain `vite` has no Netlify functions; a file name containing "bad" is rejected) and simulates the call itself (`src/services/seraMockCall.js`) — no `sera-start-call`, no Retell. None of the DEV-only pieces ship in a production build.
