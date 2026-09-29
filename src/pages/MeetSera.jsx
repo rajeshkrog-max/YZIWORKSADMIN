@@ -14,6 +14,7 @@ import SeraWrapup from '../components/sera/SeraWrapup'
 import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
+import { getDevTestSession } from '../services/seraAuthService'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -76,6 +77,16 @@ function MeetSera() {
   // Dev preview overrides the screen and its data; otherwise `view` is the real hook.
   const params = new URLSearchParams(location.search)
   const previewScreen = PREVIEW?.screens.includes(params.get('preview')) ? params.get('preview') : null
+  // DEV ONLY — ?testlogin=visitor|student signs in a fake profile and opens
+  // upload (mock mode on the dev server only; see getDevTestSession).
+  const testLogin = import.meta.env.DEV ? params.get('testlogin') : null
+  const { completeLogin } = sera
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const session = getDevTestSession(testLogin)
+    if (session) completeLogin(session)
+  }, [testLogin, completeLogin])
+
   const view = previewScreen
     ? {
         ...sera,

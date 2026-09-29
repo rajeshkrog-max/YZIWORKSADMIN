@@ -80,3 +80,18 @@ export async function completeLogin({ route, google, phone, msg91Token, studentC
   if (!data || typeof data.ok !== 'boolean') return { ok: false, error: FRIENDLY_ERROR }
   return data
 }
+
+// DEV ONLY — /meet-sera?testlogin=visitor|student skips the login entirely.
+// Active only in the Vite dev server AND mock mode; in a production build
+// import.meta.env.DEV is `false`, so this always returns null and the sample
+// profiles below are stripped from the bundle.
+export function getDevTestSession(kind) {
+  if (!import.meta.env.DEV || !isMockMode()) return null
+  if (kind === 'visitor') {
+    return { name: 'Test Visitor', email: 'visitor.test@gmail.com', phone: '9876543210', route: 'visitor', studentCode: null, instituteName: null }
+  }
+  if (kind === 'student') {
+    return { name: 'Test Student', email: 'student.test@gmail.com', phone: '9876543211', route: 'student', studentCode: 'YZI-PUNE-OCT26', instituteName: 'Pune Institute' }
+  }
+  return null
+}
