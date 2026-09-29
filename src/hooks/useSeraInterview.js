@@ -88,6 +88,21 @@ export function useSeraInterview() {
     }
   }, [])
 
+  // Session from the glass login (SeraLogin). `route` stays on the profile —
+  // the server later uses it to pick the paid (5-min) vs student (10-min) agent.
+  const completeLogin = useCallback((session) => {
+    setError(null)
+    setProfile({
+      name: session.name,
+      email: session.email,
+      phone: session.phone,
+      route: session.route,
+      studentCode: session.studentCode ?? null,
+      instituteName: session.instituteName ?? null,
+    })
+    setScreen('upload')
+  }, [])
+
   const selectFile = useCallback((file, message) => {
     setError(message || null)
     setResumeFile(file)
@@ -353,6 +368,7 @@ export function useSeraInterview() {
     incomplete,
     goToSignIn,
     signIn,
+    completeLogin,
     selectFile,
     beginInterview,
     toggleMute,

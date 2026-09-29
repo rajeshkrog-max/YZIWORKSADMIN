@@ -6,7 +6,7 @@ import Footer from '../components/Footer'
 import SeraNetworkBackground from '../components/sera/SeraNetworkBackground'
 import SeraHero from '../components/sera/SeraHero'
 import SeraSteps from '../components/sera/SeraSteps'
-import SeraSignIn from '../components/sera/SeraSignIn'
+import SeraLogin from '../components/sera/login/SeraLogin'
 import SeraUpload from '../components/sera/SeraUpload'
 import SeraPreparing from '../components/sera/SeraPreparing'
 import SeraInterview from '../components/sera/SeraInterview'
@@ -94,6 +94,7 @@ function MeetSera() {
         blockedMessage: null,
         goToSignIn: noop,
         signIn: noop,
+        completeLogin: noop,
         selectFile: noop,
         beginInterview: noop,
         toggleMute: noop,
@@ -153,9 +154,7 @@ function MeetSera() {
       {topControls}
 
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-28">
-        {view.screen === 'signin' && (
-          <SeraSignIn onSignIn={view.signIn} busy={view.busy} error={view.error} />
-        )}
+        {view.screen === 'signin' && <SeraLogin onDone={view.completeLogin} />}
 
         {view.screen === 'upload' && (
           <SeraUpload
