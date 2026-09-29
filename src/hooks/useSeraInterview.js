@@ -9,6 +9,8 @@ import { roundsFor, turnSecondsFor } from '../config/seraRounds'
 
 const SESSION_SECONDS = 5 * 60
 const TURN_SECONDS = 35
+// Wrap-up: after the report arrives, the last checklist tick + fade before showing it.
+const REPORT_FADE_MS = 900
 const PHASE_SKILLS_START = 55 // 0:55
 const PHASE_GOAL_START = 230 // 3:50
 
@@ -44,6 +46,7 @@ export function useSeraInterview() {
   const [turnElapsed, setTurnElapsed] = useState(0)
   const [muted, setMuted] = useState(false)
   const [report, setReport] = useState(null)
+  const [reportReady, setReportReady] = useState(false) // wrap-up checklist: last step ticks only when true
   const [incomplete, setIncomplete] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState(null)
 
@@ -89,6 +92,7 @@ export function useSeraInterview() {
     turnActiveRef.current = false
     setMuted(false)
     setReport(null)
+    setReportReady(false)
     setIncomplete(false)
     setBlockedMessage(null)
     transcriptRef.current = ''
@@ -171,6 +175,7 @@ export function useSeraInterview() {
 
   const finishInterview = useCallback(async () => {
     stopSessionTimer()
+    setReportReady(false)
     setScreen('wrapup')
 
     // The report is generated exactly once, server-side, by the Retell
@@ -178,7 +183,7 @@ export function useSeraInterview() {
     // running our own LLM call means every interview costs one analysis
     // call, not two.
     const POLL_INTERVAL_MS = 2000
-    const MAX_ATTEMPTS = 30 // ~60s
+    const MAX_ATTEMPTS = 45 // ~90s, then the "still on its way by email" message
 
     try {
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -199,6 +204,8 @@ export function useSeraInterview() {
           }
           if (result.report) {
             setReport(result.report)
+            setReportReady(true) // final checklist tick, then a short fade into the report
+            await new Promise((resolve) => setTimeout(resolve, REPORT_FADE_MS))
             setScreen('report')
             return
           }
@@ -330,11 +337,17 @@ export function useSeraInterview() {
       const round = rounds[index]
 
       const toReport = (incompleteReport) => {
+        setReportReady(false)
         setScreen('wrapup')
         setTimeout(() => {
-          if (incompleteReport) setIncomplete(true)
-          else setReport(MOCK_REPORT)
-          setScreen('report')
+          if (incompleteReport) {
+            setIncomplete(true)
+            setScreen('report')
+            return
+          }
+          setReport(MOCK_REPORT)
+          setReportReady(true)
+          setTimeout(() => setScreen('report'), REPORT_FADE_MS)
         }, MOCK_REPORT_DELAY_MS)
       }
 
@@ -638,6 +651,7 @@ export function useSeraInterview() {
     resumeSession,
     muted,
     report,
+    reportReady,
     incomplete,
     goToSignIn,
     signIn,

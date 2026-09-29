@@ -8,7 +8,7 @@ export const isDevMock = () => import.meta.env.DEV && isMockMode()
 
 const SPEAK_SECONDS = 6 // "Sera speaking" before each turn
 const ANSWER_SECONDS = 8 // "Your turn" advances early so you don't wait out the full turn
-export const MOCK_REPORT_DELAY_MS = 3000
+export const MOCK_REPORT_DELAY_MS = 7000 // long enough to watch the wrap-up checklist
 
 export const MOCK_REPORT = {
   strengths: [

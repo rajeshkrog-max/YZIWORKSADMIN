@@ -256,7 +256,7 @@ function MeetSera() {
           <SeraConnectionLost profile={view.profile} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />
         )}
 
-        {view.screen === 'wrapup' && <SeraWrapup profile={view.profile} />}
+        {view.screen === 'wrapup' && <SeraWrapup profile={view.profile} reportReady={view.reportReady} />}
 
         {view.screen === 'report' && (
           <SeraReport

@@ -1,4 +1,25 @@
-import SeraOrb from './SeraOrb'
+import SeraWave from './SeraWave'
+import GlassCard from './glass/GlassCard'
+
+// No report to show (ended early, or it's taking too long): wave + glass card.
+function ReportNotice({ title, text, onDone }) {
+  return (
+    <div className="w-full flex flex-col items-center text-center">
+      <SeraWave state="disabled" bleed className="w-full h-[120px] md:h-[160px] mb-6" label="Sera" />
+      <GlassCard>
+        <h2 className="text-2xl font-bold text-fg">{title}</h2>
+        <p className="mt-2 text-sm text-fg/65 leading-relaxed">{text}</p>
+        <button
+          type="button"
+          onClick={onDone}
+          className="mt-6 w-full h-[50px] rounded-full border border-fg/15 bg-fg/5 light:bg-white/60 text-fg font-semibold hover:bg-fg/10 transition"
+        >
+          Back to YZI Works
+        </button>
+      </GlassCard>
+    </div>
+  )
+}
 
 function formatSize(bytes) {
   if (!bytes) return ''
@@ -17,44 +38,27 @@ function SeraReport({ profile, resumeMeta, report, incomplete, error, onDone }) 
 
   if (incomplete) {
     return (
-      <div className="flex flex-col items-center text-center max-w-sm mx-auto">
-        <SeraOrb state="error" size={140} className="mb-6" />
-        <h2 className="text-2xl font-bold text-fg mb-3">Interview ended early</h2>
-        <p className="text-fg/60 text-sm leading-relaxed mb-8">
-          Looks like the interview ended early — no worries, we'll get you scheduled for another session soon.
-        </p>
-        <button
-          onClick={onDone}
-          className="px-6 py-3 rounded-full border border-fg/20 text-fg text-sm font-medium hover:bg-fg/10 transition"
-        >
-          Back to YZI Works
-        </button>
-      </div>
+      <ReportNotice
+        title="Interview ended early"
+        text="Looks like the interview ended early — no worries, we'll get you scheduled for another session soon."
+        onDone={onDone}
+      />
     )
   }
 
   if (!report) {
     return (
-      <div className="flex flex-col items-center text-center max-w-sm mx-auto">
-        <SeraOrb state="error" size={140} className="mb-6" />
-        <h2 className="text-2xl font-bold text-fg mb-3">Your report hit a snag</h2>
-        <p className="text-fg/60 text-sm leading-relaxed mb-8">
-          {error || 'Something went wrong preparing your report — our team still received your interview.'}
-        </p>
-        <button
-          onClick={onDone}
-          className="px-6 py-3 rounded-full border border-fg/20 text-fg text-sm font-medium hover:bg-fg/10 transition"
-        >
-          Back to YZI Works
-        </button>
-      </div>
+      <ReportNotice
+        title="Your report is still on its way"
+        text={error || 'Something went wrong preparing your report — our team still received your interview.'}
+        onDone={onDone}
+      />
     )
   }
 
   return (
     <div className="w-full max-w-4xl mx-auto text-left">
       <div className="flex items-center gap-4 mb-8">
-        <SeraOrb state="disabled" size={48} />
         <div>
           <span className="text-xs font-medium tracking-widest uppercase text-accent-cyan-fg block mb-1">
             Sera's assessment
