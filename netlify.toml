@@ -14,4 +14,4 @@
   # rewriting entirely and lets Node's own runtime load it correctly instead.
   external_node_modules = ["pdfjs-dist"]
   # The Sera report PDF embeds the logo and Noto fonts (netlify/lib/seraReport/pdfAssets.node.js).
-  included_files = ["src/assets/logo_light.jpeg", "src/assets/fonts/*.ttf"]
+  included_files = ["src/assets/logo_light.jpeg", "src/assets/fonts/NotoSans-Regular.ttf", "src/assets/fonts/NotoSans-Bold.ttf", "src/assets/fonts/NotoSans-Italic.ttf"]

@@ -41,14 +41,12 @@ export async function downloadReport(sessionId, { report } = {}) {
         import('../assets/fonts/NotoSans-Regular.ttf?url'),
         import('../assets/fonts/NotoSans-Bold.ttf?url'),
         import('../assets/fonts/NotoSans-Italic.ttf?url'),
-        import('../assets/fonts/NotoSansDevanagari-Regular.ttf?url'),
-        import('../assets/fonts/NotoSansDevanagari-Bold.ttf?url'),
       ],
     ])
-    const [logoJpeg, regular, bold, italic, devanagari, devanagariBold] = await Promise.all(
+    const [logoJpeg, regular, bold, italic] = await Promise.all(
       urls.map(async ({ default: href }) => new Uint8Array(await (await fetch(href)).arrayBuffer())),
     )
-    const bytes = await renderReportPdf(report, { logoJpeg, fonts: { regular, bold, italic, devanagari, devanagariBold } })
+    const bytes = await renderReportPdf(report, { logoJpeg, fonts: { regular, bold, italic } })
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
     saveFile(url, reportFilename(report))
     setTimeout(() => URL.revokeObjectURL(url), 60_000)

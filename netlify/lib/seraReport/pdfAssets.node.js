@@ -10,15 +10,13 @@ const FILES = {
   regular: 'src/assets/fonts/NotoSans-Regular.ttf',
   bold: 'src/assets/fonts/NotoSans-Bold.ttf',
   italic: 'src/assets/fonts/NotoSans-Italic.ttf',
-  devanagari: 'src/assets/fonts/NotoSansDevanagari-Regular.ttf',
-  devanagariBold: 'src/assets/fonts/NotoSansDevanagari-Bold.ttf',
 }
 
 // Repo root locally; the function's working directory on Netlify.
 const ROOTS = [process.cwd(), path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')]
 const resolve = (rel) => ROOTS.map((root) => path.join(root, rel)).find(existsSync)
 
-// → { logoJpeg, fonts: { regular, bold, italic, devanagari, devanagariBold } }
+// → { logoJpeg, fonts: { regular, bold, italic } }
 export async function loadReportPdfAssets() {
   const entries = await Promise.all(
     Object.entries(FILES).map(async ([key, rel]) => {

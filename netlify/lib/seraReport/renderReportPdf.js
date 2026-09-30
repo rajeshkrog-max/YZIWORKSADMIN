@@ -6,9 +6,8 @@
 //
 // A4, white page, navy headings, thin brand-gradient line under the header,
 // "Prepared by Sera · YZI Works" + the AI notice + "Page X of Y" on every page.
-// Noto Sans (₹, accented Latin) with Noto Sans Devanagari for Hindi names/words.
-// @pdf-lib/fontkit's Devanagari (Indic) shaper expects this global.
-import 'regenerator-runtime/runtime.js'
+// English only: Noto Sans (₹, accented Latin). Non-Latin characters are dropped;
+// a name with no Latin letters shows as "Candidate".
 import { LineCapStyle, PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import { SCORE_BANDS } from '../../../src/config/seraRubric.js'
@@ -38,7 +37,13 @@ const PURPLE = rgb(...BRAND[2])
 const HORIZON = { '30d': 'Next 30 days', '1-3m': '1–3 months', '6-12m': '6–12 months' }
 const BAND_LABEL = Object.fromEntries(SCORE_BANDS.map((b) => [b.id, b.label]))
 const BAND_COLOR = { needs_work: RED, getting_there: AMBER, ready: GREEN }
-const DEVANAGARI = /(\p{Script=Devanagari}+)/u
+// The name as printed: its Latin part, or "Candidate" if it has none.
+export const pdfName = (name) =>
+  String(name ?? '')
+    .replace(/[^\p{Script=Latin}\s'.-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[\s'.-]+|[\s'.-]+$/g, '') || 'Candidate'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const formatDate = (iso) => {
@@ -52,57 +57,40 @@ const brandAt = (t) => {
   return rgb(...BRAND[seg].map((c, i) => c + (BRAND[seg + 1][i] - c) * local))
 }
 
-// assets: { logoJpeg?, fonts?: { regular, bold, italic, devanagari, devanagariBold } } (bytes).
-// Without fonts it falls back to Helvetica (₹ → "Rs", non-Latin text dropped).
+// assets: { logoJpeg?, fonts?: { regular, bold, italic } } (bytes).
+// Without fonts it falls back to Helvetica (₹ → "Rs").
 export async function renderReportPdf(report, { logoJpeg = null, fonts = null } = {}) {
   const doc = await PDFDocument.create()
-  doc.setTitle(`Sera Interview Report — ${report.firstName}`)
+  const name = pdfName(report.firstName)
+  doc.setTitle(`Sera Interview Report — ${name}`)
   doc.setAuthor('Sera · YZI Works')
   doc.setCreator('Sera (YZI Works)')
   doc.setSubject('Practice interview report')
 
-  // ── Fonts ── one "face" = a Latin font + (optionally) a Devanagari fallback.
+  // ── Fonts ──
   let face
   if (fonts?.regular) {
     doc.registerFontkit(fontkit)
     // Full embedding: pdf-lib's subsetting drops glyphs from Noto fonts.
-    // Devanagari is embedded only when the report actually contains it.
-    const hasDeva = DEVANAGARI.test(JSON.stringify(report))
-    const embed = (bytes) => (bytes ? doc.embedFont(bytes, { subset: false }) : null)
-    const [regular, bold, italic, deva, devaBold] = await Promise.all(
-      [
-        fonts.regular,
-        fonts.bold ?? fonts.regular,
-        fonts.italic ?? fonts.regular,
-        hasDeva ? fonts.devanagari : null,
-        hasDeva ? (fonts.devanagariBold ?? fonts.devanagari) : null,
-      ].map(embed),
-    )
-    face = { regular: [regular, deva], bold: [bold, devaBold], italic: [italic, deva] }
+    const embed = (bytes) => doc.embedFont(bytes, { subset: false })
+    const [regular, bold, italic] = await Promise.all([fonts.regular, fonts.bold ?? fonts.regular, fonts.italic ?? fonts.regular].map(embed))
+    face = { regular: [regular], bold: [bold], italic: [italic] }
   } else {
     const [regular, bold, italic] = await Promise.all(
       [StandardFonts.Helvetica, StandardFonts.HelveticaBold, StandardFonts.HelveticaOblique].map((f) => doc.embedFont(f)),
     )
-    face = { regular: [regular, null], bold: [bold, null], italic: [italic, null] }
+    face = { regular: [regular], bold: [bold], italic: [italic] }
   }
   const charsets = new Map()
   const supports = (font, ch) => {
     if (!charsets.has(font)) charsets.set(font, new Set(font.getCharacterSet()))
     return charsets.get(font).has(ch.codePointAt(0))
   }
-  // Text → runs [{ text, font }]: Devanagari to its font, unsupported glyphs dropped.
-  const runs = (str, [latin, deva]) =>
-    String(str ?? '')
-      .split(DEVANAGARI)
-      .filter(Boolean)
-      .map((part) => {
-        const isDeva = DEVANAGARI.test(part)
-        const font = isDeva && deva ? deva : latin
-        let text = isDeva && deva ? part : part.replace(/₹\s?/g, supports(latin, '₹') ? '₹' : 'Rs ')
-        if (!(isDeva && deva)) text = [...text].filter((ch) => supports(latin, ch)).join('')
-        return { text, font }
-      })
-      .filter((r) => r.text)
+  // Text → runs [{ text, font }] (one Latin font; unsupported characters dropped).
+  const runs = (str, [latin]) => {
+    const text = [...String(str ?? '').replace(/₹\s?/g, supports(latin, '₹') ? '₹' : 'Rs ')].filter((ch) => supports(latin, ch)).join('')
+    return text ? [{ text, font: latin }] : []
+  }
   const widthOf = (str, f, size) => runs(str, f).reduce((w, r) => w + r.font.widthOfTextAtSize(r.text, size), 0)
 
   const logo = logoJpeg ? await doc.embedJpg(logoJpeg) : null
@@ -224,7 +212,7 @@ export async function renderReportPdf(report, { logoJpeg = null, fonts = null } 
   space(34)
   draw('Sera Interview Report', { f: face.bold, size: 24, color: NAVY })
   space(20)
-  draw(`for ${report.firstName}`, { size: 13, color: TEXT })
+  draw(`for ${name}`, { size: 13, color: TEXT })
   if (report.chosenOffer) {
     space(18)
     draw(`Practice offer: ${report.chosenOffer.company} · ${report.chosenOffer.role}`, { size: 10, color: MUTED })
@@ -439,4 +427,4 @@ export async function renderReportPdf(report, { logoJpeg = null, fonts = null } 
 
 // "Sera-Report-Priya-2026-09-29.pdf"
 export const reportFilename = (report) =>
-  `Sera-Report-${String(report.firstName).replace(/[^A-Za-z0-9-]+/g, '') || 'Candidate'}-${report.interviewDate}.pdf`
+  `Sera-Report-${pdfName(report.firstName).replace(/[^A-Za-z0-9-]+/g, '') || 'Candidate'}-${report.interviewDate}.pdf`

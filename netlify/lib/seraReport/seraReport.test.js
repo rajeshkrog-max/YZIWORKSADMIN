@@ -139,3 +139,11 @@ test('the prompt carries the rules and the rubric', () => {
     assert.ok(prompt.includes(needle), needle)
   }
 })
+
+test('PDF name: Latin part only, "Candidate" when there is none', async () => {
+  const { pdfName } = await import('./renderReportPdf.js')
+  assert.equal(pdfName('Priya'), 'Priya')
+  assert.equal(pdfName('Priya प्रिया'), 'Priya')
+  assert.equal(pdfName('प्रिया'), 'Candidate')
+  assert.equal(pdfName(''), 'Candidate')
+})

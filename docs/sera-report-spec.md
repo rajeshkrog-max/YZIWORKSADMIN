@@ -91,7 +91,7 @@ const pdfBytes = await renderReportPdfOnServer(report)
 ```
 
 - A4, white page, navy headings, thin brand-gradient line under the header. Page 1: YZI Works logo, "Sera Interview Report", first name, date, "3-round interview · about 11 minutes", chosen offer, drawn score gauge + verdict, summary. Then: round scores, skills (bar + quote with round and time), what worked / what to work on, one answer improved, offer fit, how you spoke, the plan. Blocks never split across pages; empty sections are skipped. Footer on every page: "Prepared by Sera · YZI Works", the AI notice, "Page X of Y". **No transcript.**
-- Fonts: Noto Sans (₹, accented Latin) + Noto Sans Devanagari (only embedded when the report contains Devanagari), OFL, in `src/assets/fonts/`. Bundled with the functions via `netlify.toml` `included_files` (already set). The PDF is ~1 MB (full font embedding — pdf-lib's subsetting drops Noto glyphs).
+- English only. Font: Noto Sans (₹, accented Latin), OFL, in `src/assets/fonts/`. Non-Latin characters are dropped; a name with no Latin letters prints as "Candidate" (`pdfName`). Bundled with the functions via `netlify.toml` `included_files` (already set). The PDF is ~1 MB (full font embedding — pdf-lib's subsetting drops Noto glyphs).
 - Sample: `docs/samples/sera-report-sample.pdf` (`npm run sample:pdf`, from the test fixtures).
 - Generated **once** from the stored JSON. The download and the team copy never re-render or re-run the LLM.
 
