@@ -32,13 +32,23 @@ function saveFile(href, filename) {
 // `report` is only used by the DEV mock (to build the PDF in the browser).
 export async function downloadReport(sessionId, { report } = {}) {
   if (import.meta.env.DEV && isMockMode()) {
-    // DEV ONLY — build the PDF in the browser from the sample report.
-    const [{ renderReportPdf, reportFilename }, { default: logoUrl }] = await Promise.all([
+    // DEV ONLY — build the PDF in the browser with the same renderer, logo
+    // and fonts the server uses (pdfAssets.node.js).
+    const [{ renderReportPdf, reportFilename }, ...urls] = await Promise.all([
       import('../../netlify/lib/seraReport/renderReportPdf.js'),
-      import('../assets/logo_light.jpeg'),
+      ...[
+        import('../assets/logo_light.jpeg'),
+        import('../assets/fonts/NotoSans-Regular.ttf?url'),
+        import('../assets/fonts/NotoSans-Bold.ttf?url'),
+        import('../assets/fonts/NotoSans-Italic.ttf?url'),
+        import('../assets/fonts/NotoSansDevanagari-Regular.ttf?url'),
+        import('../assets/fonts/NotoSansDevanagari-Bold.ttf?url'),
+      ],
     ])
-    const logoJpeg = new Uint8Array(await (await fetch(logoUrl)).arrayBuffer())
-    const bytes = await renderReportPdf(report, { logoJpeg })
+    const [logoJpeg, regular, bold, italic, devanagari, devanagariBold] = await Promise.all(
+      urls.map(async ({ default: href }) => new Uint8Array(await (await fetch(href)).arrayBuffer())),
+    )
+    const bytes = await renderReportPdf(report, { logoJpeg, fonts: { regular, bold, italic, devanagari, devanagariBold } })
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
     saveFile(url, reportFilename(report))
     setTimeout(() => URL.revokeObjectURL(url), 60_000)

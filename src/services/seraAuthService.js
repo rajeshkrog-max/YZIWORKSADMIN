@@ -8,17 +8,22 @@
 import { MOCK_REJOIN_CODE, findMockSessionByRejoin } from './seraMockCall'
 import { cleanFirstName } from '../../netlify/lib/seraCall/cleanFirstName.js'
 
-const MOCK_CODES = {
-  'YZI-PUNE-OCT26': { instituteName: 'Pune Institute', seatsLeft: 42 },
-  'YZI-FULL-TEST': { instituteName: 'Full Test Institute', seatsLeft: 0 },
-}
+// DEV ONLY — stripped from production builds (import.meta.env.DEV is false there).
+const MOCK_CODES = import.meta.env.DEV
+  ? {
+      'YZI-PUNE-OCT26': { instituteName: 'Pune Institute', seatsLeft: 42 },
+      'YZI-FULL-TEST': { instituteName: 'Full Test Institute', seatsLeft: 0 },
+    }
+  : {}
 
 const FRIENDLY_ERROR = "We couldn't reach the server. Please try again in a minute."
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// Dev server only: a production build can never run in mock mode (it would
+// skip payment and the real checks), even if VITE_SERA_MOCK is set by mistake.
 export function isMockMode() {
-  return import.meta.env.VITE_SERA_MOCK === 'true'
+  return import.meta.env.DEV && import.meta.env.VITE_SERA_MOCK === 'true'
 }
 
 // POSTs JSON and returns the parsed body, or null if the endpoint is missing,
@@ -43,7 +48,7 @@ async function postJson(path, body) {
 export async function checkStudentCode(code) {
   const clean = String(code || '').trim().toUpperCase()
 
-  if (isMockMode()) {
+  if (import.meta.env.DEV && isMockMode()) {
     await wait(350)
     // DEV ONLY — rejoin codes from a mock dropped call (seraSessionService).
     if (import.meta.env.DEV && clean.startsWith('REJOIN-')) {
@@ -66,7 +71,7 @@ export async function checkStudentCode(code) {
 // → { ok: true, login: { route, firstName, email, phone, studentCode } } | { ok: false, error }
 // (the hook turns `login` into the session — src/shared/seraSession.js)
 export async function completeLogin({ route, google, phone, msg91Token, studentCode }) {
-  if (isMockMode()) {
+  if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     const code = route === 'student' ? String(studentCode || '').trim().toUpperCase() : null
     return {

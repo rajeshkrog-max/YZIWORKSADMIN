@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { signInWithGoogle } from '../utils/googleAuth'
 import { isMockMode } from '../services/seraAuthService'
 import { createMockCall, MOCK_REPORT_DELAY_MS, saveMockSession } from '../services/seraMockCall'
 import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
@@ -10,14 +9,13 @@ import { createSession, patchRound } from '../shared/seraSession'
 import { buildCallVariables } from '../../netlify/lib/seraCall/variables.js'
 import { roundsFor } from '../config/seraRounds'
 
-const SESSION_SECONDS = 5 * 60
+// Real-mode screening call length (the HR/final calls aren't wired yet).
+const SESSION_SECONDS = roundsFor()[0].seconds
 const TURN_SECONDS = 35
 // Wrap-up: after the report arrives, the last checklist tick + fade before showing it.
 const REPORT_FADE_MS = 900
 // HR → Final: a short "Connecting you to the final round with Arvind…" hand-over.
 const CONNECT_MS = 2500
-const PHASE_SKILLS_START = 55 // 0:55
-const PHASE_GOAL_START = 230 // 3:50
 
 // If the candidate's turn timer sits pegged at TURN_SECONDS this long with
 // no agent_start_talking firing, the call is treated as stalled/dropped
@@ -27,12 +25,6 @@ const STALL_GRACE_SECONDS = 15
 // A stall this early almost certainly means the call never really started —
 // don't burn the candidate's one-per-login slot over it.
 const STALL_FORGIVENESS_WINDOW_SECONDS = 90
-
-function phaseForElapsed(elapsed) {
-  if (elapsed < PHASE_SKILLS_START) return 'warmup'
-  if (elapsed < PHASE_GOAL_START) return 'skills'
-  return 'goal'
-}
 
 // Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | blocked | lost
 // `lost` = the call dropped without the candidate pressing End (rejoin comes by WhatsApp).
@@ -106,20 +98,6 @@ export function useSeraInterview() {
   }, [updateSession])
 
   const goToSignIn = useCallback(() => setScreen('signin'), [])
-
-  const signIn = useCallback(async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const google = await signInWithGoogle()
-      updateSession(createSession({ route: 'visitor', name: google.name, email: google.email }))
-      setScreen('upload')
-    } catch (err) {
-      setError(err.message || 'Google sign-in failed — please try again')
-    } finally {
-      setBusy(false)
-    }
-  }, [updateSession])
 
   // Login from the glass card (SeraLogin): { route, firstName, email, phone, studentCode }.
   const completeLogin = useCallback(
@@ -556,8 +534,6 @@ export function useSeraInterview() {
   const round = rounds[roundIndex] ?? rounds[0]
   // Countdown for the current round (null during the untimed offer choice).
   const roundSecondsLeft = round.seconds == null ? null : Math.max(0, round.seconds - elapsed)
-  const sessionSecondsLeft = roundSecondsLeft ?? Math.max(0, SESSION_SECONDS - elapsed)
-  const phase = phaseForElapsed(elapsed)
 
   return {
     screen,
@@ -566,8 +542,6 @@ export function useSeraInterview() {
     session,
     resumeFile,
     blockedMessage,
-    sessionSecondsLeft,
-    phase,
     turnState,
     turnElapsed,
     turnSeconds: round.turnSeconds ?? 45,
@@ -582,7 +556,6 @@ export function useSeraInterview() {
     reportReady,
     incomplete,
     goToSignIn,
-    signIn,
     completeLogin,
     selectFile,
     beginInterview,

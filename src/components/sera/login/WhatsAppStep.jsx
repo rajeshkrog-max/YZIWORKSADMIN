@@ -81,7 +81,7 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
       setError('Enter a valid 10-digit Indian mobile number.')
       return
     }
-    if (isMockMode()) {
+    if (import.meta.env.DEV && isMockMode()) {
       setMockOpen(true)
       return
     }
@@ -164,7 +164,7 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
       ) : (
         <p className="mt-1.5 text-xs text-left text-fg/50">We'll send a one-time code to this number on WhatsApp.</p>
       )}
-      {mockOpen && (
+      {import.meta.env.DEV && mockOpen && (
         <MockOtpPopup phone={value} onSuccess={succeed} onFailure={fail} onCancel={() => setMockOpen(false)} />
       )}
     </div>

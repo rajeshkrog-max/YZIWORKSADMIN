@@ -26,9 +26,10 @@ async function postJson(path, body) {
   }
 }
 
+// TODO(backend): POST /api/sera/payment/webhook (Razorpay) — idempotent on payment_id.
 // → { ok: true, orderId, amountPaise, currency, keyId } | { ok: false, error }
 export async function createOrder({ email, phone, objectKey }) {
-  if (isMockMode()) {
+  if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     return {
       ok: true,
@@ -47,7 +48,7 @@ export async function createOrder({ email, phone, objectKey }) {
 
 // → { ok: true, paymentId } | { ok: false, error }
 export async function verifyPayment({ orderId, paymentId, signature }) {
-  if (isMockMode()) {
+  if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     return { ok: true, paymentId }
   }

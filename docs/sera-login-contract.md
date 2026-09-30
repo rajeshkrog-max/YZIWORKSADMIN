@@ -67,10 +67,7 @@ Until they exist, the service returns a friendly error ("We couldn't reach the s
 
 ## Env
 
-- `VITE_SERA_MOCK` — `true` on localhost for mock mode; unset/`false` everywhere else. Documented in `.env.example`. Never set it on Netlify.
-- MSG91 — the login uses the **same** widget (`VITE_MSG91_WIDGET_ID`, `VITE_MSG91_TOKEN_AUTH`) as the Early Builder/Partner forms, launched the same way (`loadMsg91Script` + `openMsg91OTP` + `useOtpLaunchGuard`). MSG91 does not allow a custom OTP UI; its own popup collects the code.
-  - **In the MSG91 dashboard, the widget must be set to the WhatsApp channel** (the page tells users "We'll send a one-time code to this number on WhatsApp").
-  - **The success token must be verified on the server** (see "What the server must verify" above) — the browser's success callback alone proves nothing. The server-side auth key is `MSG91_AUTH_KEY` (server-only, never `VITE_`).
+Env var names and the MSG91 rules (widget on the WhatsApp channel, success token verified server-side with `MSG91_AUTH_KEY`): **[BACKEND_HANDOFF.md §1 and §5](BACKEND_HANDOFF.md)**. The login reuses the Builder/Partner MSG91 widget (`loadMsg91Script` + `openMsg91OTP` + `useOtpLaunchGuard`); MSG91 doesn't allow a custom OTP UI.
 
 ## Mock mode (localhost)
 

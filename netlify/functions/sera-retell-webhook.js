@@ -181,6 +181,9 @@ function buildEmailHtml({ candidateName, email, transcript, report, resumeUrl })
   `
 }
 
+// TODO(backend): per round — store rounds[round].transcript by metadata { sessionId, round }; after
+// screening/HR generate the summary (buildSummaryPrompt + parseSummary); after the final round run
+// generateReport (netlify/lib/seraReport) ONCE and renderReportPdfOnServer; silence hang-up ≠ network drop.
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }

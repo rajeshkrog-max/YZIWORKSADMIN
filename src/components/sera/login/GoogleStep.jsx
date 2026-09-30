@@ -3,18 +3,16 @@ import { createPortal } from 'react-dom'
 import { signInWithGoogle } from '../../../utils/googleAuth'
 import { isMockMode } from '../../../services/seraAuthService'
 
-const MOCK_ACCOUNTS = [
-  { name: 'Priya Sharma', email: 'priya.sharma@gmail.com' },
-  { name: 'Arjun Mehta', email: 'arjun.mehta@gmail.com' },
-  // DEV ONLY — same accounts as ?testlogin=visitor|student, so a test session
-  // can be rejoined. Stripped from production builds.
-  ...(import.meta.env.DEV
-    ? [
-        { name: 'Test New User', email: 'visitor.test@gmail.com' },
-        { name: 'Test Student', email: 'student.test@gmail.com' },
-      ]
-    : []),
-]
+// DEV ONLY — mock accounts (the last two match ?testlogin=visitor|student, so a
+// test session can be rejoined). Stripped from production builds.
+const MOCK_ACCOUNTS = import.meta.env.DEV
+  ? [
+      { name: 'Priya Sharma', email: 'priya.sharma@gmail.com' },
+      { name: 'Arjun Mehta', email: 'arjun.mehta@gmail.com' },
+      { name: 'Test New User', email: 'visitor.test@gmail.com' },
+      { name: 'Test Student', email: 'student.test@gmail.com' },
+    ]
+  : []
 
 const GoogleLogo = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -81,7 +79,7 @@ function GoogleStep({ google, onSignedIn, onChange }) {
 
   const start = async () => {
     setError(null)
-    if (isMockMode()) {
+    if (import.meta.env.DEV && isMockMode()) {
       setMockOpen(true)
       return
     }
@@ -98,7 +96,7 @@ function GoogleStep({ google, onSignedIn, onChange }) {
 
   const pickMock = (account) => {
     setMockOpen(false)
-    onSignedIn({ ...account, picture: null, accessToken: 'mock-google-token' })
+    onSignedIn({ ...account, picture: null, accessToken: import.meta.env.DEV ? 'mock-google-token' : null })
   }
 
   if (google) {
@@ -126,7 +124,7 @@ function GoogleStep({ google, onSignedIn, onChange }) {
         {busy ? 'Signing you in…' : 'Continue with Google'}
       </button>
       {error && <p className="mt-1.5 text-xs text-left text-red-400 light:text-red-600">{error}</p>}
-      {mockOpen && <MockGooglePopup onPick={pickMock} onCancel={() => setMockOpen(false)} />}
+      {import.meta.env.DEV && mockOpen && <MockGooglePopup onPick={pickMock} onCancel={() => setMockOpen(false)} />}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 # HANDOFF — read this first
 
+> **Sera backend work:** start at [BACKEND_HANDOFF.md](BACKEND_HANDOFF.md) (build order, endpoints, env, money rules, test checklist).
+
 **Last updated: 2026-09-24 11:38 IST**
 
 A new chat should be able to resume from this file without asking the owner.
@@ -47,6 +49,7 @@ npm run dev        # http://localhost:5173
   - http://localhost:5173/meet-sera?preview=wrapup
   - http://localhost:5173/meet-sera?preview=report — add `&variant=incomplete` or `&variant=error`
   - http://localhost:5173/meet-sera?preview=blocked
+  - also `?preview=pay`, `?preview=lost`, report `&variant=gaps`, interview `&round=screening|offer|hr|final`; the full mock flow runs with `VITE_SERA_MOCK=true` (`?testlogin=visitor|student`)
 
 Theme toggle: small pill, top right (Home header far right; floating on About / Application / Meet Sera). Saved in `localStorage['yzi-theme']`; default **dark**.
 

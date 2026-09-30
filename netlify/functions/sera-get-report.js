@@ -3,6 +3,7 @@ import { getEligibilityStore } from '../lib/eligibilityStore.js'
 // Polled by the browser after a call ends. Zero LLM cost — just reads back
 // whatever the webhook already computed, so the report is never generated
 // twice for the same candidate.
+// TODO(backend): look the report up by sessionId (the body now carries it), not only by email.
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }

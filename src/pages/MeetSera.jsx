@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useSeraInterview } from '../hooks/useSeraInterview'
 import HeroSlider from '../components/HeroSlider'
@@ -19,10 +19,7 @@ import { roundsFor } from '../config/seraRounds'
 import { getDevTestSession } from '../services/seraAuthService'
 import { isDevMock } from '../services/seraMockCall'
 import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
-import { buildMockReport } from '../services/seraMockReport'
-import { createSession, getChosenOffer } from '../shared/seraSession'
-import { SAMPLE_RESUME } from '../../netlify/lib/fixtures/seraResume.js'
-import { SAMPLE_OFFERS } from '../../netlify/lib/fixtures/seraOffers.js'
+import { getChosenOffer } from '../shared/seraSession'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -52,11 +49,6 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 const PREVIEW = import.meta.env.DEV
   ? {
       screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked', 'lost'],
-      session: {
-        ...createSession({ route: 'student', firstName: 'Priya', email: 'priya@example.com', phone: '9876543210' }),
-        resume: SAMPLE_RESUME,
-        offers: SAMPLE_OFFERS,
-      },
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
     }
   : null
@@ -91,31 +83,29 @@ function MeetSera() {
     goToSignIn()
   }, [rejoinToken, devRejoinCode, reset, goToSignIn])
 
-  const view = previewScreen
+  // DEV ONLY — the preview's sample data is loaded on demand, so the fixtures
+  // never reach the production bundle.
+  const [previewModule, setPreviewModule] = useState(null)
+  useEffect(() => {
+    if (!import.meta.env.DEV || !previewScreen) return
+    import('../services/seraMockPreview').then((mod) => setPreviewModule(mod))
+  }, [previewScreen])
+
+  const view = previewScreen && previewModule
     ? {
         ...sera,
         screen: previewScreen,
-        session: {
-          ...PREVIEW.session,
+        // DEV ONLY — sample session + report built by the real pipeline (seraMockPreview).
+        session: previewModule.previewSession({
           route: params.get('route') === 'visitor' ? 'visitor' : 'student',
-          // DEV ONLY — the sample report built by the real pipeline.
-          report:
-            import.meta.env.DEV && params.get('variant') !== 'error'
-              ? buildMockReport({
-                  route: params.get('route') ?? 'student',
-                  firstName: 'Priya',
-                  variant: params.get('variant') === 'gaps' ? 'gaps' : null,
-                })
-              : null,
-        },
+          variant: params.get('variant'),
+        }),
         resumeFile: params.has('file') ? PREVIEW.resumeFile : null,
         incomplete: params.get('variant') === 'incomplete',
         error: params.has('error') || params.get('variant') === 'error'
           ? 'Sample error — this is how a problem message looks.'
           : null,
         busy: false,
-        sessionSecondsLeft: 187,
-        phase: 'skills',
         turnState: params.get('turn') ?? 'your-turn',
         turnElapsed: 27,
         turnSeconds: 45,
@@ -127,7 +117,6 @@ function MeetSera() {
         muted: params.has('muted'),
         blockedMessage: null,
         goToSignIn: noop,
-        signIn: noop,
         completeLogin: noop,
         selectFile: noop,
         beginInterview: noop,

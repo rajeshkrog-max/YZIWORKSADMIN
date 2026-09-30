@@ -2,12 +2,9 @@
 
 The report is the product. **Everything on it must come from the real interview.** No invented numbers, no flattering filler, no benchmarks we don't have. This doc is how the server produces it.
 
-## Where it happens today
+## Where it happens
 
-- `netlify/functions/sera-retell-webhook.js` receives Retell's `call_analyzed` event, skips incomplete calls (the disconnection-reason gate), calls `generateJson` (`netlify/lib/openai.js`) with `buildReportPrompt` + `REPORT_SCHEMA` from `netlify/lib/seraReport.js`, emails the team, and stores the result in Netlify Blobs (`sera-eligibility` store, key = email).
-- `netlify/functions/sera-get-report.js` is polled by the browser and returns the stored report.
-
-The new pipeline below **replaces** `netlify/lib/seraReport.js` (and the YouTube `resources` step — resources are not part of the new report). The webhook itself has **not** been changed on `feat/ui-revamp`; plug the new functions in as described here.
+After the **final** round's Retell webhook, once per interview: `generateReport` (below) → validate → store on the session → `renderReportPdfOnServer(report)` → store the PDF. `sera-get-report` (polled by the browser) and the download only read what's stored. Wiring status and order: [BACKEND_HANDOFF.md](BACKEND_HANDOFF.md). The old `netlify/lib/seraReport.js` + YouTube resources in today's webhook are replaced by this pipeline — delete them when wiring.
 
 ## The new pieces (all pure — no env, no network, unit-tested)
 
@@ -82,20 +79,21 @@ transcript → buildReportPrompt → LLM → verifyReport → computeMetrics →
 
 ### Generating the PDF — once, when the report is created
 
-`netlify/lib/seraReport/renderReportPdf.js` (pure, uses `pdf-lib`):
+`netlify/lib/seraReport/renderReportPdf.js` (pure; `pdf-lib` + `@pdf-lib/fontkit`). On the server call it through `pdfAssets.node.js`, which loads the logo and fonts:
 
 ```js
-import fs from 'node:fs'
-import { renderReportPdf, reportFilename } from '../lib/seraReport/renderReportPdf.js'
+import { renderReportPdfOnServer } from '../lib/seraReport/pdfAssets.node.js'
+import { reportFilename } from '../lib/seraReport/renderReportPdf.js'
 
-const pdfBytes = await renderReportPdf(report, { logoJpeg: fs.readFileSync(LOGO_PATH) }) // src/assets/logo_light.jpeg
-// store pdfBytes next to the report (e.g. R2: sera-reports/<sessionId>.pdf) with
+const pdfBytes = await renderReportPdfOnServer(report)
+// store next to the report (e.g. R2: sera-reports/<sessionId>.pdf) with
 // Content-Disposition: attachment; filename="<reportFilename(report)>"
 ```
 
-- A4, YZI Works logo top-left, the same sections in the same order as the page (**no transcript** in the candidate PDF), white page, navy headings, brand accent line, and the AI notice as the footer of every page.
-- Bundle the logo with the function (`[functions] included_files = ["src/assets/logo_light.jpeg"]` in `netlify.toml`) or pass `logoJpeg: null` (then the header says "YZI Works" in text).
-- Generated **once** from the stored JSON. The download never re-renders or re-runs the LLM.
+- A4, white page, navy headings, thin brand-gradient line under the header. Page 1: YZI Works logo, "Sera Interview Report", first name, date, "3-round interview · about 11 minutes", chosen offer, drawn score gauge + verdict, summary. Then: round scores, skills (bar + quote with round and time), what worked / what to work on, one answer improved, offer fit, how you spoke, the plan. Blocks never split across pages; empty sections are skipped. Footer on every page: "Prepared by Sera · YZI Works", the AI notice, "Page X of Y". **No transcript.**
+- Fonts: Noto Sans (₹, accented Latin) + Noto Sans Devanagari (only embedded when the report contains Devanagari), OFL, in `src/assets/fonts/`. Bundled with the functions via `netlify.toml` `included_files` (already set). The PDF is ~1 MB (full font embedding — pdf-lib's subsetting drops Noto glyphs).
+- Sample: `docs/samples/sera-report-sample.pdf` (`npm run sample:pdf`, from the test fixtures).
+- Generated **once** from the stored JSON. The download and the team copy never re-render or re-run the LLM.
 
 ### `POST /api/sera/report/download` → `downloadReport(sessionId)` (`src/services/seraReportService.js`)
 

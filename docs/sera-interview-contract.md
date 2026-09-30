@@ -87,22 +87,7 @@ reserved → live → completed | ended_by_candidate | dropped | failed_to_start
 
 ## The money rules
 
-1. **One payment = one session. One student seat = one session.** The payment (New User) or seat (Student) is bound to the session at **reserve** time.
-2. A seat is **consumed when the interview actually starts**, not at login (see the login contract).
-3. **"dropped" only when BOTH are true:**
-   - Retell's disconnection reason is a connection/network failure — **confirm the exact reason values in Retell's CURRENT docs**, don't guess; **and**
-   - `markCandidateEnded` was **not** called for this session.
-
-   If the candidate pressed End (or closed the tab after pressing End), it is **ended_by_candidate** — no rejoin.
-4. **Max 1 rejoin per session.** A second drop does **not** send another link/code; instead email the admin for a manual decision. (`reportConnectionLost` returns `rejoinIssued: false`, and the frontend then says "Our team has been notified…".)
-5. **Rejoin token / code:** random, **single-use**, **48 h expiry**, bound to **session + email + phone**.
-   - New User → a **link** on WhatsApp: `https://…/meet-sera?rejoin=TOKEN`
-   - Student → a **code** on WhatsApp, typed into the same "Student code" field
-6. **Rejoin never creates a Razorpay order and never consumes another seat.** `sera-start-call` checks the session instead of payment/seat.
-7. **Rejoin restarts the dropped round.** Earlier rounds (and the chosen offer) are kept.
-8. **The report is generated once**, only when the final round completes.
-9. **Admin email on every drop and every rejoin:** who, when, which round, the disconnection reason.
-10. **All webhook handling is idempotent** on Retell `call_id` and Razorpay `payment_id`.
+One payment/seat = one session, max 1 rejoin, rejoin never re-charges or uses another seat, report once, idempotent webhooks, and when a call counts as **dropped** (real connection failure **and** End not pressed — a silence hang-up is not a drop): **[BACKEND_HANDOFF.md §6 and §7](BACKEND_HANDOFF.md)**.
 
 ## Session endpoints
 

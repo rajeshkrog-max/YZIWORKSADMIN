@@ -40,26 +40,7 @@ Both must return `Content-Type: application/json`. Netlify functions live at `/.
 
 ## What the server must do
 
-- **Amount from the server, never the browser.** Create the Razorpay order with the amount from server config: ₹249 = `24900` paise, currency `INR`. The browser's `src/config/seraPricing.js` is display-only.
-- **Verify the signature:** `HMAC-SHA256(order_id + "|" + payment_id, RAZORPAY_KEY_SECRET)` must equal `signature` (hex). Compare in constant time.
-- **Tie the payment to the person:** store the order with the email it was created for, and on verify check the order belongs to that email. Mark the payment as verified and **unused**.
-- **`sera-start-call` must refuse New Users (route `'visitor'`) without a verified, unused `paymentId`** for that email. When the call is created, mark the payment as used (one payment = one interview). The frontend already sends `route`, `studentCode` and `paymentId` in the `sera-start-call` body; today's function ignores them.
-- **Existing one-interview-per-account gate:** `sera-start-call` currently blocks any Google account that has already done an interview (`already-used`). For paying New Users that check needs to become "one interview per payment", or a returning New User would pay and then be blocked. It's worth also checking eligibility in `create-order`, so nobody can pay for an interview they can't start.
-
-## Webhook (later)
-
-- `payment.captured` is a backup for the case where the browser closes between paying and `verify`. It can come later.
-- It must be idempotent on `payment_id`: the same payment arriving twice (webhook + verify, or a webhook retry) must not create two interviews or two records.
-- Verify it with `RAZORPAY_WEBHOOK_SECRET` (Razorpay's `X-Razorpay-Signature` header).
-
-## Env
-
-| Name | Where | Notes |
-|---|---|---|
-| `RAZORPAY_KEY_ID` | server | Used to create orders; returned to the browser as `keyId`. |
-| `RAZORPAY_KEY_SECRET` | server only | Signs/verifies. Never in a `VITE_` variable, never in the browser. |
-| `RAZORPAY_WEBHOOK_SECRET` | server only | Later, for the webhook. |
-| `VITE_RAZORPAY_KEY_ID` | browser | Fallback key id only. Documented in `.env.example`. |
+Amount from server config (₹249 = `24900` paise), signature check, the webhook, start-call refusing New Users without a verified unused payment, and the env vars: **[BACKEND_HANDOFF.md §4 and §1](BACKEND_HANDOFF.md)** — the single source for these rules.
 
 ## Before going live
 
