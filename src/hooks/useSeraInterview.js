@@ -6,12 +6,14 @@ import { createMockCall, MOCK_REPORT_DELAY_MS, saveMockSession } from '../servic
 import { buildMockReport } from '../services/seraMockReport'
 import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
 import { getOffers, saveOfferChoice } from '../services/seraOffersService'
-import { roundsFor, turnSecondsFor } from '../config/seraRounds'
+import { roundsFor } from '../config/seraRounds'
 
 const SESSION_SECONDS = 5 * 60
 const TURN_SECONDS = 35
 // Wrap-up: after the report arrives, the last checklist tick + fade before showing it.
 const REPORT_FADE_MS = 900
+// HR → Final: a short "Connecting you to the final round with Arvind…" hand-over.
+const CONNECT_MS = 2500
 const PHASE_SKILLS_START = 55 // 0:55
 const PHASE_GOAL_START = 230 // 3:50
 
@@ -70,11 +72,13 @@ export function useSeraInterview() {
   const [roundIndex, setRoundIndex] = useState(0)
   const [offers, setOffers] = useState(null)
   const [chosenOffer, setChosenOffer] = useState(null)
+  const [connectingTo, setConnectingTo] = useState(null) // next round during the HR → Final hand-over
   const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   const sessionIdRef = useRef(null)
   const [sessionId, setSessionId] = useState(null) // same id, for rendering (report download)
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
   const mockCallRef = useRef(null)
+  const mockConnectTimerRef = useRef(null)
   const mockTotalElapsedRef = useRef(0)
 
   useEffect(() => {
@@ -106,9 +110,11 @@ export function useSeraInterview() {
     setLostInfo(null)
     sessionIdRef.current = null
     setSessionId(null)
+    setConnectingTo(null)
     if (import.meta.env.DEV) {
       mockCallRef.current?.stop()
       mockCallRef.current = null
+      clearTimeout(mockConnectTimerRef.current)
     }
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
   }, [])
@@ -305,10 +311,9 @@ export function useSeraInterview() {
     [finishInterview, startSessionTimer, stopSessionTimer]
   )
 
-  // Students: load the offers early (they're generated at résumé-read time)
-  // so the tiles appear instantly when screening ends.
+  // Load the offers early (they're generated at résumé-read time) so the tiles
+  // appear instantly when screening ends. Both routes pick an offer.
   const loadOffers = useCallback(async () => {
-    if (profileRef.current?.route !== 'student') return
     const result = await getOffers(sessionIdRef.current)
     setOffers(result.offers)
   }, [])
@@ -328,13 +333,14 @@ export function useSeraInterview() {
   )
 
   // DEV ONLY — walks the rounds with a simulated call: no sera-start-call, no
-  // Retell. Student: screening → offers → hr → final; visitor: screening.
-  // Then wrapup → mock report after ~3s.
+  // Retell. Screening → offers → HR → (hand-over) → Final, for both routes.
+  // Then wrapup → mock report.
   const runMockRound = useCallback((startIndex) => {
     if (!import.meta.env.DEV) return // stripped from production builds
-    const run = (index) => {
+    const run = (index, { connected = false } = {}) => {
       mockCallRef.current?.stop()
       mockCallRef.current = null
+      clearTimeout(mockConnectTimerRef.current)
       const route = profileRef.current?.route
       const rounds = roundsFor(route)
       const round = rounds[index]
@@ -362,6 +368,16 @@ export function useSeraInterview() {
       setTurnState('sera-speaking')
       if (!round) return toReport(false)
       if (round.seconds == null) return // offer choice: no call runs until chooseOffer()
+
+      // Two timed rounds back to back (HR → Final): hand over to the next interviewer.
+      if (!connected && rounds[index - 1]?.seconds != null) {
+        setConnectingTo(round)
+        mockConnectTimerRef.current = setTimeout(() => {
+          setConnectingTo(null)
+          run(index, { connected: true })
+        }, CONNECT_MS)
+        return
+      }
 
       const offerIndex = rounds.findIndex((r) => r.id === 'offer')
       mockCallRef.current = createMockCall({
@@ -647,7 +663,8 @@ export function useSeraInterview() {
     phase,
     turnState,
     turnElapsed,
-    turnSeconds: turnSecondsFor(profile?.route),
+    turnSeconds: round.turnSeconds ?? 45,
+    connectingTo,
     sessionId,
     rounds,
     roundIndex,

@@ -113,18 +113,14 @@ test('speaking metrics are computed in code', () => {
   assert.ok(m.talkShare > 0.5 && m.talkShare < 1)
 })
 
-test('visitor report has no rounds and no offer fit', () => {
-  const { report, validation } = build({
-    route: 'visitor',
-    plannedRounds: roundsFor('visitor'),
-    chosenOffer: null,
-    transcript: SAMPLE_TRANSCRIPT.filter((t) => t.round === 'screening'),
-  })
+test('New User (route "visitor") gets the same 3 rounds and offer fit as Student', () => {
+  const { report, validation } = build({ route: 'visitor', plannedRounds: roundsFor('visitor') })
   assert.equal(validation.valid, true)
-  assert.deepEqual(report.rounds, [])
-  assert.equal(report.offerFit, null)
-  assert.equal(reportSections(report).rounds, false)
-  assert.equal(reportSections(report).offerFit, false)
+  assert.equal(report.route, 'visitor')
+  assert.deepEqual(report.rounds.map((r) => r.id), ['screening', 'hr', 'final'])
+  assert.equal(report.interviewMinutes, 11)
+  assert.equal(reportSections(report).rounds, true)
+  assert.equal(reportSections(report).offerFit, true)
 })
 
 test('validate() rejects a made-up shape', () => {

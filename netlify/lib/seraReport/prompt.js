@@ -108,13 +108,15 @@ const formatRubric = () =>
 
 // transcript: [{ role: 'agent'|'user', text, start, end, round }]
 // resumeHighlights: short string from the résumé check (background only)
-// route: 'student' | 'visitor'; rounds: the round ids that ran; chosenOffer: { company, role, skills } | null
-export function buildReportPrompt({ transcript, resumeHighlights, route, rounds, chosenOffer }) {
+// route: 'student' | 'visitor' (New User); rounds: the round ids that ran; chosenOffer: { company, role, skills } | null
+// (`route` is part of the call signature but doesn't change the prompt: both
+// routes run the same rounds.)
+export function buildReportPrompt({ transcript, resumeHighlights, rounds, chosenOffer }) {
   const offerBlock =
-    route === 'student' && chosenOffer
+    chosenOffer
       ? `The candidate chose a PRACTICE offer: ${chosenOffer.role} at ${chosenOffer.company} (an invented company).
 Offer requirements to check, in this order: ${chosenOffer.skills.join('; ')}.`
-      : 'No offer (visitor interview). Return offerFit as an empty array.'
+      : 'No offer was chosen. Return offerFit as an empty array.'
 
   return `You are writing the evidence for a practice interview report. Sera, an AI interviewer, just interviewed an entry-level candidate. You RATE and QUOTE only — code computes every score afterwards.
 

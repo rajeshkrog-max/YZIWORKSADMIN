@@ -1,9 +1,11 @@
 const TABS = [
-  { id: 'visitor', label: 'Visitor' },
+  // Display label "New User" — the internal route id stays 'visitor' (code, API
+  // bodies, stored data). It is the paying route (₹249); Student uses a code.
+  { id: 'visitor', label: 'New User' },
   { id: 'student', label: 'Student' },
 ]
 
-// Visitor | Student segmented control with a sliding highlight pill.
+// New User | Student segmented control with a sliding highlight pill.
 function LoginTabs({ value, onChange }) {
   const index = TABS.findIndex((tab) => tab.id === value)
 

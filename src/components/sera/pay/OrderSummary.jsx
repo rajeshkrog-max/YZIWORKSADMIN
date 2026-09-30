@@ -1,4 +1,4 @@
-import { SERA_VISITOR_PLAN } from '../../../config/seraPricing'
+import { INTERVIEW_LENGTH_LABEL } from '../../../config/seraRounds'
 
 const INCLUDES = [
   'Questions based on your résumé',
@@ -39,7 +39,7 @@ function OrderSummary({ email, fileName }) {
           </span>
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-fg leading-tight">Sera AI Interview</h2>
-            <p className="text-xs text-fg/55 mt-0.5">{SERA_VISITOR_PLAN.minutes}-minute live voice interview · 1 session</p>
+            <p className="text-xs text-fg/55 mt-0.5">3-round live interview · {INTERVIEW_LENGTH_LABEL} · 1 session</p>
           </div>
         </div>
         <ul className="mt-4 flex flex-col gap-2">

@@ -134,8 +134,8 @@ export async function renderReportPdf(report, { logoJpeg = null } = {}) {
   page.drawText("SERA'S READING", { x: M, y, size: 8, font: bold, color: MUTED })
   space(8)
   text(`Your interview report, ${report.firstName}`, { f: bold, size: 22, color: NAVY, gap: 4 })
-  const chips = [formatDate(report.interviewDate), `${report.interviewMinutes}-minute interview`]
-  if (report.route === 'student' && report.chosenOffer) chips.push(`${report.chosenOffer.company} · ${report.chosenOffer.role} (practice offer)`)
+  const chips = [formatDate(report.interviewDate), `3-round interview · about ${report.interviewMinutes} minutes`]
+  if (report.chosenOffer) chips.push(`${report.chosenOffer.company} · ${report.chosenOffer.role} (practice offer)`)
   text(chips.join('   ·   '), { size: 9, color: MUTED })
 
   // ── Summary ──

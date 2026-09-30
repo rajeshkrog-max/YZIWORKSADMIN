@@ -2,7 +2,7 @@ import { PANEL, SECTION_LABEL, SECTION_TITLE } from './reportStyles'
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
 
-// Student only: one card per timed round. A cut-short round shows no number.
+// One card per timed round. A cut-short round shows no number.
 function RoundScores({ rounds }) {
   return (
     <section className={PANEL} aria-labelledby="sera-rounds">

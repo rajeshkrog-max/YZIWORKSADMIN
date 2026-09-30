@@ -30,7 +30,7 @@ import seraSlide3Light from '../assets/sera_hero/slide3light.png'
 import seraSlide4Light from '../assets/sera_hero/slide4light.png'
 
 // Same index = same slide; the theme picks the set. Always 4.
-// Visitor-only pay screen, loaded on demand so students never download the
+// New User-only pay screen (route 'visitor'), loaded on demand so students never download the
 // payment code (Razorpay loader, pricing, payment service).
 const SeraPay = lazy(() => import('../components/sera/pay/SeraPay'))
 
@@ -42,8 +42,8 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
 //           &muted=1 (interview), &variant=incomplete|error|gaps (report states;
 //           gaps = a skill with no evidence + a cut-short round), &route=visitor
-//           interview: &route=student|visitor, &round=screening|offer|hr|final,
-//                      &turn=sera-speaking|your-turn|wrapping-up
+//           interview: &round=screening|offer|hr|final, &turn=sera-speaking|your-turn|wrapping-up,
+//                      &connecting=1 (HR → Final hand-over)
 // import.meta.env.DEV is replaced with `false` in production builds, so this
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
@@ -110,9 +110,10 @@ function MeetSera() {
         phase: 'skills',
         turnState: params.get('turn') ?? 'your-turn',
         turnElapsed: 27,
-        turnSeconds: params.get('route') === 'visitor' ? 35 : 45,
-        rounds: roundsFor(params.get('route') ?? 'student'),
-        roundIndex: Math.max(0, roundsFor(params.get('route') ?? 'student').findIndex((r) => r.id === params.get('round'))),
+        turnSeconds: 45,
+        rounds: roundsFor(),
+        roundIndex: Math.max(0, roundsFor().findIndex((r) => r.id === params.get('round'))),
+        connectingTo: params.has('connecting') ? roundsFor().find((r) => r.id === 'final') : null,
         roundSecondsLeft: 187,
         offers: null,
         chosenOffer: null,
@@ -238,6 +239,7 @@ function MeetSera() {
             onChooseOffer={view.chooseOffer}
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
+            connectingTo={view.connectingTo}
           />
         )}
 

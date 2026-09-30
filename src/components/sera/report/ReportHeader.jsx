@@ -26,8 +26,8 @@ function ReportHeader({ report, onDownload }) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Chip>{formatDate(report.interviewDate)}</Chip>
-        <Chip>{report.interviewMinutes}-minute interview</Chip>
-        {report.route === 'student' && report.chosenOffer && (
+        <Chip>3-round interview · about {report.interviewMinutes} minutes</Chip>
+        {report.chosenOffer && (
           <Chip>
             <span className="w-5 h-5 shrink-0 rounded-md grid place-items-center bg-gradient-to-br from-yzi-cyan to-yzi-purple text-white text-[10px] font-bold">
               {report.chosenOffer.logoLetter}

@@ -1,21 +1,23 @@
-// Interview rounds per route. `seconds: null` = no timer (the offer choice).
-// Visitors get one 5-minute round and no offers.
-export const SERA_ROUNDS = {
-  student: [
-    { id: 'screening', label: 'Screening', seconds: 300 },
-    { id: 'offer', label: 'Pick an offer', seconds: null },
-    { id: 'hr', label: 'HR round', seconds: 180 },
-    { id: 'final', label: 'Final round', seconds: 120 },
-  ],
-  visitor: [{ id: 'screening', label: 'Screening', seconds: 300 }],
-}
+// The interview — the SAME three rounds for both routes (New User and Student):
+// Screening 5 min → Pick an offer (no timer) → HR round 3 min → Final round 3 min
+// (about 11 minutes). The only route difference is payment: New User pays,
+// Student uses an institute code.
+//
+// Each timed round has its own interviewer (a separate voice agent). The offer
+// choice has no timer and no interviewer — no call runs while choosing.
+export const SERA_ROUNDS = [
+  { id: 'screening', label: 'Screening', seconds: 300, turnSeconds: 45, interviewer: { name: 'Sera', title: 'AI interviewer' } },
+  { id: 'offer', label: 'Pick an offer', seconds: null, turnSeconds: null, interviewer: null },
+  { id: 'hr', label: 'HR round', seconds: 180, turnSeconds: 45, interviewer: { name: 'Vinit', title: 'HR' } },
+  { id: 'final', label: 'Final round', seconds: 180, turnSeconds: 45, interviewer: { name: 'Arvind', title: 'Business Head' } },
+]
 
-// Max length of one candidate answer (the turn-timer ring).
-export const SERA_TURN_SECONDS = { student: 45, visitor: 35 }
+// Shown wherever the flow mentions its length.
+export const INTERVIEW_LENGTH_LABEL = 'about 11 minutes'
 
-const routeKey = (route) => (route === 'student' ? 'student' : 'visitor')
-export const roundsFor = (route) => SERA_ROUNDS[routeKey(route)]
-export const turnSecondsFor = (route) => SERA_TURN_SECONDS[routeKey(route)]
+// Same rounds for every route; kept as a function so callers stay route-aware
+// if that ever changes.
+export const roundsFor = () => SERA_ROUNDS
 
 // 300 → "5 min", null → "no timer"
 export const formatRoundLength = (seconds) => (seconds == null ? 'no timer' : `${Math.round(seconds / 60)} min`)

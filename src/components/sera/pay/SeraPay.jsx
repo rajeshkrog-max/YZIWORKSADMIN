@@ -3,6 +3,7 @@ import GlassBlobs from '../login/GlassBlobs'
 import OrderSummary from './OrderSummary'
 import PriceBreakdown from './PriceBreakdown'
 import { SERA_VISITOR_PLAN, formatRupees } from '../../../config/seraPricing'
+import { INTERVIEW_LENGTH_LABEL } from '../../../config/seraRounds'
 import { createOrder, verifyPayment } from '../../../services/seraPaymentService'
 import { isMockMode } from '../../../services/seraAuthService'
 import { loadRazorpayScript, openRazorpayCheckout } from '../../../utils/razorpay'
@@ -20,7 +21,7 @@ const LockIcon = () => (
 
 const Spinner = () => <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin motion-reduce:animate-none" />
 
-// Visitor pay screen. The interview starts only after the SERVER verifies the
+// New User pay screen (route 'visitor'). The interview starts only after the SERVER verifies the
 // payment (verifyPayment) — never on the checkout callback alone.
 function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResume }) {
   // idle | opening | checkout | verifying
@@ -72,7 +73,7 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
         amount: order.amountPaise,
         currency: order.currency,
         name: 'YZI Works',
-        description: `Sera AI Interview · ${SERA_VISITOR_PLAN.minutes} min`,
+        description: `Sera AI Interview · 3 rounds, ${INTERVIEW_LENGTH_LABEL}`,
         prefill: { email: profile?.email, contact: profile?.phone },
         theme: { color: '#8B5CF6' },
         handler: (response) =>

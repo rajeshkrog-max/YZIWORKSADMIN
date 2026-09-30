@@ -10,22 +10,9 @@ import { roundsFor } from '../config/seraRounds.js'
 // variant 'gaps': Composure has no evidence and the final round was cut short
 // — to check that missing data hides instead of showing empty.
 export function buildMockReport({ route = 'student', firstName = 'Priya', variant = null } = {}) {
-  const student = route === 'student'
-  let transcript = student ? SAMPLE_TRANSCRIPT : SAMPLE_TRANSCRIPT.filter((t) => t.round === 'screening')
-  let llmJson = student
-    ? SAMPLE_LLM_OUTPUT
-    : {
-        ...SAMPLE_LLM_OUTPUT,
-        answers: SAMPLE_LLM_OUTPUT.answers.filter((a) => a.round === 'screening'),
-        skillQuotes: Object.fromEntries(
-          Object.entries(SAMPLE_LLM_OUTPUT.skillQuotes).map(([id, q]) => [id, q?.round === 'screening' ? q : null]),
-        ),
-        strengths: SAMPLE_LLM_OUTPUT.strengths.filter((p) => p.round === 'screening'),
-        growth: SAMPLE_LLM_OUTPUT.growth.filter((p) => p.round === 'screening'),
-        rewrite: null,
-        offerFit: [],
-        roundNotes: { screening: SAMPLE_LLM_OUTPUT.roundNotes.screening, hr: null, final: null },
-      }
+  // Both routes run the same 3 rounds and pick an offer — same sample interview.
+  let transcript = SAMPLE_TRANSCRIPT
+  let llmJson = SAMPLE_LLM_OUTPUT
 
   if (variant === 'gaps') {
     transcript = transcript.filter((t) => t.round !== 'final' || t.start < 62)
@@ -39,9 +26,9 @@ export function buildMockReport({ route = 'student', firstName = 'Priya', varian
   const { report } = buildReport({
     llmJson,
     transcript,
-    route: student ? 'student' : 'visitor',
+    route: route === 'student' ? 'student' : 'visitor',
     plannedRounds: roundsFor(route),
-    chosenOffer: student ? SAMPLE_OFFER : null,
+    chosenOffer: SAMPLE_OFFER,
     firstName,
     interviewDate: new Date().toISOString().slice(0, 10),
   })

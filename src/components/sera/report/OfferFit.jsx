@@ -1,7 +1,7 @@
 import { ROUND_LABELS, formatTimestamp } from '../../../shared/seraReportSchema'
 import { PANEL, SECTION_LABEL, SECTION_TITLE } from './reportStyles'
 
-// Student only: each requirement of the chosen practice offer, and whether the
+// Each requirement of the chosen practice offer, and whether the
 // interview showed it (only with a word-for-word quote).
 function OfferFit({ offerFit }) {
   return (

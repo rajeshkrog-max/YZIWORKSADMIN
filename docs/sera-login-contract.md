@@ -6,7 +6,7 @@ through `src/services/seraAuthService.js`.
 
 ## The flow
 
-1. User picks a tab: **Visitor** or **Student**.
+1. User picks a tab: **New User** or **Student**. (The New User route id is `'visitor'` everywhere in code and API bodies — only the label changed.)
 2. Both: "Continue with Google" → Google popup → we get name, email, picture, access token.
 3. Student only: types a campus code → checked while typing → shows institute + seats left, or an error.
 4. Both: WhatsApp number (+91, 10 digits) → MSG91 WhatsApp OTP popup → we get an MSG91 token. (Student: only unlocked once the code is valid.)
@@ -32,7 +32,7 @@ through `src/services/seraAuthService.js`.
   - `google` — `{ name, email, picture, accessToken }`
   - `phone` — 10-digit string, no `+91` (e.g. `"9876543210"`)
   - `msg91Token` — the token MSG91's widget returns in its success callback (`data.message`)
-  - `studentCode` — string for students, `null` for visitors
+  - `studentCode` — string for students, `null` for New Users
 - Output:
   - `{ ok: true, session: { route, name, email, phone, studentCode, instituteName } }`
   - `{ ok: false, error: string }` — `error` is shown to the user under the Continue button, so keep it short and human.
@@ -68,7 +68,9 @@ Until they exist, the service returns a friendly error ("We couldn't reach the s
 ## Env
 
 - `VITE_SERA_MOCK` — `true` on localhost for mock mode; unset/`false` everywhere else. Documented in `.env.example`. Never set it on Netlify.
-- MSG91 — the login uses the **same** widget (`VITE_MSG91_WIDGET_ID`, `VITE_MSG91_TOKEN_AUTH`) as the Early Builder/Partner forms. No new MSG91 config.
+- MSG91 — the login uses the **same** widget (`VITE_MSG91_WIDGET_ID`, `VITE_MSG91_TOKEN_AUTH`) as the Early Builder/Partner forms, launched the same way (`loadMsg91Script` + `openMsg91OTP` + `useOtpLaunchGuard`). MSG91 does not allow a custom OTP UI; its own popup collects the code.
+  - **In the MSG91 dashboard, the widget must be set to the WhatsApp channel** (the page tells users "We'll send a one-time code to this number on WhatsApp").
+  - **The success token must be verified on the server** (see "What the server must verify" above) — the browser's success callback alone proves nothing. The server-side auth key is `MSG91_AUTH_KEY` (server-only, never `VITE_`).
 
 ## Mock mode (localhost)
 

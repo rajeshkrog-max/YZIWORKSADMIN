@@ -18,7 +18,8 @@ const GLASS_BUTTON = 'w-14 h-14 rounded-full grid place-items-center border back
 
 // The live interview: round rail, chosen-offer chip, Sera's wave, status pill,
 // round clock + turn ring, and mute / end controls. Between Screening and the
-// HR round (students) the wave shrinks and the offer tiles take over.
+// HR round the wave shrinks and the offer tiles take over. Between HR and
+// Final, a short hand-over card (connectingTo) introduces the next interviewer.
 function InterviewRoom({
   rounds,
   roundIndex,
@@ -32,12 +33,14 @@ function InterviewRoom({
   onChooseOffer,
   onToggleMute,
   onEndCall,
+  connectingTo = null,
 }) {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const keepGoing = useCallback(() => setConfirmEnd(false), []) // stable: the room re-renders every second
   const round = rounds[roundIndex] ?? rounds[0]
   const choosingOffer = round.id === 'offer'
-  const status = choosingOffer ? 'paused' : (STATUS_FOR_TURN[turnState] ?? 'thinking')
+  const status = choosingOffer ? 'paused' : connectingTo ? 'thinking' : (STATUS_FOR_TURN[turnState] ?? 'thinking')
+  const interviewer = round.interviewer?.name ?? 'Sera'
 
   return (
     <div className="w-full max-w-5xl flex flex-col items-center gap-5 text-center">
@@ -67,9 +70,29 @@ function InterviewRoom({
 
       {choosingOffer ? (
         <OfferPicker offers={offers} onChoose={onChooseOffer} />
+      ) : connectingTo ? (
+        <div
+          role="status"
+          className="sera-connect w-full max-w-md rounded-[24px] border border-white/10 light:border-white/80 bg-card/55 light:bg-white/60 backdrop-blur-[22px] px-6 py-7"
+        >
+          <span className="mx-auto mb-4 block w-8 h-8 rounded-full border-2 border-yzi-cyan/30 border-t-yzi-cyan animate-spin motion-reduce:animate-none" aria-hidden="true" />
+          <p className="text-lg font-semibold text-fg">
+            Connecting you to the {connectingTo.label.toLowerCase()} with {connectingTo.interviewer?.name}…
+          </p>
+          {connectingTo.interviewer?.title && (
+            <p className="mt-1 text-sm text-fg/55">
+              {connectingTo.interviewer.name} · {connectingTo.interviewer.title}
+            </p>
+          )}
+          <style>{`
+            .sera-connect { animation: sera-connect-in 0.4s ease-out both; }
+            @keyframes sera-connect-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+            @media (prefers-reduced-motion: reduce) { .sera-connect { animation: none; } }
+          `}</style>
+        </div>
       ) : (
         <>
-          <SeraStatusPill status={status} />
+          <SeraStatusPill status={status} name={interviewer} />
           <RoundClock
             secondsLeft={roundSecondsLeft}
             listening={status === 'listening'}

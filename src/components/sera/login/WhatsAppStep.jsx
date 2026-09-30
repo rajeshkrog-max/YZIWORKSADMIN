@@ -66,8 +66,9 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
 
   const succeed = (data) => {
     setMockOpen(false)
-    // MSG91's widget returns the verification token in `message`.
-    onVerified({ number: value, token: data?.message ?? null })
+    // MSG91's widget returns the verification token in `message` (the Builder
+    // form reads `reqId`; kept as a fallback). The server must verify it.
+    onVerified({ number: value, token: data?.message ?? data?.reqId ?? null })
   }
   const fail = () => {
     setMockOpen(false)
@@ -85,6 +86,8 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
       return
     }
 
+    // REAL mode: MSG91's own popup widget, launched exactly like
+    // EarlyBuildersForm.jsx (no custom OTP boxes — MSG91 doesn't allow them).
     const releaseOtpLaunch = acquireLock()
     // Ignore accidental double-clicks while the popup is opening.
     if (!releaseOtpLaunch) return
@@ -104,7 +107,7 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
       })
     } catch {
       releaseOtpLaunch()
-      setError("Couldn't open the verification popup. Please try again.")
+      fail()
     }
   }
 
@@ -156,7 +159,11 @@ function WhatsAppStep({ phone, locked, onVerified, onChange }) {
           {isOtpLaunching ? 'Opening…' : 'Verify'}
         </button>
       </div>
-      {error && <p className="mt-1.5 text-xs text-left text-red-400 light:text-red-600">{error}</p>}
+      {error ? (
+        <p className="mt-1.5 text-xs text-left text-red-400 light:text-red-600">{error}</p>
+      ) : (
+        <p className="mt-1.5 text-xs text-left text-fg/50">We'll send a one-time code to this number on WhatsApp.</p>
+      )}
       {mockOpen && (
         <MockOtpPopup phone={value} onSuccess={succeed} onFailure={fail} onCancel={() => setMockOpen(false)} />
       )}

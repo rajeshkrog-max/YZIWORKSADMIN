@@ -3,36 +3,34 @@
 import { SERA_SKILLS } from '../../../src/config/seraRubric.js'
 import { PLAN_HORIZONS, REPORT_VERSION, ROUND_LABELS } from '../../../src/shared/seraReportSchema.js'
 
-// plannedRounds: the route's rounds from src/config/seraRounds.js ([{ id, label, seconds }]).
+// plannedRounds: the rounds from src/config/seraRounds.js ([{ id, label, seconds }]).
 export function assembleReport({ verified, metrics, scores, route, plannedRounds, chosenOffer, firstName, interviewDate }) {
-  const student = route === 'student'
+  // Both routes run the same rounds and pick an offer; route only affects payment.
   const timed = plannedRounds.filter((r) => r.seconds != null) // the offer choice has no timer
 
-  const rounds = student
-    ? timed.map((r) => {
-        const ran = metrics.perRound[r.id]
-        const cutShort = !ran || ran.cutShort
-        return {
-          id: r.id,
-          label: ROUND_LABELS[r.id] ?? r.label,
-          score: cutShort ? null : (scores.rounds[r.id] ?? null),
-          note: verified.roundNotes?.[r.id] ?? null,
-          durationSeconds: ran?.durationSeconds ?? 0,
-          cutShort,
-        }
-      })
-    : []
+  const rounds = timed.map((r) => {
+    const ran = metrics.perRound[r.id]
+    const cutShort = !ran || ran.cutShort
+    return {
+      id: r.id,
+      label: ROUND_LABELS[r.id] ?? r.label,
+      score: cutShort ? null : (scores.rounds[r.id] ?? null),
+      note: verified.roundNotes?.[r.id] ?? null,
+      durationSeconds: ran?.durationSeconds ?? 0,
+      cutShort,
+    }
+  })
 
   const skills = SERA_SKILLS.map((s) => {
     const score = scores.skills[s.id] ?? null
     return { id: s.id, label: s.label, score, expected: s.expected, quote: score === null ? null : (verified.skillQuotes?.[s.id] ?? null) }
   })
 
-  const offer = student && chosenOffer ? chosenOffer : null
+  const offer = chosenOffer ?? null
 
   return {
     version: REPORT_VERSION,
-    route: student ? 'student' : 'visitor',
+    route: route === 'student' ? 'student' : 'visitor',
     firstName,
     interviewDate,
     interviewMinutes: Math.round(timed.reduce((sum, r) => sum + r.seconds, 0) / 60),

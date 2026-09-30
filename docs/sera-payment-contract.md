@@ -1,12 +1,15 @@
 # Sera payment — backend contract
 
-The visitor pay screen is built and runs in mock mode. This doc is what the
+The New User pay screen is built and runs in mock mode. This doc is what the
 server side needs to do to make it real. The frontend talks to the backend for
 payment **only** through `src/services/seraPaymentService.js`.
 
+> **Naming:** the paying route is shown to users as **"New User"**. Its internal route id is still **`'visitor'`** — in code, API bodies and stored data. Only the label changed.
+
+
 ## Where pay sits in the flow
 
-- **Visitor:** login → upload PDF → preparing (R2 upload + résumé check) → **pay** → interview → wrapup → report
+- **New User** (route id `'visitor'`): login → upload PDF → preparing (R2 upload + résumé check) → **pay** → interview → wrapup → report
 - **Student:** login → upload PDF → preparing → interview. **Students never pay** — they never see the pay screen, a price, or the Razorpay script.
 
 Rules the frontend already follows:
@@ -14,7 +17,7 @@ Rules the frontend already follows:
 - The pay screen appears only after the résumé check says the PDF is valid. A bad PDF goes back to upload and no order is created.
 - The interview (`sera-start-call` + Retell) starts only after `verifyPayment` returns `ok`. Never on the Razorpay popup callback alone.
 - Closing Razorpay or a failed payment keeps the user on the pay screen, where they can retry. No Retell call is created.
-- If `sera-start-call` fails **after** a verified payment, the frontend keeps that `paymentId` and sends it again on the next attempt instead of asking the visitor to pay again. The server must accept a verified-but-unused `paymentId` on retry.
+- If `sera-start-call` fails **after** a verified payment, the frontend keeps that `paymentId` and sends it again on the next attempt instead of asking the New User to pay again. The server must accept a verified-but-unused `paymentId` on retry.
 
 ## Endpoints
 
@@ -40,8 +43,8 @@ Both must return `Content-Type: application/json`. Netlify functions live at `/.
 - **Amount from the server, never the browser.** Create the Razorpay order with the amount from server config: ₹249 = `24900` paise, currency `INR`. The browser's `src/config/seraPricing.js` is display-only.
 - **Verify the signature:** `HMAC-SHA256(order_id + "|" + payment_id, RAZORPAY_KEY_SECRET)` must equal `signature` (hex). Compare in constant time.
 - **Tie the payment to the person:** store the order with the email it was created for, and on verify check the order belongs to that email. Mark the payment as verified and **unused**.
-- **`sera-start-call` must refuse visitors without a verified, unused `paymentId`** for that email. When the call is created, mark the payment as used (one payment = one interview). The frontend already sends `route`, `studentCode` and `paymentId` in the `sera-start-call` body; today's function ignores them.
-- **Existing one-interview-per-account gate:** `sera-start-call` currently blocks any Google account that has already done an interview (`already-used`). For paid visitors that check needs to become "one interview per payment", or a returning visitor would pay and then be blocked. It's worth also checking eligibility in `create-order`, so nobody can pay for an interview they can't start.
+- **`sera-start-call` must refuse New Users (route `'visitor'`) without a verified, unused `paymentId`** for that email. When the call is created, mark the payment as used (one payment = one interview). The frontend already sends `route`, `studentCode` and `paymentId` in the `sera-start-call` body; today's function ignores them.
+- **Existing one-interview-per-account gate:** `sera-start-call` currently blocks any Google account that has already done an interview (`already-used`). For paying New Users that check needs to become "one interview per payment", or a returning New User would pay and then be blocked. It's worth also checking eligibility in `create-order`, so nobody can pay for an interview they can't start.
 
 ## Webhook (later)
 

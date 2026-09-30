@@ -44,7 +44,7 @@ function SeraDevPanel() {
           <DevButton disabled={!call} onClick={() => call?.endNow()}>End call now</DevButton>
           <DevButton disabled={!call} onClick={() => call?.drop()}>Simulate dropped call</DevButton>
           <p className="text-white/50 mt-2">Rejoin (after a dropped call)</p>
-          <DevButton onClick={() => navigate(`/meet-sera?rejoin=${MOCK_REJOIN_TOKEN}`)}>Open rejoin link (visitor)</DevButton>
+          <DevButton onClick={() => navigate(`/meet-sera?rejoin=${MOCK_REJOIN_TOKEN}`)}>Open rejoin link (New User)</DevButton>
           <DevButton onClick={() => navigate(`/meet-sera?rejoincode=${MOCK_REJOIN_CODE}`)}>Use rejoin code (student)</DevButton>
           <p className="text-white/50 mt-2">Next “Pay” click</p>
           <DevButton

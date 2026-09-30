@@ -10,7 +10,7 @@ const MOCK_ACCOUNTS = [
   // can be rejoined. Stripped from production builds.
   ...(import.meta.env.DEV
     ? [
-        { name: 'Test Visitor', email: 'visitor.test@gmail.com' },
+        { name: 'Test New User', email: 'visitor.test@gmail.com' },
         { name: 'Test Student', email: 'student.test@gmail.com' },
       ]
     : []),

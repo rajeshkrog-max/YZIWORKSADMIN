@@ -41,7 +41,7 @@ function SeraHero({ onStart }) {
           <p className="mt-5 text-fg/70 text-base md:text-lg leading-relaxed max-w-md">
             Practice the interview <b className="text-fg font-semibold">before</b> the real one.
             Sera reads your resume, asks what actually matters, and tells you straight where you
-            stand — five honest minutes, completely private.
+            stand — three rounds, about 11 minutes, completely private.
           </p>
           <button
             onClick={onStart}

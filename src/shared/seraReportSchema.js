@@ -5,11 +5,11 @@
 // Shape (every field below is required unless marked "| null"):
 // {
 //   version: 1,
-//   route: 'student' | 'visitor',
+//   route: 'student' | 'visitor',                      // 'visitor' = shown as "New User"
 //   firstName: string,
 //   interviewDate: 'YYYY-MM-DD',
-//   interviewMinutes: number,                          // 10 student, 5 visitor
-//   chosenOffer: { company, logoLetter, role } | null, // student only
+//   interviewMinutes: number,                          // 11 (same 3 rounds for both routes)
+//   chosenOffer: { company, logoLetter, role } | null,
 //   overall: { score: 0–100 | null, band: 'needs_work'|'getting_there'|'ready' | null, summary: string | null },
 //   facts: { secondsSpoken, questionsAnswered, roundsCompleted, roundsTotal },   // computed in code
 //   rounds: [{ id, label, score: 0–100 | null, note: string | null, durationSeconds, cutShort: boolean }],
@@ -103,10 +103,6 @@ export function validate(report) {
         fit.items.every((it) => isObj(it) && isStr(it.requirement) && typeof it.shown === 'boolean' && isNullOr(isQuote)(it.quote) && (!it.shown || it.quote !== null))),
     'offerFit (and "shown" needs a quote)',
   )
-  if (report.route === 'visitor') {
-    check(report.offerFit === null, 'offerFit must be null for visitors')
-    check(report.chosenOffer === null, 'chosenOffer must be null for visitors')
-  }
 
   const sp = report.speaking
   check(
@@ -126,18 +122,17 @@ export function validate(report) {
 // Which sections/bars the page and the PDF show — a section whose data is
 // missing is hidden, never shown empty.
 export function reportSections(report) {
-  const student = report.route === 'student'
   const scoredSkills = report.skills.filter((s) => s.score !== null)
   return {
     gauge: report.overall.score !== null,
     summary: report.overall.summary !== null,
-    rounds: student && report.rounds.length > 0,
+    rounds: report.rounds.length > 0,
     skills: scoredSkills.length > 0,
     skillBar: (skill) => skill.score !== null,
     strengths: report.strengths.length > 0,
     growth: report.growth.length > 0,
     rewrite: report.rewrite !== null,
-    offerFit: student && report.offerFit !== null && report.offerFit.items.length > 0,
+    offerFit: report.offerFit !== null && report.offerFit.items.length > 0,
     speaking: report.speaking !== null,
     plan: report.plan.length > 0,
   }

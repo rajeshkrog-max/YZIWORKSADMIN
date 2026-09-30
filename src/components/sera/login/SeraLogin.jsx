@@ -21,13 +21,13 @@ const REJOIN_LINK_ERRORS = {
 }
 
 // Glass login card. Steps unlock in order and each turns into a green ✓ row:
-//   Visitor: Google → WhatsApp OTP → Continue
+//   New User (route 'visitor'): Google → WhatsApp OTP → Continue
 //   Student: Google → student code → WhatsApp OTP → Continue
 // The WhatsApp step stays locked until the code is valid, so no OTP is spent
 // on a bad code. Google and phone survive a tab switch; only the code row toggles.
 //
 // Rejoin after a dropped call (both must match the original Google + WhatsApp):
-//   Visitor: rejoinToken from /meet-sera?rejoin=TOKEN → banner, no tabs.
+//   New User: rejoinToken from /meet-sera?rejoin=TOKEN → banner, no tabs.
 //   Student: a one-time rejoin code typed in the Student code field.
 // Either way onRejoin(session) resumes the interview (no upload, no pay).
 // initialCode (DEV ONLY) pre-fills the Student tab with a code.

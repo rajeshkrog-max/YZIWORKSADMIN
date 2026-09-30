@@ -40,19 +40,6 @@ function Dot({ index, state }) {
 
 // Glass milestone rail for the interview rounds (from src/config/seraRounds.js).
 function RoundRail({ rounds, currentIndex }) {
-  // Visitors have a single round: a slim one-step pill, not an empty rail.
-  if (rounds.length === 1) {
-    const [round] = rounds
-    return (
-      <div className={`${RAIL_GLASS} inline-flex items-center gap-2.5 px-4 py-2 rounded-full`}>
-        <span className="sera-rail-pulse w-2.5 h-2.5 rounded-full bg-yzi-cyan" />
-        <span className="text-sm font-semibold text-fg">{round.label}</span>
-        <span className="text-xs font-mono text-fg/50">· {formatRoundLength(round.seconds)}</span>
-        <PulseStyle />
-      </div>
-    )
-  }
-
   const progress = rounds.length > 1 ? (Math.min(currentIndex, rounds.length - 1) / (rounds.length - 1)) * 100 : 0
 
   return (

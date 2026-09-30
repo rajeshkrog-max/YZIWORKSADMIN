@@ -66,7 +66,7 @@ export async function reportConnectionLost(sessionId, round) {
   return { ok: data?.ok === true, rejoinIssued: data?.rejoinIssued === true }
 }
 
-// Visitor: { token } from the WhatsApp link. Student: { code } typed in the
+// New User (route 'visitor'): { token } from the WhatsApp link. Student: { code } typed in the
 // Student code field. Must match the email + phone the session started with.
 // → { ok: true, session: { sessionId, route, round, chosenOffer, resumeMeta } }
 //   | { ok: false, reason: 'expired' | 'used' | 'mismatch' | 'invalid' }
