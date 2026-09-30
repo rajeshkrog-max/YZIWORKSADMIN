@@ -29,7 +29,7 @@ const REJOIN_LINK_ERRORS = {
 // Rejoin after a dropped call (both must match the original Google + WhatsApp):
 //   New User: rejoinToken from /meet-sera?rejoin=TOKEN → banner, no tabs.
 //   Student: a one-time rejoin code typed in the Student code field.
-// Either way onRejoin(session) resumes the interview (no upload, no pay).
+// Either way onRejoin({ session, round }) resumes the interview (no upload, no pay).
 // initialCode (DEV ONLY) pre-fills the Student tab with a code.
 function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null }) {
   const [tab, setTab] = useState(initialCode ? 'student' : 'visitor')
@@ -108,10 +108,11 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
       code: rejoinToken ? undefined : code.trim(),
       email: google.email,
       phone: phone.number,
+      name: google.name,
     })
     setSubmitting(false)
     if (result.ok) {
-      onRejoin({ ...result.session, name: google.name, email: google.email, phone: phone.number })
+      onRejoin(result)
     } else if (rejoinToken) {
       setSubmitError(REJOIN_LINK_ERRORS[result.reason] ?? REJOIN_LINK_ERRORS.invalid)
     } else {
@@ -132,7 +133,7 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
       studentCode: isStudent ? code.trim() : null,
     })
     setSubmitting(false)
-    if (result.ok) onDone(result.session)
+    if (result.ok) onDone(result.login)
     else setSubmitError(result.error || 'Something went wrong. Please try again.')
   }
 

@@ -28,10 +28,10 @@ const PdfIcon = () => (
   </span>
 )
 
-function SeraUpload({ profile, resumeFile, onSelectFile, onBegin, busy, error }) {
+function SeraUpload({ session, resumeFile, onSelectFile, onBegin, busy, error }) {
   const inputRef = useRef(null)
   const [dragActive, setDragActive] = useState(false)
-  const firstName = profile?.name?.split(' ')[0] || 'there'
+  const firstName = session?.firstName || 'there'
 
   const handleFiles = async (fileList) => {
     const file = fileList?.[0]

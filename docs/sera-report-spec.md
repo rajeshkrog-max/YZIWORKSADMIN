@@ -23,6 +23,20 @@ The new pipeline below **replaces** `netlify/lib/seraReport.js` (and the YouTube
 | `netlify/lib/seraReport/index.js` | Re-exports all of the above + `buildReport(...)` (everything after the LLM call in one step). |
 | `netlify/lib/seraReport/seraReport.test.js` | `npm test` (node's built-in runner). |
 
+## From the 3 rounds — `generateReport` (`fromRounds.js`)
+
+Call it **once**, after the final round's webhook:
+
+```js
+import { generateReport } from '../lib/seraReport/index.js'
+const { report, dropped, validation } = await generateReport(
+  ({ prompt, schema }) => generateJson({ prompt, schema }),
+  { transcripts: { screening, hr, final }, chosenOffer, resumeHighlights, route, firstName, interviewDate },
+)
+```
+
+It merges the 3 round transcripts (`mergeRoundTranscripts`), builds the prompt, makes the **one** LLM call and runs `buildReport`. Rules on top of the steps below: a quote must match word for word in the **same round** it claims; offer fit is exactly the chosen offer's 3 skills (a skill is "shown" only with a kept quote); a round that ran < 60% of its time **or** where the candidate said < 25 words (`RUBRIC_CONFIG.minUserWordsPerRound`) is "Not enough to score" (`null`).
+
 ## Order of steps in the webhook
 
 ```
@@ -44,7 +58,7 @@ transcript → buildReportPrompt → LLM → verifyReport → computeMetrics →
    if (dropped.length) console.warn('Sera report: dropped unverifiable items', { email, dropped })
    if (!validation.valid) { /* log validation.errors, store status: 'failed', alert the team — never store an invalid report */ }
    ```
-   - `verifyReport`: a quote only survives if it's found (normalised: case, punctuation, accents) inside a **candidate** line of the transcript; its round + timestamp are then taken from the transcript. Strengths/growth points must point at a real candidate line (±3 s). The rewrite's "you said" must be word for word and its question must be Sera's. Offer fit "shown" without a real quote becomes "not shown yet". Everything removed is listed in `dropped` — **log it**.
+   - `verifyReport`: a quote only survives if it's found (normalised: case, punctuation, accents) inside a **candidate** line of the **same round** in the transcript; its timestamp is then taken from the transcript. Strengths/growth points must point at a real candidate line (±3 s). The rewrite's "you said" must be word for word and its question must be Sera's. Offer fit "shown" without a real quote becomes "not shown yet". Everything removed is listed in `dropped` — **log it**.
    - `computeMetrics`: average answer length, filler words (fixed list incl. Hinglish — see `FILLER_PHRASES`), talk share, time spoken, questions answered, rounds completed/cut short. Code, not the LLM.
    - `scoreFromRatings`: 1–5 → 0–100 per rating; skill = mean of its ratings; round = mean over its answers (null if fewer than 2 rated answers, or if the round was cut short); overall = weighted mean of scored skills (null if fewer than 3). Band from fixed thresholds (`<50` needs work, `50–69` getting there, `≥70` ready).
 6. **Store** the validated report JSON (e.g. in the same Blobs record: `{ status: 'complete', report }`). **The stored JSON is the single source of truth** — the page, the PDF and the team email all read it. Never re-run the LLM to "refresh" a report.
@@ -62,7 +76,7 @@ transcript → buildReportPrompt → LLM → verifyReport → computeMetrics →
 
 ## Mock mode
 
-`src/services/seraMockReport.js` (DEV only) builds the sample report by running this same pipeline on `netlify/lib/seraReport/fixtures/sampleInterview.js`, so it passes `validate()` and all its quotes are real. None of it ships in a production build.
+`src/services/seraMockReport.js` (DEV only) runs this same pipeline — and `seraOffers` / `seraCall` — on `netlify/lib/fixtures/` (sample résumé, 3 offers, 3-round transcript), so it passes `validate()` and all its quotes are real. None of it ships in a production build.
 
 ## Download report (PDF)
 

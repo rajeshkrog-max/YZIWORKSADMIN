@@ -5,7 +5,7 @@ import { buildReport, computeMetrics, scoreFromRatings, verifyReport, buildRepor
 import { reportSections, validate } from '../../../src/shared/seraReportSchema.js'
 import { RUBRIC_CONFIG } from '../../../src/config/seraRubric.js'
 import { roundsFor } from '../../../src/config/seraRounds.js'
-import { SAMPLE_LLM_OUTPUT, SAMPLE_OFFER, SAMPLE_TRANSCRIPT } from './fixtures/sampleInterview.js'
+import { SAMPLE_LLM_OUTPUT, SAMPLE_OFFER, SAMPLE_TRANSCRIPT } from '../fixtures/seraInterview.js'
 import { buildMockReport } from '../../../src/services/seraMockReport.js'
 
 const build = (overrides = {}) =>
@@ -54,7 +54,7 @@ test('"shown" offer fit without a real quote becomes "not shown yet"', () => {
     offerFit: [{ requirement: 'Process mapping', shown: true, quote: { text: 'I mapped every process at my internship', round: 'hr', timestamp: 16 } }],
   }
   const { report } = build({ llmJson })
-  assert.deepEqual(report.offerFit.items[0], { requirement: 'Process mapping', shown: false, quote: null })
+  assert.deepEqual(report.offerFit.items.find((i) => i.requirement === 'Process mapping'), { requirement: 'Process mapping', shown: false, quote: null })
 })
 
 test('a skill with no evidence is null and its bar is hidden', () => {

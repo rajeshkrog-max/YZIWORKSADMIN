@@ -1,14 +1,11 @@
-// Sample interview for the unit tests and the DEV mock report. Invented person
-// and invented company. Transcript turns: { role, text, start, end, round };
-// start/end are seconds from the start of that round's call.
+// Sample 3-round interview for the unit tests and the DEV mock. Invented person
+// (the résumé in ./seraResume.js) and the invented offer she chose (./seraOffers.js).
+// Transcript turns: { role, text, start, end, round }; start/end are seconds
+// from the start of that round's call.
+import { SAMPLE_OFFERS } from './seraOffers.js'
 
-export const SAMPLE_OFFER = {
-  id: 'offer-tidewell',
-  company: 'Tidewell Retail Technologies',
-  logoLetter: 'T',
-  role: 'Business Analyst',
-  skills: ['Stakeholder updates', 'Excel', 'Process mapping'],
-}
+// The chosen offer (Tidewell, Business Analyst).
+export const SAMPLE_OFFER = SAMPLE_OFFERS[1]
 
 const turn = (round, role, start, end, text) => ({ round, role, start, end, text })
 
@@ -39,6 +36,21 @@ export const SAMPLE_TRANSCRIPT = [
   turn('final', 'user', 72, 100, 'I would learn the current process, uh, meet the people who use the reports, and write down where time is lost.'),
   turn('final', 'agent', 102, 115, "Thank you, that's the end of the final round."),
 ]
+
+// The same interview as Retell delivers it: one transcript per round's call.
+export const SAMPLE_TRANSCRIPTS = Object.fromEntries(
+  ['screening', 'hr', 'final'].map((round) => [
+    round,
+    SAMPLE_TRANSCRIPT.filter((t) => t.round === round).map(({ role, text, start, end }) => ({ role, text, start, end })),
+  ]),
+)
+
+// What the summary LLM returns after screening and after HR (2 neutral lines each).
+export const SAMPLE_SUMMARIES = {
+  screening:
+    'The candidate described cleaning monthly sales data in Excel and building a Power BI dashboard at the internship, and fixing mismatched product codes with a mapping table.\nThey are targeting a junior data analyst role at around 4 to 6 LPA within three months.',
+  hr: 'The candidate described turning the dashboard into a one-page summary for store managers and said they would warn the manager early about a missed deadline.\nThey said they want the role because it combines people and data.',
+}
 
 const r = (communication, roleKnowledge, problemSolving, composure, judgement) => ({
   communication,

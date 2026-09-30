@@ -87,6 +87,7 @@ export const RUBRIC_CONFIG = {
   minRatedAnswersPerRound: 2, // fewer → the round shows "Not enough to score"
   minSkillsForOverall: 3, // fewer scored skills → no overall score
   cutShortRatio: 0.6, // a round shorter than 60% of its planned time was cut short
+  minUserWordsPerRound: 25, // fewer candidate words in a round → "Not enough to score"
 }
 
 // 1–5 rating → 0–100 score.

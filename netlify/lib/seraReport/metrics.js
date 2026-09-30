@@ -33,7 +33,9 @@ export function countFillers(text) {
 
 // transcript: [{ role: 'agent'|'user', text, start, end, round }] (start/end in seconds)
 // plannedRounds (optional): [{ id, seconds }] — to flag rounds that were cut short.
-export function computeMetrics(transcript, plannedRounds = null, cutShortRatio = 0.6) {
+// minUserWords: a round where the candidate said fewer words also counts as cut
+// short ("Not enough to score").
+export function computeMetrics(transcript, plannedRounds = null, cutShortRatio = 0.6, minUserWords = 0) {
   const answers = []
   transcript.forEach((t, i) => {
     if (t.role !== 'user' || words(t.text).length < 3) return
@@ -50,10 +52,12 @@ export function computeMetrics(transcript, plannedRounds = null, cutShortRatio =
     const turns = transcript.filter((t) => t.round === id)
     const durationSeconds = Math.max(...turns.map((t) => t.end)) - Math.min(...turns.map((t) => t.start))
     const planned = plannedRounds?.find((r) => r.id === id)?.seconds
+    const userWords = turns.filter((t) => t.role === 'user').reduce((s, t) => s + words(t.text).length, 0)
     perRound[id] = {
       durationSeconds,
+      userWords,
       answers: answers.filter((a) => a.round === id && a.answersQuestion).length,
-      cutShort: planned ? durationSeconds < planned * cutShortRatio : false,
+      cutShort: (planned ? durationSeconds < planned * cutShortRatio : false) || userWords < minUserWords,
     }
   }
 

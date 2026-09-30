@@ -6,6 +6,7 @@
 // no Google setup needed on localhost.
 
 import { MOCK_REJOIN_CODE, findMockSessionByRejoin } from './seraMockCall'
+import { cleanFirstName } from '../../netlify/lib/seraCall/cleanFirstName.js'
 
 const MOCK_CODES = {
   'YZI-PUNE-OCT26': { instituteName: 'Pune Institute', seatsLeft: 42 },
@@ -62,21 +63,15 @@ export async function checkStudentCode(code) {
   return data
 }
 
-// → { ok: true, session: { route, name, email, phone, studentCode, instituteName } } | { ok: false, error }
+// → { ok: true, login: { route, firstName, email, phone, studentCode } } | { ok: false, error }
+// (the hook turns `login` into the session — src/shared/seraSession.js)
 export async function completeLogin({ route, google, phone, msg91Token, studentCode }) {
   if (isMockMode()) {
     await wait(400)
     const code = route === 'student' ? String(studentCode || '').trim().toUpperCase() : null
     return {
       ok: true,
-      session: {
-        route,
-        name: google.name,
-        email: google.email,
-        phone,
-        studentCode: code,
-        instituteName: code ? (MOCK_CODES[code]?.instituteName ?? null) : null,
-      },
+      login: { route, firstName: cleanFirstName(google.name), email: google.email, phone, studentCode: code },
     }
   }
 
@@ -101,10 +96,10 @@ export async function completeLogin({ route, google, phone, msg91Token, studentC
 export function getDevTestSession(kind) {
   if (!import.meta.env.DEV || !isMockMode()) return null
   if (kind === 'visitor') {
-    return { name: 'Test New User', email: 'visitor.test@gmail.com', phone: '9876543210', route: 'visitor', studentCode: null, instituteName: null }
+    return { firstName: 'Test', email: 'visitor.test@gmail.com', phone: '9876543210', route: 'visitor', studentCode: null }
   }
   if (kind === 'student') {
-    return { name: 'Test Student', email: 'student.test@gmail.com', phone: '9876543211', route: 'student', studentCode: 'YZI-PUNE-OCT26', instituteName: 'Pune Institute' }
+    return { firstName: 'Test', email: 'student.test@gmail.com', phone: '9876543211', route: 'student', studentCode: 'YZI-PUNE-OCT26' }
   }
   return null
 }

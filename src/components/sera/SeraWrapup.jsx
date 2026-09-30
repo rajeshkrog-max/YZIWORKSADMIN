@@ -9,8 +9,8 @@ const REVIEWING_AFTER_MS = 4000 // time-based: we can't see this stage from here
 // After the call: Sera prepares the report. The checklist follows what we
 // actually know — the last step only ticks once the report really exists
 // (reportReady), never on a timer.
-function SeraWrapup({ profile, reportReady = false }) {
-  const firstName = profile?.name?.split(' ')[0] || ''
+function SeraWrapup({ session, reportReady = false }) {
+  const firstName = session?.firstName || ''
   const [timedDone, setTimedDone] = useState(0)
 
   useEffect(() => {

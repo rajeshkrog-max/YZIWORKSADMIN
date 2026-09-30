@@ -35,7 +35,7 @@ function OfferPicker({ offers, onChoose }) {
       </p>
       <p className="mt-1.5 text-xs text-fg/45">Take your time. The clock is paused while you choose.</p>
 
-      {offers ? (
+      {offers?.length ? (
         <div className="mt-8 w-full grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
           {offers.slice(0, 3).map((offer, i) => (
             <OfferTile

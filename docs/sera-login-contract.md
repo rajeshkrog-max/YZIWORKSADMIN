@@ -11,7 +11,7 @@ through `src/services/seraAuthService.js`.
 3. Student only: types a campus code → checked while typing → shows institute + seats left, or an error.
 4. Both: WhatsApp number (+91, 10 digits) → MSG91 WhatsApp OTP popup → we get an MSG91 token. (Student: only unlocked once the code is valid.)
 5. Continue → `completeLogin(...)` → server verifies everything and returns a session.
-6. Frontend stores the session as the interview profile and moves to résumé upload.
+6. Frontend turns `login` into the one session object (`createSession`, `src/shared/seraSession.js`) and moves to résumé upload.
 
 ## Service functions (`src/services/seraAuthService.js`)
 
@@ -34,7 +34,7 @@ through `src/services/seraAuthService.js`.
   - `msg91Token` — the token MSG91's widget returns in its success callback (`data.message`)
   - `studentCode` — string for students, `null` for New Users
 - Output:
-  - `{ ok: true, session: { route, name, email, phone, studentCode, instituteName } }`
+  - `{ ok: true, login: { route, firstName, email, phone, studentCode } }` — `firstName` = `cleanFirstName(google.name)` (`netlify/lib/seraCall/cleanFirstName.js`: first word, letters only, capitalised; titles and initials skipped)
   - `{ ok: false, error: string }` — `error` is shown to the user under the Continue button, so keep it short and human.
 
 ### `isMockMode()`

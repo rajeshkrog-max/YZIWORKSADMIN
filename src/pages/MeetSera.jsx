@@ -20,6 +20,9 @@ import { getDevTestSession } from '../services/seraAuthService'
 import { isDevMock } from '../services/seraMockCall'
 import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
 import { buildMockReport } from '../services/seraMockReport'
+import { createSession, getChosenOffer } from '../shared/seraSession'
+import { SAMPLE_RESUME } from '../../netlify/lib/fixtures/seraResume.js'
+import { SAMPLE_OFFERS } from '../../netlify/lib/fixtures/seraOffers.js'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -49,9 +52,12 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 const PREVIEW = import.meta.env.DEV
   ? {
       screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked', 'lost'],
-      profile: { name: 'Priya Sharma', email: 'priya@example.com' },
+      session: {
+        ...createSession({ route: 'student', firstName: 'Priya', email: 'priya@example.com', phone: '9876543210' }),
+        resume: SAMPLE_RESUME,
+        offers: SAMPLE_OFFERS,
+      },
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
-      resumeMeta: { originalFilename: 'Priya_Sharma_Resume.pdf', size: 245760 },
     }
   : null
 
@@ -89,18 +95,20 @@ function MeetSera() {
     ? {
         ...sera,
         screen: previewScreen,
-        profile: PREVIEW.profile,
+        session: {
+          ...PREVIEW.session,
+          route: params.get('route') === 'visitor' ? 'visitor' : 'student',
+          // DEV ONLY — the sample report built by the real pipeline.
+          report:
+            import.meta.env.DEV && params.get('variant') !== 'error'
+              ? buildMockReport({
+                  route: params.get('route') ?? 'student',
+                  firstName: 'Priya',
+                  variant: params.get('variant') === 'gaps' ? 'gaps' : null,
+                })
+              : null,
+        },
         resumeFile: params.has('file') ? PREVIEW.resumeFile : null,
-        resumeMeta: PREVIEW.resumeMeta,
-        // DEV ONLY — the sample report built by the real pipeline.
-        report:
-          import.meta.env.DEV && params.get('variant') !== 'error'
-            ? buildMockReport({
-                route: params.get('route') ?? 'student',
-                firstName: 'Priya',
-                variant: params.get('variant') === 'gaps' ? 'gaps' : null,
-              })
-            : null,
         incomplete: params.get('variant') === 'incomplete',
         error: params.has('error') || params.get('variant') === 'error'
           ? 'Sample error — this is how a problem message looks.'
@@ -115,8 +123,6 @@ function MeetSera() {
         roundIndex: Math.max(0, roundsFor().findIndex((r) => r.id === params.get('round'))),
         connectingTo: params.has('connecting') ? roundsFor().find((r) => r.id === 'final') : null,
         roundSecondsLeft: 187,
-        offers: null,
-        chosenOffer: null,
         chooseOffer: noop,
         muted: params.has('muted'),
         blockedMessage: null,
@@ -202,7 +208,7 @@ function MeetSera() {
 
         {view.screen === 'upload' && (
           <SeraUpload
-            profile={view.profile}
+            session={view.session}
             resumeFile={view.resumeFile}
             onSelectFile={view.selectFile}
             onBegin={view.beginInterview}
@@ -216,9 +222,8 @@ function MeetSera() {
         {view.screen === 'pay' && (
           <Suspense fallback={null}>
             <SeraPay
-              profile={view.profile}
-              fileName={view.resumeFile?.name ?? view.resumeMeta?.originalFilename}
-              objectKey={view.resumeMeta?.objectKey}
+              session={view.session}
+              fileName={view.resumeFile?.name ?? view.session?.resume.objectKey?.split('/').pop()}
               onPaymentSuccess={view.onPaymentSuccess}
               onChangeResume={view.changeResume}
             />
@@ -234,8 +239,8 @@ function MeetSera() {
             turnElapsed={view.turnElapsed}
             turnSeconds={view.turnSeconds}
             muted={view.muted}
-            offers={view.offers}
-            chosenOffer={view.chosenOffer}
+            offers={view.session?.offers}
+            chosenOffer={getChosenOffer(view.session)}
             onChooseOffer={view.chooseOffer}
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
@@ -244,15 +249,15 @@ function MeetSera() {
         )}
 
         {view.screen === 'lost' && (
-          <SeraConnectionLost profile={view.profile} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />
+          <SeraConnectionLost session={view.session} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />
         )}
 
-        {view.screen === 'wrapup' && <SeraWrapup profile={view.profile} reportReady={view.reportReady} />}
+        {view.screen === 'wrapup' && <SeraWrapup session={view.session} reportReady={view.reportReady} />}
 
         {view.screen === 'report' && (
           <SeraReport
-            report={view.report}
-            sessionId={view.sessionId}
+            report={view.session?.report}
+            sessionId={view.session?.sessionId}
             incomplete={view.incomplete}
             error={view.error}
             onDone={view.reset}

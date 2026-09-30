@@ -23,7 +23,7 @@ const Spinner = () => <span className="w-4 h-4 rounded-full border-2 border-whit
 
 // New User pay screen (route 'visitor'). The interview starts only after the SERVER verifies the
 // payment (verifyPayment) — never on the checkout callback alone.
-function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResume }) {
+function SeraPay({ session, fileName, onPaymentSuccess, onChangeResume }) {
   // idle | opening | checkout | verifying
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState(null)
@@ -38,7 +38,7 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
   const confirm = async ({ orderId, paymentId, signature }) => {
     setStatus('verifying')
     const result = await verifyPayment({ orderId, paymentId, signature })
-    if (result.ok) onPaymentSuccess(result.paymentId)
+    if (result.ok) onPaymentSuccess({ orderId, paymentId: result.paymentId })
     else release(result.error || FAILED)
   }
 
@@ -48,7 +48,7 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
     setError(null)
     setStatus('opening')
 
-    const order = await createOrder({ email: profile?.email, phone: profile?.phone, objectKey })
+    const order = await createOrder({ email: session?.email, phone: session?.phone, objectKey: session?.resume.objectKey })
     if (!order.ok) {
       release(order.error || FAILED)
       return
@@ -74,7 +74,7 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
         currency: order.currency,
         name: 'YZI Works',
         description: `Sera AI Interview · 3 rounds, ${INTERVIEW_LENGTH_LABEL}`,
-        prefill: { email: profile?.email, contact: profile?.phone },
+        prefill: { email: session?.email, contact: session?.phone },
         theme: { color: '#8B5CF6' },
         handler: (response) =>
           confirm({
@@ -107,7 +107,7 @@ function SeraPay({ profile, fileName, objectKey, onPaymentSuccess, onChangeResum
         <GlassBlobs />
 
         <div className="relative rounded-[26px] border border-white/10 light:border-white/80 bg-card/55 light:bg-white/55 backdrop-blur-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.45)] light:shadow-[0_24px_60px_rgba(76,29,149,0.14)] p-6 sm:p-8 text-left">
-          <OrderSummary email={profile?.email} fileName={fileName} />
+          <OrderSummary email={session?.email} fileName={fileName} />
           <PriceBreakdown />
 
           <section className="pt-5 border-t border-fg/10 text-center">

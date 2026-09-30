@@ -8,9 +8,9 @@ const maskPhone = (phone) => (phone ? `+91 •••••${String(phone).slice(
 // The call dropped without the candidate pressing End. The interview is saved;
 // the continue link/code arrives on WhatsApp. No retry button on purpose.
 // rejoinIssued=false (already rejoined once) → the team follows up instead.
-function SeraConnectionLost({ profile, rejoinIssued = true }) {
-  const student = profile?.route === 'student'
-  const phone = maskPhone(profile?.phone)
+function SeraConnectionLost({ session, rejoinIssued = true }) {
+  const student = session?.route === 'student'
+  const phone = maskPhone(session?.phone)
 
   return (
     <div className="w-full flex flex-col items-center text-center">

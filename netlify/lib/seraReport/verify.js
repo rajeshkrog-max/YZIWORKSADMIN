@@ -5,16 +5,15 @@ import { normalise } from './metrics.js'
 const MIN_QUOTE_WORDS = 4
 const MOMENT_TOLERANCE_SECONDS = 3
 
-// A quote counts only if (normalised) it appears inside one candidate line.
-// Round + timestamp are then taken from the transcript, not from the LLM.
+// A quote counts only if (normalised) it appears inside one candidate line of
+// the SAME round the LLM gave. The timestamp is then taken from the transcript.
 function findQuote(quote, transcript) {
   if (!quote?.text) return null
   const needle = normalise(quote.text)
   if (needle.split(' ').filter(Boolean).length < MIN_QUOTE_WORDS) return null
-  const lines = transcript.filter((t) => t.role === 'user' && normalise(t.text).includes(needle))
+  const lines = transcript.filter((t) => t.role === 'user' && t.round === quote.round && normalise(t.text).includes(needle))
   if (!lines.length) return null
-  const best =
-    lines.find((t) => t.round === quote.round && Math.abs(t.start - quote.timestamp) <= MOMENT_TOLERANCE_SECONDS) ?? lines[0]
+  const best = lines.find((t) => Math.abs(t.start - quote.timestamp) <= MOMENT_TOLERANCE_SECONDS) ?? lines[0]
   return { text: quote.text.trim(), round: best.round, timestamp: best.start }
 }
 

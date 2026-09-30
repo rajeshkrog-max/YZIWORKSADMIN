@@ -3,6 +3,18 @@
 import { SERA_SKILLS } from '../../../src/config/seraRubric.js'
 import { PLAN_HORIZONS, REPORT_VERSION, ROUND_LABELS } from '../../../src/shared/seraReportSchema.js'
 
+// Offer fit = exactly the chosen offer's skills, in order. A skill the LLM
+// didn't cover (or quoted wrongly — already cleared by verifyReport) is "not shown yet".
+const norm = (s) => String(s ?? '').toLowerCase().trim()
+function offerFitItems(skills = [], items = []) {
+  return skills.map((skill) => {
+    const item = items.find((i) => norm(i.requirement) === norm(skill))
+    return item?.shown && item.quote
+      ? { requirement: skill, shown: true, quote: item.quote }
+      : { requirement: skill, shown: false, quote: null }
+  })
+}
+
 // plannedRounds: the rounds from src/config/seraRounds.js ([{ id, label, seconds }]).
 export function assembleReport({ verified, metrics, scores, route, plannedRounds, chosenOffer, firstName, interviewDate }) {
   // Both routes run the same rounds and pick an offer; route only affects payment.
@@ -47,7 +59,7 @@ export function assembleReport({ verified, metrics, scores, route, plannedRounds
     strengths: verified.strengths,
     growth: verified.growth,
     rewrite: verified.rewrite,
-    offerFit: offer ? { company: offer.company, role: offer.role, items: verified.offerFit } : null,
+    offerFit: offer ? { company: offer.company, role: offer.role, items: offerFitItems(offer.skills, verified.offerFit) } : null,
     speaking:
       metrics.questionsAnswered > 0
         ? {

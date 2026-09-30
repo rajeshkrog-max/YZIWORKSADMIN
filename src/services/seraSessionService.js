@@ -13,6 +13,7 @@ import {
   readMockSessions,
   saveMockSession,
 } from './seraMockCall'
+import { createSession } from '../shared/seraSession'
 
 async function postJson(path, body) {
   try {
@@ -68,38 +69,37 @@ export async function reportConnectionLost(sessionId, round) {
 
 // New User (route 'visitor'): { token } from the WhatsApp link. Student: { code } typed in the
 // Student code field. Must match the email + phone the session started with.
-// → { ok: true, session: { sessionId, route, round, chosenOffer, resumeMeta } }
+// `name` (the Google name) is only used by the DEV mock to build a test session.
+// → { ok: true, session: SeraSession (src/shared/seraSession.js), round }  — round to restart
 //   | { ok: false, reason: 'expired' | 'used' | 'mismatch' | 'invalid' }
-export async function redeemRejoin({ token, code, email, phone }) {
+export async function redeemRejoin({ token, code, email, phone, name }) {
   if (import.meta.env.DEV && isMockMode()) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     if (code === 'REJOIN-EXPIRED' || token === 'REJOIN-EXPIRED') return { ok: false, reason: 'expired' }
-    let session = findMockSessionByRejoin({ token, code })
-    if (!session) {
+    let record = findMockSessionByRejoin({ token, code })
+    if (!record) {
       // Fresh browser with no dropped session: the test link/code still works.
       if (token !== MOCK_REJOIN_TOKEN && code !== MOCK_REJOIN_CODE) return { ok: false, reason: 'invalid' }
-      session = saveMockSession(`mock-session-${Date.now()}`, {
-        route: code ? 'student' : 'visitor',
+      const sessionId = `mock-session-${Date.now()}`
+      record = saveMockSession(sessionId, {
+        ...createSession({ sessionId, route: code ? 'student' : 'visitor', name, email, phone }),
         round: 'screening',
-        email,
-        phone,
-        chosenOffer: null,
-        resumeMeta: { originalFilename: 'Resume.pdf', size: 0 },
         rejoinToken: token ?? null,
         rejoinCode: code ?? null,
         rejoinUsed: false,
         rejoinCount: 0,
       })
     }
-    if (session.rejoinUsed) return { ok: false, reason: 'used' }
-    if (session.email !== email || session.phone !== phone) return { ok: false, reason: 'mismatch' }
-    saveMockSession(session.sessionId, {
+    if (record.rejoinUsed) return { ok: false, reason: 'used' }
+    if (record.email !== email || record.phone !== phone) return { ok: false, reason: 'mismatch' }
+    saveMockSession(record.sessionId, {
       rejoinUsed: true,
-      rejoinCount: (session.rejoinCount ?? 0) + 1,
+      rejoinCount: (record.rejoinCount ?? 0) + 1,
       status: 'live',
     })
-    const { sessionId, route, round, chosenOffer, resumeMeta } = session
-    return { ok: true, session: { sessionId, route, round, chosenOffer, resumeMeta } }
+    // eslint-disable-next-line no-unused-vars -- strip the mock-only rejoin fields
+    const { round, rejoinToken, rejoinCode, rejoinUsed, rejoinCount, updatedAt, ...session } = record
+    return { ok: true, round, session: { ...session, status: 'live' } }
   }
   // TODO(backend): POST /api/sera/rejoin — not built yet.
   const data = await postJson('/api/sera/rejoin', { token, code, email, phone })
