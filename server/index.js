@@ -215,9 +215,12 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true, timestamp: new Date().toISOString() })
   }
 
-  try {
-    const rawBody = req.method !== 'GET' ? await readBody(req) : ''
-    const body = rawBody ? JSON.parse(rawBody) : {}
+    const hasBody = ['POST', 'PUT', 'PATCH'].includes(req.method)
+    const rawBody = hasBody ? await readBody(req) : ''
+    let body = {}
+    if (rawBody) {
+      try { body = JSON.parse(rawBody) } catch { body = {} }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // 1. Student Code Check
