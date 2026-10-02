@@ -11,7 +11,7 @@ const ANSWER_SECONDS = 8 // "Your turn" advances early so you don't wait out the
 export const MOCK_REPORT_DELAY_MS = 7000 // long enough to watch the wrap-up checklist
 
 // ── Tiny store shared by the DEV panel, the fake call and the pay screen ─────
-let devState = { call: null, payOutcome: 'success' }
+let devState = { call: null, payOutcome: 'success', skipWrapupDelay: false, ui: null }
 let devListeners = null
 export const setDev = (patch) => {
   devState = { ...devState, ...patch }
@@ -89,7 +89,8 @@ export function createMockCall({ seconds, wrapSeconds, onUpdate, onEnd, extra = 
   const controls = {
     ...extra,
     skipToLast30: () => jumpTo(30),
-    skipToEndOfRound: () => jumpTo(wrapSeconds + 2),
+    skipToEndOfRound: () => end('time'),
+    finishRoundNow: () => end('time'),
     endNow: () => end('ended'),
     drop: () => end('dropped'),
     stop,

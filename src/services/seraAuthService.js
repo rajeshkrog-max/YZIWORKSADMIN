@@ -89,7 +89,7 @@ export async function completeLogin({ route, google, phone, msg91Token, studentC
     msg91Token,
     studentCode: route === 'student' ? studentCode : null,
   })
-  if (!data || typeof data.ok !== 'boolean') return { ok: false, error: FRIENDLY_ERROR }
+  if (!data || typeof data.ok !== 'boolean') return { ok: false, error: data?.error || FRIENDLY_ERROR }
   return data
 }
 

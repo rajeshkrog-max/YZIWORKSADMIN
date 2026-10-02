@@ -2,7 +2,7 @@
 // Deliberately separate from src/utils/r2Upload.js (used by the application
 // funnel) — different folder namespace, single file, PDF-only.
 
-const SERA_CREATE_UPLOAD_ENDPOINT = '/.netlify/functions/sera-create-upload'
+const SERA_CREATE_UPLOAD_ENDPOINT = '/api/sera/create-upload'
 
 const MAX_SIZE = 10 * 1024 * 1024
 
@@ -20,35 +20,44 @@ export async function uploadResumeToR2(file) {
     throw new Error('That file is over 10 MB — please upload a smaller PDF')
   }
 
-  const prepareResponse = await fetch(SERA_CREATE_UPLOAD_ENDPOINT, {
+  // Convert to base64 so upload goes directly to our server and into R2
+  // completely bypassing browser-to-R2 CORS preflight issues
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const res = reader.result
+      const b64 = typeof res === 'string' && res.includes(',') ? res.split(',')[1] : res
+      resolve(b64)
+    }
+    reader.onerror = () => reject(new Error('Failed to read résumé file'))
+    reader.readAsDataURL(file)
+  })
+
+  const uploadResponse = await fetch(SERA_CREATE_UPLOAD_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       filename: file.name,
       contentType: file.type || 'application/pdf',
       size: file.size,
+      base64,
     }),
-  })
-
-  const prepareResult = await prepareResponse.json()
-
-  if (!prepareResponse.ok || !prepareResult.success || !prepareResult.uploadUrl) {
-    throw new Error(prepareResult.error || 'Unable to prepare the upload')
-  }
-
-  const uploadResponse = await fetch(prepareResult.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'application/pdf' },
-    body: file,
   })
 
   if (!uploadResponse.ok) {
     throw new Error(`Upload failed (${uploadResponse.status})`)
   }
 
+  const result = await uploadResponse.json()
+
+  if (!result.success || !result.objectKey) {
+    throw new Error(result.error || 'Unable to upload résumé. Please try again.')
+  }
+
   return {
-    objectKey: prepareResult.objectKey,
+    objectKey: result.objectKey,
     originalFilename: file.name,
     size: file.size,
   }
 }
+

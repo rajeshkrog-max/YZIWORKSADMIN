@@ -23,8 +23,6 @@ async function postJson(path, body) {
 //   | { ok: false, blocked: true, message } — one-interview rule
 //   | { ok: false, error }
 export async function startRoundCall(session, round) {
-  // TODO(backend): only 'screening' is live today; 'hr' and 'final' need the
-  // server to load the session (offers, chosenOfferId, summaries) by sessionId.
   const { status, data } = await postJson('/.netlify/functions/sera-start-call', {
     sessionId: session.sessionId,
     round,
@@ -32,10 +30,12 @@ export async function startRoundCall(session, round) {
     email: session.email,
     name: session.firstName,
     studentCode: session.studentCode,
-    paymentId: session.payment.paymentId,
-    objectKey: session.resume.objectKey,
-    highlight: session.resume.highlight,
-    field: session.resume.field,
+    paymentId: session.payment?.paymentId,
+    objectKey: session.resume?.objectKey,
+    highlight: session.resume?.highlight,
+    field: session.resume?.field,
+    chosenOfferId: session.chosenOfferId,
+    offers: session.offers,
   })
   if (status === 403 && data?.error === 'already-used') return { ok: false, blocked: true, message: data.message }
   if (!data?.success) return { ok: false, error: data?.error || 'Unable to start the interview' }

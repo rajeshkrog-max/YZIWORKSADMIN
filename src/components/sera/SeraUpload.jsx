@@ -115,6 +115,19 @@ function SeraUpload({ session, resumeFile, onSelectFile, onBegin, busy, error })
             </span>
             <p className="text-sm font-medium text-fg">Drop your résumé here, or click to browse</p>
             <p className="text-xs text-fg/45 mt-1">PDF only · up to 10 MB</p>
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const sampleFile = new File(['%PDF-1.4 Mock Candidate Resume'], 'Priya_Sharma_Resume.pdf', { type: 'application/pdf' })
+                  onSelectFile(sampleFile)
+                }}
+                className="mt-3 inline-block px-3 py-1 rounded-full text-xs font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/30 transition"
+              >
+                ⚡ Dev: Load Sample Résumé
+              </button>
+            )}
           </div>
         )}
 

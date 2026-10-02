@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test \"netlify/lib/**/*.test.js\"",
+    "test": "node --test \"netlify/lib/**/*.test.js\" \"server/**/*.test.js\"",
+    "server": "node server/index.js",
     "sample:pdf": "node scripts/render-sample-report.mjs"
   },
   "dependencies": {

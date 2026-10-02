@@ -1,0 +1,26 @@
+{
+  "YZI-PUNE-OCT26": {
+    "instituteName": "Pune Institute of Applied Technology",
+    "seatsTotal": 50,
+    "seatsLeft": 30,
+    "active": true
+  },
+  "YZI-MUMBAI-NOV26": {
+    "instituteName": "Mumbai Technical Academy",
+    "seatsTotal": 30,
+    "seatsLeft": 15,
+    "active": true
+  },
+  "YZI-DELHI-NOV26": {
+    "instituteName": "Delhi Institute of Management & Tech",
+    "seatsTotal": 40,
+    "seatsLeft": 20,
+    "active": true
+  },
+  "YZI-FULL-TEST": {
+    "instituteName": "Full Capacity Institute",
+    "seatsTotal": 25,
+    "seatsLeft": 0,
+    "active": true
+  }
+}

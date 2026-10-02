@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isMockMode } from '../services/seraAuthService'
-import { createMockCall, MOCK_REPORT_DELAY_MS, saveMockSession } from '../services/seraMockCall'
+import { createMockCall, getDevState, MOCK_REPORT_DELAY_MS, saveMockSession, setDev } from '../services/seraMockCall'
 import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
 import { saveOfferChoice } from '../services/seraOffersService'
 import { prepareResume } from '../services/seraResumeService'
@@ -57,11 +57,15 @@ export function useSeraInterview() {
   const stalledExtraSecondsRef = useRef(0)
   // Rounds (src/config/seraRounds.js): index into the route's rounds.
   const [roundIndex, setRoundIndex] = useState(0)
+  const roundIndexRef = useRef(0)
+  const candidateEndedRef = useRef(false)
+  const startNextRoundRef = useRef(null)
   const [connectingTo, setConnectingTo] = useState(null) // next round during the HR → Final hand-over
   const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
   const mockCallRef = useRef(null)
   const mockConnectTimerRef = useRef(null)
+  const toReportRef = useRef(null)
 
   // Synchronous update: the ref is current immediately (timers and mock
   // callbacks read it before React re-renders).
@@ -87,6 +91,8 @@ export function useSeraInterview() {
     setIncomplete(false)
     setBlockedMessage(null)
     setRoundIndex(0)
+    roundIndexRef.current = 0
+    candidateEndedRef.current = false
     setLostInfo(null)
     setConnectingTo(null)
     if (import.meta.env.DEV) {
@@ -165,50 +171,60 @@ export function useSeraInterview() {
     setScreen('report')
   }, [stopSessionTimer, updateSession])
 
-  const startSessionTimer = useCallback(() => {
-    stopSessionTimer()
-    setElapsed(0)
-    elapsedRef.current = 0
-    stalledExtraSecondsRef.current = 0
-    sessionTimerRef.current = setInterval(() => {
-      setElapsed((prev) => {
-        const next = prev + 1
-        elapsedRef.current = next
-        if (next >= SESSION_SECONDS) {
-          stopSessionTimer()
-          retellRef.current?.stopCall()
-          finishInterview()
-          return prev
-        }
-        if (next >= SESSION_SECONDS - 25) {
-          setTurnState('wrapping-up')
-        }
-        return next
-      })
-      if (turnActiveRef.current) {
-        setTurnElapsed((prev) => {
-          if (prev >= TURN_SECONDS) {
-            stalledExtraSecondsRef.current += 1
-            if (stalledExtraSecondsRef.current > STALL_GRACE_SECONDS) {
-              handleStalledCall()
-            }
+  const startSessionTimer = useCallback(
+    (roundSeconds = null) => {
+      stopSessionTimer()
+      setElapsed(0)
+      elapsedRef.current = 0
+      stalledExtraSecondsRef.current = 0
+      const limit = roundSeconds ?? roundsFor(sessionRef.current?.route)[roundIndexRef.current]?.seconds ?? 300
+
+      sessionTimerRef.current = setInterval(() => {
+        setElapsed((prev) => {
+          const next = prev + 1
+          elapsedRef.current = next
+          if (next >= limit) {
+            stopSessionTimer()
+            retellRef.current?.stopCall()
             return prev
           }
-          stalledExtraSecondsRef.current = 0
-          return prev + 1
+          if (next >= limit - 25) {
+            setTurnState('wrapping-up')
+          }
+          return next
         })
-      }
-    }, 1000)
-  }, [finishInterview, stopSessionTimer, handleStalledCall])
+        if (turnActiveRef.current) {
+          setTurnElapsed((prev) => {
+            if (prev >= TURN_SECONDS) {
+              stalledExtraSecondsRef.current += 1
+              if (stalledExtraSecondsRef.current > STALL_GRACE_SECONDS) {
+                handleStalledCall()
+              }
+              return prev
+            }
+            stalledExtraSecondsRef.current = 0
+            return prev + 1
+          })
+        }
+      }, 1000)
+    },
+    [handleStalledCall, stopSessionTimer]
+  )
 
   const connectRetell = useCallback(
     async (accessToken) => {
+      if (retellRef.current) {
+        try {
+          retellRef.current.stopCall()
+        } catch {}
+      }
       const { RetellWebClient } = await import('retell-client-js-sdk')
       const client = new RetellWebClient()
       retellRef.current = client
 
       client.on('call_started', () => {
-        startSessionTimer()
+        const roundSecs = roundsFor(sessionRef.current?.route)[roundIndexRef.current]?.seconds
+        startSessionTimer(roundSecs)
       })
       client.on('agent_start_talking', () => {
         turnActiveRef.current = false
@@ -229,7 +245,30 @@ export function useSeraInterview() {
           suppressCallEndedRef.current = false
           return
         }
-        finishInterview()
+        stopSessionTimer()
+        if (candidateEndedRef.current) {
+          candidateEndedRef.current = false
+          finishInterview()
+          return
+        }
+
+        const currentIdx = roundIndexRef.current
+        if (currentIdx === 0) {
+          // Screening completed -> advance to offer selection (index 1)
+          updateSession((s) => patchRound(s, 'screening', { status: 'completed' }))
+          roundIndexRef.current = 1
+          setRoundIndex(1)
+        } else if (currentIdx === 2) {
+          // HR round completed -> advance to final round (index 3)
+          updateSession((s) => patchRound(s, 'hr', { status: 'completed' }))
+          startNextRoundRef.current?.(3)
+        } else if (currentIdx === 3) {
+          // Final round completed -> wrapup & report
+          updateSession((s) => patchRound(s, 'final', { status: 'completed' }))
+          finishInterview()
+        } else {
+          finishInterview()
+        }
       })
       client.on('error', (err) => {
         console.error('Retell call error:', err)
@@ -241,8 +280,52 @@ export function useSeraInterview() {
 
       await client.startCall({ accessToken })
     },
-    [finishInterview, startSessionTimer, stopSessionTimer]
+    [finishInterview, startSessionTimer, stopSessionTimer, updateSession]
   )
+
+  const startNextRound = useCallback(
+    async (targetIndex) => {
+      stopSessionTimer()
+      const roundsList = roundsFor(sessionRef.current?.route)
+      const nextRound = roundsList[targetIndex]
+      if (!nextRound) {
+        finishInterview()
+        return
+      }
+
+      roundIndexRef.current = targetIndex
+      setRoundIndex(targetIndex)
+      setConnectingTo(nextRound)
+      setElapsed(0)
+      elapsedRef.current = 0
+      setTurnElapsed(0)
+      setTurnState('sera-speaking')
+
+      try {
+        const result = await startRoundCall(sessionRef.current, nextRound.id)
+        if (result.blocked) {
+          setBlockedMessage(result.message)
+          setScreen('blocked')
+          return
+        }
+        if (!result.ok) throw new Error(result.error)
+
+        updateSession((s) => ({
+          ...patchRound(s, nextRound.id, { callId: result.callId, status: 'live' }),
+          status: 'live',
+        }))
+
+        await connectRetell(result.accessToken)
+        setConnectingTo(null)
+      } catch (err) {
+        console.error('Failed to start round call:', err)
+        setError(err.message || 'Unable to connect to the next round — please try again.')
+        setConnectingTo(null)
+      }
+    },
+    [connectRetell, finishInterview, stopSessionTimer, updateSession]
+  )
+  startNextRoundRef.current = startNextRound
 
   // The call dropped without the candidate pressing End: tell the server (it
   // decides whether a rejoin link/code is issued) and show the lost screen.
@@ -287,6 +370,7 @@ export function useSeraInterview() {
           setReportReady(false)
           setScreen('wrapup')
           const started = Date.now()
+          const delay = getDevState()?.skipWrapupDelay ? 400 : MOCK_REPORT_DELAY_MS
           import('../services/seraMockReport')
             .then(({ buildMockReportFromSession }) => buildMockReportFromSession(sessionRef.current))
             .then((report) => ({ report }), (err) => ({ err }))
@@ -301,9 +385,10 @@ export function useSeraInterview() {
                 updateSession((s) => ({ ...s, report, status: 'completed' }))
                 setReportReady(true)
                 setTimeout(() => setScreen('report'), REPORT_FADE_MS)
-              }, Math.max(0, MOCK_REPORT_DELAY_MS - (Date.now() - started)))
+              }, Math.max(0, delay - (Date.now() - started)))
             )
         }
+        toReportRef.current = toReport
 
         setRoundIndex(index)
         setElapsed(0)
@@ -350,16 +435,36 @@ export function useSeraInterview() {
             updateSession((s) => ({ ...s, status: 'ended_by_candidate' }))
             toReport()
           },
-          extra:
-            offerIndex > index
-              ? {
-                  jumpToOffers: async () => {
+          extra: {
+            roundId: round.id,
+            roundIndex: index,
+            roundName: round.label,
+            interviewer: round.interviewer?.name,
+            jumpToOffers:
+              offerIndex > index
+                ? async () => {
                     mockCallRef.current?.stop()
                     await recordRound(round.id, round.seconds, 'completed')
                     run(offerIndex)
-                  },
-                }
-              : {},
+                  }
+                : null,
+            jumpToRound: async (targetIndex) => {
+              mockCallRef.current?.stop()
+              if (targetIndex > 1 && !sessionRef.current?.chosenOfferId && sessionRef.current?.offers?.length) {
+                updateSession((s) => ({ ...s, chosenOfferId: s.offers[0].id }))
+              }
+              await recordRound(round.id, round.seconds, 'completed')
+              run(targetIndex)
+            },
+            jumpToReport: async () => {
+              mockCallRef.current?.stop()
+              if (!sessionRef.current?.chosenOfferId && sessionRef.current?.offers?.length) {
+                updateSession((s) => ({ ...s, chosenOfferId: s.offers[0].id }))
+              }
+              await recordRound(round.id, round.seconds, 'completed')
+              toReport()
+            },
+          },
         })
       }
       run(startIndex)
@@ -382,10 +487,13 @@ export function useSeraInterview() {
     (offer) => {
       updateSession((s) => ({ ...s, chosenOfferId: offer.id }))
       saveOfferChoice(sessionRef.current?.sessionId, offer.id)
-      if (import.meta.env.DEV && isMockMode()) runMockRound(roundIndex + 1)
-      // TODO(backend): real mode — startRoundCall(session, 'hr') once the server supports it.
+      if (import.meta.env.DEV && isMockMode()) {
+        runMockRound(2)
+        return
+      }
+      startNextRoundRef.current?.(2)
     },
-    [roundIndex, runMockRound, updateSession]
+    [runMockRound, updateSession]
   )
 
   // Screening call. Runs only after the résumé check passed, and for New
@@ -419,6 +527,7 @@ export function useSeraInterview() {
         sessionId: result.sessionId,
         status: 'live',
       }))
+      roundIndexRef.current = 0
       setRoundIndex(0)
       setScreen('interview')
       setTurnState('sera-speaking')
@@ -432,33 +541,37 @@ export function useSeraInterview() {
   }, [connectRetell, startMockCall, updateSession])
 
   // Résumé check + the 3 offers in one step (seraResumeService), stored on the session.
-  const beginInterview = useCallback(async () => {
-    if (!resumeFile || !sessionRef.current) return
-    setBusy(true)
-    setError(null)
-    setScreen('preparing')
+  const beginInterview = useCallback(
+    async (overrideFile = null) => {
+      const file = overrideFile || resumeFile
+      if (!file || !sessionRef.current) return
+      setBusy(true)
+      setError(null)
+      setScreen('preparing')
 
-    try {
-      const result = await prepareResume(resumeFile)
-      if (!result.ok) {
-        setError(result.error)
-        setResumeFile(null)
+      try {
+        const result = await prepareResume(file, sessionRef.current?.sessionId)
+        if (!result.ok) {
+          setError(result.error)
+          setResumeFile(null)
+          setScreen('upload')
+          return
+        }
+
+        const current = updateSession((s) => ({ ...s, resume: result.resume, offers: result.offers, chosenOfferId: null }))
+        setBusy(false)
+        // A verified payment whose interview never started is reused, never charged twice.
+        if (current.route === 'student' || current.payment.paymentId) await startInterview()
+        else setScreen('pay')
+      } catch (err) {
+        setError(err.message || 'Something went wrong — please try again')
         setScreen('upload')
-        return
+      } finally {
+        setBusy(false)
       }
-
-      const current = updateSession((s) => ({ ...s, resume: result.resume, offers: result.offers, chosenOfferId: null }))
-      setBusy(false)
-      // A verified payment whose interview never started is reused, never charged twice.
-      if (current.route === 'student' || current.payment.paymentId) await startInterview()
-      else setScreen('pay')
-    } catch (err) {
-      setError(err.message || 'Something went wrong — please try again')
-      setScreen('upload')
-    } finally {
-      setBusy(false)
-    }
-  }, [resumeFile, startInterview, updateSession])
+    },
+    [resumeFile, startInterview, updateSession]
+  )
 
   // payment: { orderId, paymentId } — verified by the server (SeraPay).
   const onPaymentSuccess = useCallback(
@@ -492,6 +605,7 @@ export function useSeraInterview() {
   // Candidate confirmed "End interview". Tell the server it was intentional
   // BEFORE hanging up (ended_by_candidate → no rejoin), but never wait long.
   const endCallEarly = useCallback(async () => {
+    candidateEndedRef.current = true
     await Promise.race([
       markCandidateEnded(sessionRef.current?.sessionId),
       new Promise((resolve) => setTimeout(resolve, 1500)),
@@ -529,6 +643,65 @@ export function useSeraInterview() {
 
   useEffect(() => stopSessionTimer, [stopSessionTimer])
   useEffect(() => () => import.meta.env.DEV && mockCallRef.current?.stop(), [])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const roundsList = roundsFor(session?.route)
+    setDev({
+      ui: {
+        screen,
+        roundIndex,
+        roundId: roundsList[roundIndex]?.id,
+        roundName: roundsList[roundIndex]?.label,
+        session,
+        quickLoginStudent: () => {
+          updateSession(
+            createSession({
+              firstName: 'Test Student',
+              email: 'student.test@gmail.com',
+              phone: '9876543211',
+              route: 'student',
+              studentCode: 'YZI-PUNE-OCT26',
+            })
+          )
+          setScreen('upload')
+        },
+        quickLoginVisitor: () => {
+          updateSession(
+            createSession({
+              firstName: 'Test Visitor',
+              email: 'visitor.test@gmail.com',
+              phone: '9876543210',
+              route: 'visitor',
+              studentCode: null,
+            })
+          )
+          setScreen('upload')
+        },
+        autoUploadAndBegin: async () => {
+          const sampleFile = new File(['%PDF-1.4 Mock Candidate Resume'], 'Sample_Resume.pdf', { type: 'application/pdf' })
+          setResumeFile(sampleFile)
+          await beginInterview(sampleFile)
+        },
+        autoPickOffer: () => {
+          const firstOffer = sessionRef.current?.offers?.[0]
+          if (firstOffer) chooseOffer(firstOffer)
+        },
+        skipToReport: async () => {
+          mockCallRef.current?.stop()
+          if (!sessionRef.current?.offers?.length) {
+            const { mockPreparedResume } = await import('../services/seraMockReport')
+            const prepared = await mockPreparedResume('Sample_Resume.pdf')
+            updateSession((s) => ({ ...s, ...prepared, chosenOfferId: prepared.offers[0].id }))
+          } else if (!sessionRef.current?.chosenOfferId) {
+            updateSession((s) => ({ ...s, chosenOfferId: s.offers[0].id }))
+          }
+          toReportRef.current?.()
+        },
+        resetInterview: reset,
+      },
+    })
+  }, [screen, roundIndex, session, beginInterview, chooseOffer, reset, updateSession])
 
   const rounds = roundsFor(session?.route)
   const round = rounds[roundIndex] ?? rounds[0]

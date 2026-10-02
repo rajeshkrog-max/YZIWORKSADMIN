@@ -29,3 +29,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Server runtime data
+server/data/sessions/
+server/data/orders/
+
+# Deployment bundles
+deploy*.tar.gz
+deploy-remote.sh

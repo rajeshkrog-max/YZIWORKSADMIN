@@ -10,7 +10,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 // → { ok: true, resume: { objectKey, highlight, field }, offers: [3] }
 //   | { ok: false, rejected: true, error }  — not a résumé: ask for another file
 //   | { ok: false, rejected: false, error } — our side failed: don't blame the file
-export async function prepareResume(file) {
+export async function prepareResume(file, sessionId = null) {
   if (import.meta.env.DEV && isMockMode()) {
     // DEV ONLY — the real offers module on the sample résumé. A file name
     // containing "bad" simulates a rejected résumé.
@@ -27,7 +27,7 @@ export async function prepareResume(file) {
     const res = await fetch('/.netlify/functions/sera-extract-resume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ objectKey: uploaded.objectKey }),
+      body: JSON.stringify({ objectKey: uploaded.objectKey, sessionId }),
     })
     httpOk = res.ok
     data = await res.json()
