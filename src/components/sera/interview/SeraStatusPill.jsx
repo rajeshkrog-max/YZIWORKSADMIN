@@ -1,11 +1,12 @@
 // Glass pill with a blinking LED saying who has the floor. `name` is the
-// current round's interviewer (Sera / Vinit / Arvind, from seraRounds.js).
-// status: 'speaking' | 'listening' | 'thinking' | 'paused'
+// current round's interviewer (Sera / Vinit / Sonia, from seraRounds.js).
+// status: 'speaking' | 'listening' | 'thinking' | 'paused' | 'connecting'
 const STATUS = {
   speaking: { text: (n) => `${n} is speaking`, led: 'bg-yzi-pink shadow-[0_0_10px_rgba(255,0,138,0.8)]', blink: 'sera-led-fast' },
   listening: { text: (n) => `Your turn · ${n} is listening`, led: 'bg-yzi-cyan shadow-[0_0_10px_rgba(34,211,238,0.8)]', blink: 'sera-led-slow' },
   thinking: { text: (n) => `${n} is analysing`, led: 'bg-yzi-orange shadow-[0_0_10px_rgba(255,94,0,0.8)]', blink: 'sera-led-quick' },
   paused: { text: () => 'Paused · choose your offer', led: 'bg-fg/40', blink: '' },
+  connecting: { text: (n) => `Connecting to ${n}…`, led: 'bg-yzi-orange shadow-[0_0_10px_rgba(255,94,0,0.8)]', blink: 'sera-led-quick' },
 }
 
 function SeraStatusPill({ status, name = 'Sera' }) {

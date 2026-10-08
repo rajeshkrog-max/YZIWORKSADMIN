@@ -1,4 +1,5 @@
 import SeraWave from './SeraWave'
+import { INTERVIEW_LENGTH_LABEL } from '../../config/seraRounds'
 
 // "Engine" block under the Meet Sera hero slider. The wave always sits in a
 // dark well — tone="dark" keeps its additive glow in both themes — while the copy
@@ -41,7 +42,7 @@ function SeraHero({ onStart }) {
           <p className="mt-5 text-fg/70 text-base md:text-lg leading-relaxed max-w-md">
             Practice the interview <b className="text-fg font-semibold">before</b> the real one.
             Sera reads your resume, asks what actually matters, and tells you straight where you
-            stand — three rounds, about 11 minutes, completely private.
+            stand — three rounds, {INTERVIEW_LENGTH_LABEL}, completely private.
           </p>
           <button
             onClick={onStart}

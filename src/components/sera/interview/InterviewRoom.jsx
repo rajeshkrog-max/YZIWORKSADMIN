@@ -9,6 +9,7 @@ import OfferPicker from '../offers/OfferPicker'
 
 // Hook turn states → Sera's look. (Hook states are not renamed.)
 const STATUS_FOR_TURN = {
+  connecting: 'connecting', // the room is up, Sera is not audible yet: no clock, no "speaking"
   'sera-speaking': 'speaking',
   'your-turn': 'listening',
   'wrapping-up': 'thinking',
@@ -31,6 +32,8 @@ function InterviewRoom({
   offers,
   chosenOffer,
   onChooseOffer,
+  onTapOffer,
+  offerSecondsLeft = null,
   onToggleMute,
   onEndCall,
   connectingTo = null,
@@ -65,11 +68,11 @@ function InterviewRoom({
                 : 'radial-gradient(closest-side, rgba(139,92,246,0.24), rgba(255,0,138,0.08) 55%, transparent)',
           }}
         />
-        <SeraWave state={status} bleed className="w-full h-full" label={`Sera — ${status}`} />
+        <SeraWave state={status === 'connecting' ? 'thinking' : status} bleed className="w-full h-full" label={`Sera — ${status}`} />
       </div>
 
       {choosingOffer ? (
-        <OfferPicker offers={offers} onChoose={onChooseOffer} />
+        <OfferPicker offers={offers} onChoose={onChooseOffer} onTap={onTapOffer} secondsLeft={offerSecondsLeft} />
       ) : connectingTo ? (
         <div
           role="status"

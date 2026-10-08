@@ -62,7 +62,6 @@ export async function checkStudentCode(code) {
     return hit ? { valid: true, ...hit } : { valid: false, reason: 'not_found' }
   }
 
-  // TODO(backend): POST /api/sera/student-code/check — not built yet.
   const data = await postJson('/api/sera/student-code/check', { code: clean })
   if (!data || typeof data.valid !== 'boolean') return { valid: false, reason: 'unavailable' }
   return data
@@ -80,8 +79,7 @@ export async function completeLogin({ route, google, phone, msg91Token, studentC
     }
   }
 
-  // TODO(backend): POST /api/sera/login — not built yet. Server must verify the
-  // Google accessToken, the MSG91 token and the student code (see contract doc).
+  // The server verifies the Google token, the student code and (once configured) the MSG91 token.
   const data = await postJson('/api/sera/login', {
     route,
     google,
@@ -89,6 +87,24 @@ export async function completeLogin({ route, google, phone, msg91Token, studentC
     msg91Token,
     studentCode: route === 'student' ? studentCode : null,
   })
+  if (!data || typeof data.ok !== 'boolean') return { ok: false, error: data?.error || FRIENDLY_ERROR }
+  return data
+}
+
+// The showcase credential: a demo code signs in with no Google and no WhatsApp OTP.
+// The server accepts it only for a code flagged `demo` (seat-capped, rate-limited).
+// → { ok: true, login } | { ok: false, error }
+export async function completeDemoLogin({ code, name }) {
+  const clean = String(code || '').trim().toUpperCase()
+  if (import.meta.env.DEV && isMockMode()) {
+    await wait(400)
+    if (clean !== 'YZI-DEMO') return { ok: false, error: "That demo code isn't valid." }
+    return {
+      ok: true,
+      login: { route: 'student', firstName: cleanFirstName(name) || 'Demo', email: 'demo-mock@demo.yziworks.com', phone: '', studentCode: clean },
+    }
+  }
+  const data = await postJson('/api/sera/demo-login', { code: clean, name: String(name || '').trim() })
   if (!data || typeof data.ok !== 'boolean') return { ok: false, error: data?.error || FRIENDLY_ERROR }
   return data
 }

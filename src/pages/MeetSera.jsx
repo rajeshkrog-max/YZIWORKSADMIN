@@ -114,6 +114,8 @@ function MeetSera() {
         connectingTo: params.has('connecting') ? roundsFor().find((r) => r.id === 'final') : null,
         roundSecondsLeft: 187,
         chooseOffer: noop,
+        holdOfferTimer: noop,
+        offerSecondsLeft: 38,
         muted: params.has('muted'),
         blockedMessage: null,
         goToSignIn: noop,
@@ -231,6 +233,8 @@ function MeetSera() {
             offers={view.session?.offers}
             chosenOffer={getChosenOffer(view.session)}
             onChooseOffer={view.chooseOffer}
+            onTapOffer={view.holdOfferTimer}
+            offerSecondsLeft={view.offerSecondsLeft}
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
             connectingTo={view.connectingTo}

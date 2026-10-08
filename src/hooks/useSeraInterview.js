@@ -4,23 +4,41 @@ import { createMockCall, getDevState, MOCK_REPORT_DELAY_MS, saveMockSession, set
 import { markCandidateEnded, reportConnectionLost } from '../services/seraSessionService'
 import { saveOfferChoice } from '../services/seraOffersService'
 import { prepareResume } from '../services/seraResumeService'
-import { fetchReport, releaseReservation, startRoundCall } from '../services/seraCallService'
+import { fetchCallState, fetchReport, releaseReservation, startInterviewCall } from '../services/seraCallService'
 import { createSession, patchRound } from '../shared/seraSession'
 import { buildCallVariables } from '../../netlify/lib/seraCall/variables.js'
-import { roundsFor } from '../config/seraRounds'
+import { isShowOffersMessage } from '../../netlify/lib/seraVapi/clientEvents.js'
+import { roundOfAssistantName } from '../../netlify/lib/seraVapi/squad.js'
+import { OFFER_PICK_SECONDS, roundsFor } from '../config/seraRounds'
 
-// Real-mode screening call length (the HR/final calls aren't wired yet).
-const SESSION_SECONDS = roundsFor()[0].seconds
+// @vapi-ai/web is a CommonJS package (`exports.default = Vapi`). Depending on the bundler's
+// interop, `import()` hands back the class, or a module object holding it one level down
+// (`default.default`) — `new` on that object throws "r is not a constructor". Take whichever is the class.
+export async function loadVapiClass() {
+  const mod = await import('@vapi-ai/web')
+  const Vapi = [mod.default?.default, mod.default, mod.Vapi].find((candidate) => typeof candidate === 'function')
+  if (!Vapi) throw new Error('The voice client failed to load. Please refresh and try again.')
+  return Vapi
+}
+
 const TURN_SECONDS = 35
+// The squad runs as ONE call, and the SERVER runs its rounds (it sends Vinit and Sonia their "time is
+// nearly up / time is up" notes and ends the call). The page only SHOWS where we are and follows the
+// server and Vapi's own messages. No timer here ever stops the call: an earlier version did, and it cut
+// Sonia off mid-sentence because the clocks drifted from the real conversation. These only move the SCREEN
+// along if a signal never arrives:
+const OFFERS_FALLBACK_SECONDS = 60 // Sera never called show_offers: show the cards anyway
+const HR_UI_GRACE_SECONDS = 45 // no sign of Sonia long after HR's time: show the final round
+const CLOCK_START_FALLBACK_MS = 8000 // no speech event after the call connects: start the clock anyway
 // Wrap-up: after the report arrives, the last checklist tick + fade before showing it.
 const REPORT_FADE_MS = 900
-// HR → Final: a short "Connecting you to the final round with Arvind…" hand-over.
+// HR → Final: a short "Connecting you to the final round with Sonia…" hand-over.
 const CONNECT_MS = 2500
 
 // If the candidate's turn timer sits pegged at TURN_SECONDS this long with
-// no agent_start_talking firing, the call is treated as stalled/dropped
-// rather than the candidate just running long (Retell/the prompt already
-// enforces the real cutoff — this is purely a client-side dead-call guard).
+// no assistant speech starting, the call is treated as stalled/dropped
+// rather than the candidate just running long (the prompts already
+// enforce the real cutoff — this is purely a client-side dead-call guard).
 const STALL_GRACE_SECONDS = 15
 // A stall this early almost certainly means the call never really started —
 // don't burn the candidate's one-per-login slot over it.
@@ -49,17 +67,25 @@ export function useSeraInterview() {
   const [incomplete, setIncomplete] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState(null)
 
-  const retellRef = useRef(null)
+  const vapiRef = useRef(null)
+  const callActiveRef = useRef(false) // a Vapi call is connected and its end hasn't been handled
+  const liveRef = useRef({}) // latest handlers, for timers and Vapi events (see the effect below)
+  const offerTimerRef = useRef(null)
+  const offersPollRef = useRef(null)
+  const clockStartedRef = useRef(false) // the first clock starts when Sera is actually audible
+  const clockFallbackRef = useRef(null)
+  const offerPickedRef = useRef(false)
+  const [offerSecondsLeft, setOfferSecondsLeft] = useState(null) // the 45 s cap on the offer pick
   const sessionTimerRef = useRef(null)
   const turnActiveRef = useRef(false)
   const elapsedRef = useRef(0)
-  const suppressCallEndedRef = useRef(false)
+  const callStartedRef = useRef(false) // Vapi reported the call started (for "never got going" vs "dropped")
   const stalledExtraSecondsRef = useRef(0)
+  const turnElapsedRef = useRef(0)
   // Rounds (src/config/seraRounds.js): index into the route's rounds.
   const [roundIndex, setRoundIndex] = useState(0)
   const roundIndexRef = useRef(0)
   const candidateEndedRef = useRef(false)
-  const startNextRoundRef = useRef(null)
   const [connectingTo, setConnectingTo] = useState(null) // next round during the HR → Final hand-over
   const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
@@ -101,6 +127,14 @@ export function useSeraInterview() {
       clearTimeout(mockConnectTimerRef.current)
     }
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current)
+    clearInterval(offerTimerRef.current)
+    clearInterval(offersPollRef.current)
+    clearTimeout(clockFallbackRef.current)
+    offerPickedRef.current = false
+    setOfferSecondsLeft(null)
+    callActiveRef.current = false
+    vapiRef.current?.stop().catch(() => {})
+    vapiRef.current = null
   }, [updateSession])
 
   const goToSignIn = useCallback(() => setScreen('signin'), [])
@@ -129,13 +163,14 @@ export function useSeraInterview() {
 
   const handleStalledCall = useCallback(() => {
     // We're stopping the call ourselves here, which would otherwise also
-    // fire the SDK's own call_ended event and race finishInterview() into
+    // fire the SDK's own call-end event and race finishInterview() into
     // overwriting the 'upload' screen we're about to set.
-    suppressCallEndedRef.current = true
+    callActiveRef.current = false
     stopSessionTimer()
-    retellRef.current?.stopCall()
+    vapiRef.current?.stop().catch(() => {})
     setError("Sera's having a connection hiccup — let's try that again.")
     setScreen('upload')
+    // The server only forgives a start that stalled in its first 90 seconds.
     if (elapsedRef.current < STALL_FORGIVENESS_WINDOW_SECONDS) releaseReservation(sessionRef.current)
   }, [stopSessionTimer])
 
@@ -171,166 +206,137 @@ export function useSeraInterview() {
     setScreen('report')
   }, [stopSessionTimer, updateSession])
 
-  const startSessionTimer = useCallback(
-    (roundSeconds = null) => {
+  // Shows the clock for one timed round. The call itself is never stopped by a
+  // clock (it is ONE call for all rounds): liveRef.onClockTick only runs safety nets.
+  const startRoundClock = useCallback(
+    (seconds) => {
       stopSessionTimer()
       setElapsed(0)
       elapsedRef.current = 0
       stalledExtraSecondsRef.current = 0
-      const limit = roundSeconds ?? roundsFor(sessionRef.current?.route)[roundIndexRef.current]?.seconds ?? 300
+      turnElapsedRef.current = 0
 
       sessionTimerRef.current = setInterval(() => {
-        setElapsed((prev) => {
-          const next = prev + 1
-          elapsedRef.current = next
-          if (next >= limit) {
-            stopSessionTimer()
-            retellRef.current?.stopCall()
-            return prev
-          }
-          if (next >= limit - 25) {
-            setTurnState('wrapping-up')
-          }
-          return next
-        })
+        elapsedRef.current += 1
+        const next = elapsedRef.current
+        setElapsed(next)
+        if (next >= seconds - 25) setTurnState('wrapping-up')
+        liveRef.current.onClockTick?.(next)
+
         if (turnActiveRef.current) {
-          setTurnElapsed((prev) => {
-            if (prev >= TURN_SECONDS) {
-              stalledExtraSecondsRef.current += 1
-              if (stalledExtraSecondsRef.current > STALL_GRACE_SECONDS) {
-                handleStalledCall()
-              }
-              return prev
-            }
+          if (turnElapsedRef.current >= TURN_SECONDS) {
+            stalledExtraSecondsRef.current += 1
+            if (stalledExtraSecondsRef.current > STALL_GRACE_SECONDS) handleStalledCall()
+          } else {
             stalledExtraSecondsRef.current = 0
-            return prev + 1
-          })
+            turnElapsedRef.current += 1
+            setTurnElapsed(turnElapsedRef.current)
+          }
         }
       }, 1000)
     },
     [handleStalledCall, stopSessionTimer]
   )
 
-  const connectRetell = useCallback(
-    async (accessToken) => {
-      if (retellRef.current) {
-        try {
-          retellRef.current.stopCall()
-        } catch {}
-      }
-      const { RetellWebClient } = await import('retell-client-js-sdk')
-      const client = new RetellWebClient()
-      retellRef.current = client
-
-      client.on('call_started', () => {
-        const roundSecs = roundsFor(sessionRef.current?.route)[roundIndexRef.current]?.seconds
-        startSessionTimer(roundSecs)
-      })
-      client.on('agent_start_talking', () => {
-        turnActiveRef.current = false
-        stalledExtraSecondsRef.current = 0
-        setTurnElapsed(0)
-        setTurnState('sera-speaking')
-      })
-      client.on('agent_stop_talking', () => {
-        turnActiveRef.current = true
-        stalledExtraSecondsRef.current = 0
-        setTurnElapsed(0)
-        setTurnState('your-turn')
-      })
-      // The round transcripts reach the session on the server (Retell
-      // webhook), not from the browser — the report never trusts client text.
-      client.on('call_ended', () => {
-        if (suppressCallEndedRef.current) {
-          suppressCallEndedRef.current = false
-          return
-        }
-        stopSessionTimer()
-        if (candidateEndedRef.current) {
-          candidateEndedRef.current = false
-          finishInterview()
-          return
-        }
-
-        const currentIdx = roundIndexRef.current
-        if (currentIdx === 0) {
-          // Screening completed -> advance to offer selection (index 1)
-          updateSession((s) => patchRound(s, 'screening', { status: 'completed' }))
-          roundIndexRef.current = 1
-          setRoundIndex(1)
-        } else if (currentIdx === 2) {
-          // HR round completed -> advance to final round (index 3)
-          updateSession((s) => patchRound(s, 'hr', { status: 'completed' }))
-          startNextRoundRef.current?.(3)
-        } else if (currentIdx === 3) {
-          // Final round completed -> wrapup & report
-          updateSession((s) => patchRound(s, 'final', { status: 'completed' }))
-          finishInterview()
-        } else {
-          finishInterview()
-        }
-      })
-      client.on('error', (err) => {
-        console.error('Retell call error:', err)
-        setError('The call dropped unexpectedly — please try again.')
-        stopSessionTimer()
-        client.stopCall()
-        setScreen('upload')
-      })
-
-      await client.startCall({ accessToken })
-    },
-    [finishInterview, startSessionTimer, stopSessionTimer, updateSession]
-  )
-
-  const startNextRound = useCallback(
-    async (targetIndex) => {
-      stopSessionTimer()
-      const roundsList = roundsFor(sessionRef.current?.route)
-      const nextRound = roundsList[targetIndex]
-      if (!nextRound) {
-        finishInterview()
-        return
-      }
-
-      roundIndexRef.current = targetIndex
-      setRoundIndex(targetIndex)
-      setConnectingTo(nextRound)
-      setElapsed(0)
-      elapsedRef.current = 0
+  // Moves the page to round `index` (a timed round restarts the clock; the offer
+  // pick has no clock).
+  const enterRound = useCallback(
+    (index) => {
+      const round = roundsFor(sessionRef.current?.route)[index]
+      roundIndexRef.current = index
+      setRoundIndex(index)
+      turnActiveRef.current = false
+      turnElapsedRef.current = 0
       setTurnElapsed(0)
       setTurnState('sera-speaking')
-
-      try {
-        const result = await startRoundCall(sessionRef.current, nextRound.id)
-        if (result.blocked) {
-          setBlockedMessage(result.message)
-          setScreen('blocked')
-          return
-        }
-        if (!result.ok) throw new Error(result.error)
-
-        updateSession((s) => ({
-          ...patchRound(s, nextRound.id, { callId: result.callId, status: 'live' }),
-          status: 'live',
-        }))
-
-        await connectRetell(result.accessToken)
-        setConnectingTo(null)
-      } catch (err) {
-        console.error('Failed to start round call:', err)
-        setError(err.message || 'Unable to connect to the next round — please try again.')
-        setConnectingTo(null)
+      if (round?.seconds) startRoundClock(round.seconds)
+      else {
+        stopSessionTimer()
+        setElapsed(0)
+        elapsedRef.current = 0
       }
     },
-    [connectRetell, finishInterview, stopSessionTimer, updateSession]
+    [startRoundClock, stopSessionTimer]
   )
-  startNextRoundRef.current = startNextRound
+
+  // The 45 s cap on the offer pick: the call is open but silent, so this is cost
+  // control. At zero the first offer is chosen for the candidate.
+  const startOfferCountdown = useCallback(() => {
+    clearInterval(offerTimerRef.current)
+    offerPickedRef.current = false
+    let left = OFFER_PICK_SECONDS
+    setOfferSecondsLeft(left)
+    offerTimerRef.current = setInterval(() => {
+      left -= 1
+      setOfferSecondsLeft(left)
+      if (left > 0) return
+      clearInterval(offerTimerRef.current)
+      const first = sessionRef.current?.offers?.[0]
+      if (first) liveRef.current.chooseOffer?.(first)
+    }, 1000)
+  }, [])
+
+  // The candidate tapped a tile: stop the countdown now (the tile's exit
+  // animation runs before chooseOffer fires, so the cap must not pick over them).
+  const holdOfferTimer = useCallback(() => {
+    clearInterval(offerTimerRef.current)
+    setOfferSecondsLeft(null)
+  }, [])
+
+  // Sera called show_offers (or the fallback fired): silence the mic and show the
+  // 3 cards that were stored from the résumé before the call began.
+  const showOffers = useCallback(() => {
+    if (roundIndexRef.current !== 0) return
+    clearInterval(offersPollRef.current)
+    updateSession((s) => patchRound(s, 'screening', { status: 'completed' }))
+    vapiRef.current?.setMuted(true)
+    setMuted(true)
+    enterRound(1)
+    startOfferCountdown()
+  }, [enterRound, startOfferCountdown, updateSession])
+
+  // HR → Final: the assistants hand over on their own; this is the page catching up.
+  const enterFinal = useCallback(() => {
+    if (roundIndexRef.current !== 2) return
+    updateSession((s) => patchRound(s, 'hr', { status: 'completed' }))
+    const finalRound = roundsFor(sessionRef.current?.route)[3]
+    roundIndexRef.current = 3
+    setRoundIndex(3)
+    stopSessionTimer()
+    setConnectingTo(finalRound)
+    setTimeout(() => {
+      setConnectingTo(null)
+      if (roundIndexRef.current === 3) enterRound(3)
+    }, CONNECT_MS)
+  }, [enterRound, stopSessionTimer, updateSession])
+
+  // Joins the call the SERVER created (start-call). The browser holds no Vapi
+  // secret: the web URL is the only thing it needs.
+  const connectVapi = useCallback(async ({ webCallUrl, callId }) => {
+    if (vapiRef.current) await vapiRef.current.stop().catch(() => {})
+    callStartedRef.current = false
+    clockStartedRef.current = false
+    clearTimeout(clockFallbackRef.current)
+    const Vapi = await loadVapiClass()
+    // reconnect() joins an existing web call and never calls the Vapi API, so the
+    // token is unused. A public key is only needed if that ever changes.
+    const client = new Vapi(import.meta.env.VITE_VAPI_PUBLIC_KEY || 'server-created-call')
+    vapiRef.current = client
+    callActiveRef.current = true
+
+    client.on('call-start', () => liveRef.current.onCallStart?.())
+    client.on('speech-start', () => liveRef.current.onSeraSpeaking?.(true))
+    client.on('speech-end', () => liveRef.current.onSeraSpeaking?.(false))
+    client.on('message', (message) => liveRef.current.onVapiMessage?.(message))
+    client.on('call-end', () => liveRef.current.onCallEnd?.())
+    client.on('error', (err) => liveRef.current.onVapiError?.(err))
+
+    await client.reconnect({ webCallUrl, id: callId })
+  }, [])
 
   // The call dropped without the candidate pressing End: tell the server (it
   // decides whether a rejoin link/code is issued) and show the lost screen.
-  // TODO(backend): real Retell drops — call this from the Retell disconnect
-  // handling once the server confirms the disconnection reason.
+  // Real drops reach here from the Vapi 'error' event (onVapiError below).
   const handleConnectionLost = useCallback(
     async (roundId) => {
       stopSessionTimer()
@@ -342,14 +348,14 @@ export function useSeraInterview() {
     [stopSessionTimer, updateSession]
   )
 
-  // DEV ONLY — walks the rounds with a simulated call: no sera-start-call, no
-  // Retell. Screening → offers → HR → (hand-over) → Final, then wrapup → report.
+  // DEV ONLY — walks the rounds with a simulated call: no start-call, no
+  // Vapi. Screening → offers → HR → (hand-over) → Final, then wrapup → report.
   // Uses the real server modules on the fixtures (seraMockReport): the call
   // variables per round, the round transcripts + summaries, and the report.
   const runMockRound = useCallback(
     (startIndex) => {
       if (!import.meta.env.DEV) return // stripped from production builds
-      // What Retell (transcript) and the summary LLM would give for a round.
+      // What Vapi (transcript) and the summary LLM would give for a round.
       const recordRound = async (roundId, seconds, status) => {
         const { mockRoundResult } = await import('../services/seraMockReport')
         const { transcript, summary } = mockRoundResult(roundId, seconds)
@@ -396,7 +402,10 @@ export function useSeraInterview() {
         setTurnElapsed(0)
         setTurnState('sera-speaking')
         if (!round) return toReport()
-        if (round.seconds == null) return // offer choice: no call runs until chooseOffer()
+        if (round.seconds == null) {
+          startOfferCountdown() // offer pick: waits for chooseOffer() (or the 45 s cap)
+          return
+        }
 
         // Two timed rounds back to back (HR → Final): hand over to the next interviewer.
         if (!connected && rounds[index - 1]?.seconds != null) {
@@ -408,7 +417,7 @@ export function useSeraInterview() {
           return
         }
 
-        // What the server would send this round's Retell agent.
+        // What the server would send the squad for this round.
         try {
           console.info(`[DEV mock] ${round.id} agent variables`, buildCallVariables(sessionRef.current, round.id))
         } catch (err) {
@@ -469,7 +478,7 @@ export function useSeraInterview() {
       }
       run(startIndex)
     },
-    [handleConnectionLost, updateSession]
+    [handleConnectionLost, startOfferCountdown, updateSession]
   )
 
   const startMockCall = useCallback(() => {
@@ -480,24 +489,53 @@ export function useSeraInterview() {
     runMockRound(0)
   }, [runMockRound, updateSession])
 
-  // Candidate picks an offer → save it on the session → next round (HR). The
-  // server builds the HR/Final agents' variables from the chosen offer.
-  // No call runs while choosing.
+  // The candidate picked an offer (or the 45 s cap picked offers[0]). The server
+  // checks it is one of the 3 stored offers, writes it into the live call and hands
+  // the SAME call to Vinit; only then does the HR round start on screen.
   const chooseOffer = useCallback(
-    (offer) => {
+    async (offer) => {
+      if (offerPickedRef.current) return
+      offerPickedRef.current = true
+      clearInterval(offerTimerRef.current)
+      setOfferSecondsLeft(null)
       updateSession((s) => ({ ...s, chosenOfferId: offer.id }))
-      saveOfferChoice(sessionRef.current?.sessionId, offer.id)
+
       if (import.meta.env.DEV && isMockMode()) {
+        saveOfferChoice(sessionRef.current?.sessionId, offer.id)
         runMockRound(2)
         return
       }
-      startNextRoundRef.current?.(2)
+
+      setConnectingTo(roundsFor(sessionRef.current?.route)[2])
+      let saved = { ok: false }
+      for (let attempt = 0; attempt < 3 && !saved.ok; attempt++) {
+        if (attempt) await new Promise((resolve) => setTimeout(resolve, 1500))
+        saved = await saveOfferChoice(sessionRef.current?.sessionId, offer.id)
+      }
+
+      if (!saved.ok) {
+        // The call is open but silent and nothing can continue it: end it and
+        // report on what was said in screening.
+        setConnectingTo(null)
+        setError("We couldn't connect your next round, so here is what we have from the first one.")
+        candidateEndedRef.current = true
+        markCandidateEnded(sessionRef.current?.sessionId)
+        vapiRef.current?.stop().catch(() => {})
+        return
+      }
+
+      vapiRef.current?.setMuted(false)
+      setMuted(false)
+      updateSession((s) => ({ ...patchRound(s, 'hr', { status: 'live' }), status: 'live' }))
+      setConnectingTo(null)
+      enterRound(2)
     },
-    [runMockRound, updateSession]
+    [enterRound, runMockRound, updateSession]
   )
 
-  // Screening call. Runs only after the résumé check passed, and for New
-  // Users only after the server verified the payment.
+  // Starts the ONE call for the whole interview (Sera → Vinit → Sonia). Runs only
+  // after the résumé check passed, and for New Users only after the server
+  // verified the payment.
   const startInterview = useCallback(async () => {
     const current = sessionRef.current
     if (!current?.resume.objectKey) return
@@ -514,7 +552,7 @@ export function useSeraInterview() {
     }
 
     try {
-      const result = await startRoundCall(current, 'screening')
+      const result = await startInterviewCall(current)
       if (result.blocked) {
         setBlockedMessage(result.message)
         setScreen('blocked')
@@ -530,20 +568,21 @@ export function useSeraInterview() {
       roundIndexRef.current = 0
       setRoundIndex(0)
       setScreen('interview')
-      setTurnState('sera-speaking')
-      await connectRetell(result.accessToken)
+      setTurnState('connecting') // until Sera is actually audible
+      await connectVapi(result)
     } catch (err) {
       setError(err.message || 'Something went wrong — please try again')
       setScreen('upload')
     } finally {
       setBusy(false)
     }
-  }, [connectRetell, startMockCall, updateSession])
+  }, [connectVapi, startMockCall, updateSession])
 
   // Résumé check + the 3 offers in one step (seraResumeService), stored on the session.
   const beginInterview = useCallback(
     async (overrideFile = null) => {
-      const file = overrideFile || resumeFile
+      // overrideFile is only for the DEV panel; anything that is not a real file (e.g. a click event) is ignored
+      const file = overrideFile instanceof Blob ? overrideFile : resumeFile
       if (!file || !sessionRef.current) return
       setBusy(true)
       setError(null)
@@ -591,15 +630,10 @@ export function useSeraInterview() {
   }, [updateSession])
 
   const toggleMute = useCallback(() => {
-    const client = retellRef.current
+    const client = vapiRef.current
     if (!client) return
-    if (muted) {
-      client.unmute()
-      setMuted(false)
-    } else {
-      client.mute()
-      setMuted(true)
-    }
+    client.setMuted(!muted)
+    setMuted(!muted)
   }, [muted])
 
   // Candidate confirmed "End interview". Tell the server it was intentional
@@ -611,8 +645,17 @@ export function useSeraInterview() {
       new Promise((resolve) => setTimeout(resolve, 1500)),
     ])
     if (import.meta.env.DEV) mockCallRef.current?.endNow()
-    retellRef.current?.stopCall()
-  }, [])
+    const client = vapiRef.current
+    if (!client) return
+    client.stop().catch(() => {})
+    // Leaving the room normally fires call-end; if it somehow doesn't, don't hang.
+    setTimeout(() => {
+      if (!candidateEndedRef.current) return
+      candidateEndedRef.current = false
+      callActiveRef.current = false
+      finishInterview()
+    }, 1500)
+  }, [finishInterview])
 
   // Rejoin after a dropped call ({ session, round } from redeemRejoin): skip
   // upload and pay, restart the dropped round (earlier rounds, offers and the
@@ -634,14 +677,135 @@ export function useSeraInterview() {
         runMockRound(index)
         return
       }
-      // TODO(backend): start the rejoin call via startRoundCall(session, round)
-      // (no payment, no seat) and resume at this round.
+      // TODO(backend): rejoin on the squad. A Vapi squad call starts at its first
+      // member, so restarting mid-interview needs a decision (docs/sera-vapi.md).
       setRoundIndex(index)
     },
     [runMockRound, updateSession]
   )
 
+  // Timers and Vapi events call the LATEST handlers through this ref, so they never
+  // act on stale state. (Assigned after render, as React expects.)
+  useEffect(() => {
+    liveRef.current = {
+      chooseOffer,
+
+      // Safety nets only — the assistants hand over by themselves.
+      onClockTick: (elapsedSeconds) => {
+        const round = roundsFor(sessionRef.current?.route)[roundIndexRef.current]
+        if (!round?.seconds) return
+        if (round.id === 'screening' && elapsedSeconds === round.seconds + OFFERS_FALLBACK_SECONDS) showOffers()
+        if (round.id === 'hr' && elapsedSeconds === round.seconds + HR_UI_GRACE_SECONDS) enterFinal()
+      },
+
+      onCallStart: () => {
+        if (callStartedRef.current) return // the SDK reports call-start twice; the second must not restart anything
+        callStartedRef.current = true
+        setTurnState('connecting')
+        // The clock starts when Sera is audible (startFirstClock), not when the room connects.
+        clearTimeout(clockFallbackRef.current)
+        clockFallbackRef.current = setTimeout(() => liveRef.current.startFirstClock?.(), CLOCK_START_FALLBACK_MS)
+        // Follow the server for the whole call: it hears Vapi (show_offers, which assistant is speaking).
+        clearInterval(offersPollRef.current)
+        offersPollRef.current = setInterval(async () => {
+          const state = await fetchCallState(sessionRef.current)
+          if (!state) return
+          if (state.offersShown && roundIndexRef.current === 0) showOffers()
+          if (state.round === 'final' && roundIndexRef.current === 2) enterFinal()
+        }, 2000)
+      },
+
+      startFirstClock: () => {
+        if (clockStartedRef.current || roundIndexRef.current !== 0) return
+        clockStartedRef.current = true
+        clearTimeout(clockFallbackRef.current)
+        enterRound(0)
+      },
+
+      // Vapi's speech-start / speech-end are the ASSISTANT's speech.
+      onSeraSpeaking: (speaking) => {
+        if (roundIndexRef.current === 0 && speaking) liveRef.current.startFirstClock?.() // first audible speech starts the clock
+        if (roundIndexRef.current === 1) return // offer pick: silent
+        turnActiveRef.current = !speaking
+        stalledExtraSecondsRef.current = 0
+        turnElapsedRef.current = 0
+        setTurnElapsed(0)
+        setTurnState(speaking ? 'sera-speaking' : 'your-turn')
+      },
+
+      onVapiMessage: (message) => {
+        if (isShowOffersMessage(message)) {
+          showOffers()
+          return
+        }
+        // Vapi's own turn signal: who is speaking (more exact than the SDK's audio-level guess).
+        if (message?.type === 'speech-update' && message.role === 'assistant') {
+          liveRef.current.onSeraSpeaking?.(message.status === 'started')
+          return
+        }
+        // Vapi tells the client which squad member took over: follow it.
+        if (message?.type === 'assistant.started') {
+          const name = message.assistant?.name ?? message.newAssistant?.name ?? message.assistantName
+          if (roundOfAssistantName(name) === 'final') enterFinal()
+        }
+      },
+
+      onCallEnd: () => {
+        if (!callActiveRef.current) return
+        callActiveRef.current = false
+        stopSessionTimer()
+        clearInterval(offerTimerRef.current)
+        clearInterval(offersPollRef.current)
+        if (candidateEndedRef.current) {
+          candidateEndedRef.current = false
+          finishInterview()
+          return
+        }
+        const index = roundIndexRef.current
+        if (index >= 2) {
+          // HR or Final: the assistant ended the call — the server decides what the report can say.
+          updateSession((s) => patchRound(s, index === 2 ? 'hr' : 'final', { status: 'completed' }))
+          finishInterview()
+          return
+        }
+        // Screening never ends the call itself, so ending before the HR round is a drop.
+        handleConnectionLost('screening')
+      },
+
+      onVapiError: (err) => {
+        console.error('Vapi call error:', err)
+        if (!callActiveRef.current) return
+        callActiveRef.current = false
+        stopSessionTimer()
+        clearInterval(offerTimerRef.current)
+        clearInterval(offersPollRef.current)
+        vapiRef.current?.stop().catch(() => {})
+        if (candidateEndedRef.current) {
+          candidateEndedRef.current = false
+          finishInterview()
+          return
+        }
+        if (!callStartedRef.current) {
+          setError('The call dropped unexpectedly — please try again.')
+          setScreen('upload')
+          releaseReservation(sessionRef.current)
+          return
+        }
+        const round = roundsFor(sessionRef.current?.route)[roundIndexRef.current]
+        handleConnectionLost(round?.id === 'offer' ? 'screening' : (round?.id ?? 'screening'))
+      },
+    }
+  })
+
   useEffect(() => stopSessionTimer, [stopSessionTimer])
+  useEffect(
+    () => () => {
+      clearInterval(offerTimerRef.current)
+      clearInterval(offersPollRef.current)
+      vapiRef.current?.stop().catch(() => {})
+    },
+    []
+  )
   useEffect(() => () => import.meta.env.DEV && mockCallRef.current?.stop(), [])
 
   useEffect(() => {
@@ -723,6 +887,8 @@ export function useSeraInterview() {
     roundIndex,
     roundSecondsLeft,
     chooseOffer,
+    holdOfferTimer,
+    offerSecondsLeft,
     lostInfo,
     resumeSession,
     muted,

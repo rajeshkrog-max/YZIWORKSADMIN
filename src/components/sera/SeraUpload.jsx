@@ -3,14 +3,7 @@ import SeraWave from './SeraWave'
 import GlassCard from './glass/GlassCard'
 import VerifiedRow from './glass/VerifiedRow'
 
-async function hasPdfSignature(file) {
-  try {
-    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer())
-    return String.fromCharCode(...head) === '%PDF-'
-  } catch {
-    return false
-  }
-}
+import { isPdfFile } from '../../utils/seraUpload'
 
 function formatSize(bytes) {
   return `${Math.max(0.1, bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -36,18 +29,15 @@ function SeraUpload({ session, resumeFile, onSelectFile, onBegin, busy, error })
   const handleFiles = async (fileList) => {
     const file = fileList?.[0]
     if (!file) return
-    if (!/\.pdf$/i.test(file.name)) {
-      onSelectFile(null, 'Sera only reads PDF résumés — please upload a .pdf file')
-      return
-    }
     if (file.size > 10 * 1024 * 1024) {
       onSelectFile(null, 'That file is over 10 MB — please upload a smaller PDF')
       return
     }
-    // A real PDF starts with "%PDF-" — catches a .docx/.jpg renamed to .pdf.
+    // Judged by content (it must start with "%PDF-"), not by its name: a real PDF saved as
+    // "Resume" or "resume.pdf (1)" is fine, a .docx/.jpg renamed to .pdf is not.
     // The server's résumé check still runs after this.
-    if (!(await hasPdfSignature(file))) {
-      onSelectFile(null, "This file isn't a real PDF. Please upload your résumé as a PDF.")
+    if (!(await isPdfFile(file))) {
+      onSelectFile(null, "Sera only reads PDF résumés — this file isn't a real PDF. Please upload your résumé as a PDF.")
       return
     }
     onSelectFile(file)
@@ -135,7 +125,7 @@ function SeraUpload({ session, resumeFile, onSelectFile, onBegin, busy, error })
 
         <button
           type="button"
-          onClick={onBegin}
+          onClick={() => onBegin()} // no argument: a click event must never be taken for a file
           disabled={!resumeFile || busy}
           className="mt-6 w-full h-[50px] rounded-full bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple text-white font-semibold transition hover:brightness-110 disabled:from-fg/15 disabled:via-fg/15 disabled:to-fg/15 disabled:text-fg/40 disabled:cursor-not-allowed disabled:hover:brightness-100"
         >

@@ -6,14 +6,24 @@ const SERA_CREATE_UPLOAD_ENDPOINT = '/api/sera/create-upload'
 
 const MAX_SIZE = 10 * 1024 * 1024
 
+// A PDF is a file whose first bytes are "%PDF-". Judged by content, not by name: phones,
+// downloads and chat apps routinely save a real PDF as "Resume", "resume.pdf (1)" or "resume.pdf ".
+export async function isPdfFile(file) {
+  try {
+    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer())
+    return String.fromCharCode(...head) === '%PDF-'
+  } catch {
+    return false
+  }
+}
+
 export async function uploadResumeToR2(file) {
   if (!file) {
     throw new Error('Please select a résumé to upload')
   }
 
-  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
-  if (!isPdf) {
-    throw new Error('Sera only reads PDF résumés — please upload a .pdf file')
+  if (!(await isPdfFile(file))) {
+    throw new Error("Sera only reads PDF résumés — this file doesn't look like a PDF")
   }
 
   if (file.size > MAX_SIZE) {
@@ -38,7 +48,7 @@ export async function uploadResumeToR2(file) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       filename: file.name,
-      contentType: file.type || 'application/pdf',
+      contentType: 'application/pdf', // verified above by content
       size: file.size,
       base64,
     }),

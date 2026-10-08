@@ -5,6 +5,7 @@ import LoginTabs from './LoginTabs'
 import GoogleStep from './GoogleStep'
 import StudentCodeStep from './StudentCodeStep'
 import WhatsAppStep from './WhatsAppStep'
+import DemoAccess from './DemoAccess'
 import { checkStudentCode, completeLogin } from '../../../services/seraAuthService'
 import { redeemRejoin } from '../../../services/seraSessionService'
 
@@ -188,6 +189,8 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
           <p className="mt-5 text-xs text-fg/45">We only use your number to verify it's you.</p>
         </div>
       </div>
+
+      {!rejoinToken && <DemoAccess onDone={onDone} />}
     </div>
   )
 }

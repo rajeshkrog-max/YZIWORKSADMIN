@@ -8,15 +8,18 @@ const LEAVE_MS = 350 // then all tiles leave
 
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// Shown between Screening and the HR round (students). The clock is paused;
+// Shown between Screening and the HR round. The call stays open but silent, so
+// there is a cap (secondsLeft): at zero the page picks the first offer itself.
+// onTap(offer) fires the moment a tile is tapped (it stops that countdown);
 // onChoose(offer) fires after the exit animation.
-function OfferPicker({ offers, onChoose }) {
+function OfferPicker({ offers, onChoose, onTap, secondsLeft = null }) {
   const [chosenId, setChosenId] = useState(null)
   const [leaving, setLeaving] = useState(false)
 
   const choose = (offer) => {
     if (chosenId) return
     setChosenId(offer.id)
+    onTap?.(offer)
     if (prefersReducedMotion()) {
       onChoose(offer)
       return
@@ -33,7 +36,11 @@ function OfferPicker({ offers, onChoose }) {
       <p className="mt-2 text-sm sm:text-base text-fg/65 max-w-xl">
         Sera built these three from your résumé. Your next two rounds are for the one you choose.
       </p>
-      <p className="mt-1.5 text-xs text-fg/45">Take your time. The clock is paused while you choose.</p>
+      <p className="mt-1.5 text-xs text-fg/45" aria-live="off">
+        {secondsLeft == null || chosenId
+          ? 'Tap the one you want.'
+          : `Tap the one you want. If you don't, we'll pick the first one in ${secondsLeft}s.`}
+      </p>
 
       {offers?.length ? (
         <div className="mt-8 w-full grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">

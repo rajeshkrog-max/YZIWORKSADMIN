@@ -44,7 +44,7 @@ function SeraDevPanel() {
       : call?.roundIndex === 2
         ? 'HR Round (Vinit)'
         : call?.roundIndex === 3
-          ? 'Final Round (Arvind)'
+          ? 'Final Round (Sonia)'
           : null)
 
   return (
@@ -98,7 +98,7 @@ function SeraDevPanel() {
                 )}
                 {call?.roundIndex < 3 && (
                   <DevButton onClick={() => call?.jumpToRound?.(3)}>
-                    👑 Jump to Final Round (Arvind)
+                    👑 Jump to Final Round (Sonia)
                   </DevButton>
                 )}
                 <DevButton variant="accent" onClick={() => call?.jumpToReport?.() || ui?.skipToReport?.()}>
