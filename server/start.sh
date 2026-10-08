@@ -1,102 +1,92 @@
 #!/usr/bin/env bash
-# start.sh — Lifecycle management for YZI Works Meet Sera Backend (Port 4005)
+# start.sh: lifecycle for the YZI Works Meet Sera backend (port 4005). Spec 0001.
+# The backend runs under a watchdog (server/supervise.mjs) that cron keeps alive through server/ensure.sh.
+# This script never starts Node itself, so nothing can start a second, unsupervised server.
+#
+#   start     make sure the watchdog is running and wait for the backend to answer
+#   stop      create run/stop: the watchdog stops Node and exits, and nothing brings them back
+#   restart   remove run/stop, ask the running server to exit; the watchdog starts the new one in seconds
+#   check     what cron runs: ensure.sh (does nothing when the watchdog is alive or run/stop exists)
+#   status    is the backend answering
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$APP_DIR/.." && pwd)"
 PORT="${SERA_PORT:-4005}"
-PID_FILE="$ROOT_DIR/yzi-backend.pid"
-LOG_FILE="$ROOT_DIR/yzi-backend.log"
-NODE_BIN="$(which node 2>/dev/null || echo "/home3/veywkomy/bin/node")"
+RUN_DIR="$ROOT_DIR/run"
+STOP_FILE="$RUN_DIR/stop"
 
 cd "$ROOT_DIR" || exit 1
+mkdir -p "$RUN_DIR"
 
 is_healthy() {
     curl -s -m 2 "http://127.0.0.1:$PORT/health" | grep -q '"ok":true'
 }
 
+# Ask the running server to exit on its own (each ssh login has its own process id space, so it cannot be killed from here).
+ask_exit() {
+    local secret
+    secret=$(grep '^VAPI_WEBHOOK_SECRET=' "$ROOT_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    [ -n "$secret" ] || return 1
+    curl -s -o /dev/null -m 5 -X POST -H "Authorization: Bearer $secret" "http://127.0.0.1:$PORT/api/sera/admin/restart"
+}
+
+wait_for() { # wait_for healthy|down SECONDS
+    local want="$1" secs="$2" i
+    for ((i = 0; i < secs; i++)); do
+        if [ "$want" = healthy ] && is_healthy; then return 0; fi
+        if [ "$want" = down ] && ! is_healthy; then return 0; fi
+        sleep 1
+    done
+    return 1
+}
+
 case "$1" in
     start)
-        if is_healthy; then
-            echo "YZI Backend is already running and healthy on port $PORT"
+        if [ -e "$STOP_FILE" ]; then
+            echo "YZI Backend was stopped on purpose (remove $STOP_FILE, or run restart, to bring it back)"
             exit 0
         fi
-
-        # Clean stale process if any
-        if [ -f "$PID_FILE" ]; then
-            OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
-            if [ -n "$OLD_PID" ]; then
-                kill -9 "$OLD_PID" 2>/dev/null || true
-            fi
-            rm -f "$PID_FILE"
+        bash "$APP_DIR/ensure.sh"
+        if wait_for healthy 30; then
+            echo "YZI Backend is running and healthy on port $PORT"
+        else
+            echo "Warning: the watchdog is started but port $PORT does not answer yet (see $ROOT_DIR/yzi-backend.log)"
         fi
-
-        # Truncate log if > 5MB
-        if [ -f "$LOG_FILE" ]; then
-            LOG_SIZE=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
-            if [ "$LOG_SIZE" -gt 5242880 ]; then
-                tail -n 1000 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
-            fi
-        fi
-
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting YZI Works Sera Backend on port $PORT..." >> "$LOG_FILE"
-
-        # Load environment from .env if present
-        if [ -f "$ROOT_DIR/.env" ]; then
-            set -a
-            source "$ROOT_DIR/.env"
-            set +a
-        fi
-
-        export SERA_PORT="$PORT"
-        nohup "$NODE_BIN" server/index.js </dev/null >>"$LOG_FILE" 2>&1 &
-        NEW_PID=$!
-        echo "$NEW_PID" > "$PID_FILE"
-        disown "$NEW_PID" 2>/dev/null || true
-
-        # Wait up to 5 seconds for health
-        for i in 1 2 3 4 5; do
-            sleep 1
-            if is_healthy; then
-                echo "YZI Backend started successfully with PID $NEW_PID on port $PORT (healthy in ${i}s)"
-                exit 0
-            fi
-        done
-
-        echo "Warning: YZI Backend process spawned ($NEW_PID), waiting on port $PORT..."
         ;;
 
     stop)
-        if [ -f "$PID_FILE" ]; then
-            OLD_PID=$(cat "$PID_FILE" 2>/dev/null)
-            if [ -n "$OLD_PID" ]; then
-                kill -9 "$OLD_PID" 2>/dev/null || true
-            fi
-            rm -f "$PID_FILE"
+        touch "$STOP_FILE"
+        ask_exit || true
+        if wait_for down 50; then
+            echo "YZI Backend stopped. It stays stopped until $STOP_FILE is removed."
+        else
+            echo "Stop requested; the watchdog is still stopping the server (see $ROOT_DIR/yzi-backend.log)"
         fi
-        pkill -u veywkomy -9 -f "server/index.js" 2>/dev/null || true
-        echo "YZI Backend stopped"
         ;;
 
     restart)
-        bash "$APP_DIR/start.sh" stop
-        sleep 2
-        bash "$APP_DIR/start.sh" start
+        rm -f "$STOP_FILE"
+        bash "$APP_DIR/ensure.sh"
+        ask_exit || true
+        wait_for down 10 || true
+        if wait_for healthy 40; then
+            echo "YZI Backend restarted and healthy on port $PORT"
+        else
+            echo "Warning: port $PORT does not answer yet (see $ROOT_DIR/yzi-backend.log)"
+        fi
         ;;
 
     status)
         if is_healthy; then
-            echo "✓ YZI Works Sera Backend: Healthy on port $PORT"
+            echo "OK: YZI Works Sera Backend is healthy on port $PORT"
             exit 0
         else
-            echo "✗ YZI Works Sera Backend: STOPPED or unresponsive on port $PORT"
+            echo "DOWN: YZI Works Sera Backend is stopped or not answering on port $PORT"
             exit 1
         fi
         ;;
 
     check)
-        if ! is_healthy; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backend down. Auto-recovering..." >> "$LOG_FILE"
-            bash "$APP_DIR/start.sh" restart
-        fi
+        exec bash "$APP_DIR/ensure.sh"
         ;;
 
     *)
