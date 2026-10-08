@@ -33,7 +33,15 @@ dist-ssr
 # Server runtime data
 server/data/sessions/
 server/data/orders/
+server/data/reservations/
 
 # Deployment bundles
 deploy*.tar.gz
 deploy-remote.sh
+
+# Real campus codes and runtime settings (the backend creates these on its host)
+server/data/student_codes.json
+server/data/settings.json
+
+# Runtime files the watchdog writes on the host (heartbeat, stop flag, logs)
+run/

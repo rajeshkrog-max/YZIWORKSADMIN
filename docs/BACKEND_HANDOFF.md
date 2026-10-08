@@ -1,5 +1,7 @@
 # Sera backend handoff — start here
 
+> **Superseded for the call itself:** the interview is now ONE Vapi squad call, run by `server/index.js` on YZIServer (not Netlify, not Retell). Read [sera-vapi.md](sera-vapi.md) for the call, offer handoff, webhook and env names. The Retell parts below (§1 `RETELL_*`, §6, the per-round `sera-start-call`) are history.
+
 The Meet Sera frontend is complete and runs end to end in mock mode (`VITE_SERA_MOCK=true` on `npm run dev`). This page is the **one starting point** for wiring the real backend, in build order. The detailed contracts are linked, not repeated:
 
 | Doc | What's in it |
