@@ -29,12 +29,13 @@ export const SAMPLE_TRANSCRIPT = [
   turn('hr', 'user', 80, 112, 'Um I would tell my manager early, uh, explain what is done and what is left, and ask which part is most important.'),
   turn('hr', 'agent', 114, 120, 'Why do you want this role at Tidewell?'),
   turn('hr', 'user', 122, 150, 'I like working with people and data together, and this role has both.'),
-  // Final round (2 min)
+  // Final round (about 2.5 min of a 4 min plan)
   turn('final', 'agent', 0, 12, 'Final round. Your manager wants a report by Friday but the data is wrong. What do you do?'),
   turn('final', 'user', 14, 60, 'I would first check how much of the data is wrong, then tell the manager on the same day with two options, a partial report on Friday or a full report on Monday.'),
   turn('final', 'agent', 62, 70, 'What would you do in your first week?'),
   turn('final', 'user', 72, 100, 'I would learn the current process, uh, meet the people who use the reports, and write down where time is lost.'),
-  turn('final', 'agent', 102, 115, "Thank you, that's the end of the final round."),
+  // Rounds are planned at 240 s (src/config/seraRounds.js); a completed round runs close to that, so the closing line runs to 150 s.
+  turn('final', 'agent', 102, 150, "Thank you, that's the end of the final round."),
 ]
 
 // The same interview as Retell delivers it: one transcript per round's call.

@@ -6,13 +6,15 @@ import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Native .env file loader
 function loadEnv() {
+  // The test harness runs this server against fakes and must never pick up real keys.
+  if (process.env.SERA_SKIP_DOTENV) return
   const envCandidates = [
     path.resolve(__dirname, '../.env'),
     path.resolve(__dirname, '.env'),
@@ -29,7 +31,8 @@ function loadEnv() {
           if (eqIdx !== -1) {
             const key = trimmed.slice(0, eqIdx).trim()
             const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-            if (val) {
+            // The real environment (pm2, a test harness) wins over the .env file.
+            if (val && process.env[key] === undefined) {
               process.env[key] = val
             }
           }
@@ -39,72 +42,60 @@ function loadEnv() {
       }
     }
   }
-  console.log('[Sera Server] Active Retell Config:', {
-    hasRetellApiKey: Boolean(process.env.RETELL_API_KEY),
-    hasRetellSecret: Boolean(process.env.RETELL_WEBHOOK_SECRET),
-    screeningAgent: process.env.RETELL_AGENT_ID_SCREENING,
+  console.log('[Sera Server] Vapi config present:', {
+    publicKey: Boolean(process.env.VAPI_PUBLIC_KEY),
+    squadId: Boolean(process.env.VAPI_SQUAD_ID),
+    webhookSecret: Boolean(process.env.VAPI_WEBHOOK_SECRET),
   })
 }
 loadEnv()
 
-import { createSession, patchRound, getChosenOffer } from '../src/shared/seraSession.js'
+import { createSession, getChosenOffer } from '../src/shared/seraSession.js'
 import { cleanFirstName } from '../netlify/lib/seraCall/cleanFirstName.js'
-import { pickAgentId } from '../netlify/lib/seraCall/agents.js'
-import { buildCallVariables } from '../netlify/lib/seraCall/variables.js'
-import { buildSummaryPrompt, parseSummary, SUMMARY_LLM_SCHEMA } from '../netlify/lib/seraCall/summary.js'
 import { generateOffers } from '../netlify/lib/seraOffers/index.js'
-import { generateReport, buildReport } from '../netlify/lib/seraReport/index.js'
-import { roundsFor } from '../src/config/seraRounds.js'
+import { generateReport } from '../netlify/lib/seraReport/index.js'
 import { renderReportPdfOnServer } from '../netlify/lib/seraReport/pdfAssets.node.js'
 import { generateJson } from '../netlify/lib/openai.js'
+import {
+  clientIp,
+  createRateLimiter,
+  demoIdentity,
+  isValidPhone,
+  verifyGoogleLogin,
+  verifyMsg91Token,
+} from '../netlify/lib/seraLogin/index.js'
+import {
+  VapiNotConfiguredError,
+  buildToolCallResults,
+  createVapiCall,
+  decideOutcome,
+  getVapiConfig,
+  parseEndOfCall,
+  isShowOffersMessage,
+  offerHandoffVariables,
+  sendOfferHandoff,
+  sessionIdFromCall,
+  splitRounds,
+  verifyVapiWebhook,
+  createRoundTimers,
+  isForward,
+  roundFromServerMessage,
+  sendControlMessage,
+  getCall,
+  callToEndOfCall,
+} from '../netlify/lib/seraVapi/index.js'
+import { createShutdown, installProcessHandlers } from './shutdown.js'
+import { canClaimReport, createRecovery } from './recovery.js'
+import { roundsFor } from '../src/config/seraRounds.js'
 import * as store from './store.js'
-
-export const DEFAULT_CURATED_OFFERS = [
-  {
-    id: 'offer-1',
-    company: 'Nexus Mobility Labs',
-    logoLetter: 'N',
-    industry: 'Automotive Tech & IoT',
-    city: 'Bengaluru',
-    workMode: 'hybrid',
-    role: 'Associate Software Engineer',
-    ctcMinLpa: 8.5,
-    ctcMaxLpa: 12.0,
-    skills: ['Node.js', 'React', 'Cloud Services', 'System Design'],
-    whyFit: 'Solid engineering fundamentals with full-stack problem-solving experience.',
-    finalTwist: 'High-growth mobility startup expanding its connected vehicle platform.',
-  },
-  {
-    id: 'offer-2',
-    company: 'FinPulse Systems',
-    logoLetter: 'F',
-    industry: 'FinTech & Payments',
-    city: 'Mumbai',
-    workMode: 'remote',
-    role: 'Product Engineer',
-    ctcMinLpa: 10.0,
-    ctcMaxLpa: 14.5,
-    skills: ['Backend APIs', 'PostgreSQL', 'Microservices', 'Scalability'],
-    whyFit: 'Strong technical background with an emphasis on reliable architecture.',
-    finalTwist: 'Series-B payments unicorn processing millions of daily transactions.',
-  },
-  {
-    id: 'offer-3',
-    company: 'Zenith Health Dynamics',
-    logoLetter: 'Z',
-    industry: 'Digital Health AI',
-    city: 'Pune',
-    workMode: 'onsite',
-    role: 'Full Stack Engineer',
-    ctcMinLpa: 9.0,
-    ctcMaxLpa: 13.0,
-    skills: ['JavaScript', 'Python', 'REST APIs', 'UI Engineering'],
-    whyFit: 'Broad full-stack profile well suited to cross-functional product development.',
-    finalTwist: 'AI-first preventive healthcare provider scaling across Tier-1 hospitals.',
-  },
-]
+import { formsStatus, matchFormRoute, missingEnv, runFormHandler } from './formEndpoints.js'
+import { authorizeUpload, storeUpload, UPLOAD_PATH } from './applicationUploads.js'
 
 const PORT = Number(process.env.SERA_PORT || process.env.PORT || 4005)
+
+// Which deploy this is. scripts/deploy-sera-vapi.sh writes the git commit and time into BUILD
+// beside this server's folder; /health returns it so a deploy can confirm the new code is the code running.
+const BUILD = await fs.readFile(new URL('../BUILD', import.meta.url), 'utf8').then((s) => s.trim(), () => 'dev')
 const HOST = '127.0.0.1'
 
 // --- Cloudflare R2 Client ---
@@ -132,60 +123,85 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
+// --- CORS ---
+// The site and this API share one origin behind Apache, so browsers normally send no CORS
+// request at all. A cross origin browser call is answered only for the origins below
+// (SERA_ALLOWED_ORIGINS, comma separated, replaces the defaults). Webhooks are server to
+// server and need no CORS.
+const ALLOWED_ORIGINS = new Set(
+  (process.env.SERA_ALLOWED_ORIGINS || 'https://yziworks.com,https://www.yziworks.com')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+)
+
+function corsHeaders(origin) {
+  const headers = { Vary: 'Origin' }
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+    headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Vapi-Secret, X-Razorpay-Signature'
+  }
+  return headers
+}
+
 // Helpers
 function sendJson(res, statusCode, body) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Retell-Signature, X-Razorpay-Signature',
-  })
+  res.writeHead(statusCode, { 'Content-Type': 'application/json', ...corsHeaders(res.requestOrigin) })
   res.end(JSON.stringify(body))
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = ''
-    req.on('data', (chunk) => {
-      raw += chunk
-      if (raw.length > 25 * 1024 * 1024) {
-        reject(new Error('Payload too large'))
-      }
-    })
-    req.on('end', () => resolve(raw))
-    req.on('error', reject)
-  })
-}
+const MAX_BODY_BYTES = Number(process.env.SERA_MAX_BODY_BYTES) || 25 * 1024 * 1024
 
-function readBodyBuffer(req) {
+// Reads the body as text. Past the limit it stops collecting, drains the rest of the upload
+// without keeping it, and rejects once with a 413 so the caller can answer.
+function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let total = 0
+    let tooLarge = false
     req.on('data', (chunk) => {
-      chunks.push(chunk)
+      if (tooLarge) return
       total += chunk.length
-      if (total > 25 * 1024 * 1024) {
-        reject(new Error('Payload too large'))
+      if (total > MAX_BODY_BYTES) {
+        tooLarge = true
+        chunks.length = 0
+        return
       }
+      chunks.push(chunk)
     })
-    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('end', () => {
+      if (!tooLarge) return resolve(Buffer.concat(chunks).toString('utf8'))
+      reject(Object.assign(new Error('Payload too large'), { statusCode: 413 }))
+    })
     req.on('error', reject)
   })
 }
 
-function verifyRetellSignature(rawBody, signatureHeader, secret) {
-  if (!signatureHeader || !secret) return false
-  const parts = Object.fromEntries(signatureHeader.split(',').map((p) => p.trim().split('=')))
-  const { v: timestamp, d: digest } = parts
-  if (!timestamp || !digest) return false
-  if (Math.abs(Date.now() - Number(timestamp)) > 5 * 60 * 1000) return false
-
-  const expected = crypto.createHmac('sha256', secret).update(rawBody + timestamp).digest('hex')
-  const b1 = Buffer.from(expected, 'hex')
-  const b2 = Buffer.from(digest, 'hex')
-  if (b1.length !== b2.length) return false
-  return crypto.timingSafeEqual(b1, b2)
+// Reads a raw body. Past `limit` it stops collecting, drains the rest, and rejects once with a 413.
+function readBodyBuffer(req, limit = MAX_BODY_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let total = 0
+    let tooLarge = false
+    req.on('data', (chunk) => {
+      if (tooLarge) return
+      total += chunk.length
+      if (total > limit) {
+        tooLarge = true
+        chunks.length = 0
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      if (!tooLarge) return resolve(Buffer.concat(chunks))
+      reject(Object.assign(new Error('Payload too large'), { statusCode: 413 }))
+    })
+    req.on('error', reject)
+  })
 }
+
 
 function isAdminEmail(email) {
   const allowlist = (process.env.SERA_ADMIN_EMAILS || '')
@@ -195,26 +211,295 @@ function isAdminEmail(email) {
   return allowlist.includes(String(email || '').toLowerCase())
 }
 
+// Public view of a session. The Vapi controlUrl (a capability to steer the live call)
+// and the résumé text stay on the server.
+function toPublicSession(session) {
+  const { vapi, resumeText, ...rest } = session
+  return { ...rest, offersShown: Boolean(vapi?.offersShownAt), callRound: vapi?.round ?? null }
+}
+
+// Read-modify-write one session at a time. A report takes ~30 s to build; without
+// this, a late save could overwrite a newer one (e.g. "candidate ended").
+const sessionLocks = new Map()
+function mutateSession(sessionId, fn) {
+  const run = (sessionLocks.get(sessionId) ?? Promise.resolve()).then(async () => {
+    const session = await store.getSession(sessionId)
+    if (!session) return null
+    const result = await fn(session)
+    await store.saveSession(session)
+    return result
+  })
+  sessionLocks.set(sessionId, run.catch(() => {}))
+  return run
+}
+
+// Brute-force and cost protection on the public login endpoints (per client IP).
+const loginLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 15 })
+const demoLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 10 })
+const codeLimiter = createRateLimiter({ windowMs: 5 * 60 * 1000, max: 60 })
+const uploadLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 60 })
+let warnedNoMsg91 = false
+
+// What the browser gets back from a login.
+const publicLogin = (session) => ({
+  sessionId: session.sessionId,
+  route: session.route,
+  firstName: session.firstName,
+  email: session.email,
+  phone: session.phone,
+  studentCode: session.studentCode,
+})
+
+// The round timers: "time is nearly up" / "time is up" notes into the live call (Vinit's and Sonia's
+// prompts expect them), plus backstops. SERA_ROUND_TIME_SCALE only shrinks the delays in tests.
+const ROUND_SECONDS = Object.fromEntries(roundsFor().filter((r) => r.seconds).map((r) => [r.id, r.seconds]))
+const callSessions = new Map() // Vapi call id -> session id (the webhook's fast path)
+
+const roundTimers = createRoundTimers({
+  scale: Number(process.env.SERA_ROUND_TIME_SCALE) || 1,
+  send: (controlUrl, message) => sendControlMessage(controlUrl, message),
+  isCurrent: async (sessionId, round, step) => {
+    const s = await store.getSession(sessionId)
+    const v = s?.vapi
+    if (!v || v.endHandled) return false
+    if (step === 'force-handoff') return v.round === 'hr' && v.sawSignals === true // Vinit still talking, per Vapi's own signals
+    if (step === 'assume-final') return v.round === 'hr' && !v.sawSignals // blind: assume Vinit handed off on schedule
+    return v.round === round
+  },
+  // Recorded BEFORE the note is sent: a crash can lose one note but never send it twice after a restart.
+  record: (sessionId, round, step) =>
+    mutateSession(sessionId, (s) => {
+      if (!s.vapi) return
+      const steps = s.vapi.timerSteps ?? {}
+      s.vapi.timerSteps = { ...steps, [round]: { ...(steps[round] ?? {}), [step]: new Date().toISOString() } }
+    }),
+  onEvent: ({ sessionId, round, step, ok, error }) => {
+    console.log(`[Vapi] session ${sessionId.slice(0, 8)} ${round} timer ${step}: ${ok ? 'ok' : `FAILED ${error}`}`)
+    if (ok && step === 'assume-final') void enterRound(sessionId, 'final', { blind: true }).catch((e) => console.error('[Vapi] assume-final failed:', e))
+  },
+})
+
+// Move a call forward to `round` (never backwards) and start that round's timers.
+async function enterRound(sessionId, round, { blind = false } = {}) {
+  const started = await mutateSession(sessionId, (s) => {
+    const v = s.vapi
+    if (!v || v.endHandled || !isForward(v.round, round)) return null
+    v.round = round
+    v.roundStartedAt = { ...(v.roundStartedAt ?? {}), [round]: new Date().toISOString() }
+    return { controlUrl: v.controlUrl }
+  })
+  if (!started) return false
+  console.log(`[Vapi] session ${sessionId.slice(0, 8)} -> ${round}${blind ? ' (assumed: no Vapi signals seen)' : ''}`)
+  if (ROUND_SECONDS[round]) roundTimers.start({ sessionId, round, seconds: ROUND_SECONDS[round], controlUrl: started.controlUrl })
+  return true
+}
+
+// Any Vapi server message that says which assistant is speaking. Never throws, never slow.
+async function noteRoundSignal(message) {
+  const round = roundFromServerMessage(message)
+  if (!round) return
+  const call = message.call ?? {}
+  const sessionId = sessionIdFromCall(call) ?? callSessions.get(call.id)
+  if (!sessionId) return
+  await mutateSession(sessionId, (s) => {
+    if (s.vapi && !s.vapi.sawSignals) s.vapi.sawSignals = true
+  })
+  await enterRound(sessionId, round)
+}
+
+// Double-clicks / two tabs: one start-call and one choose per session at a time.
+const inFlight = new Set()
+
+const ALREADY_USED_MESSAGE = "You've already completed your interview with Sera — thanks for stopping by!"
+const FORGIVENESS_WINDOW_MS = 90 * 1000
+const REPORT_STALE_MS = 5 * 60 * 1000
+
+// A call that stalled right at the start doesn't use up the interview: give back the
+// slot, the payment and the seat. Enforced on the server (not just the client timer).
+async function forgiveEarlyStall(session) {
+  const v = session.vapi
+  if (!v?.callId || session.report || Date.now() - Date.parse(v.startedAt) > FORGIVENESS_WINDOW_MS) return false
+  if (!v.admin) {
+    await store.releaseReservation(session.email)
+    if (v.paymentOrderId) await store.saveOrder(v.paymentOrderId, { used: false, usedBySessionId: null })
+    if (v.seatConsumedFor) await store.refundStudentSeat(v.seatConsumedFor)
+  }
+  session.vapi = null
+  session.status = 'new'
+  session.rounds.screening = { callId: null, status: 'pending', transcript: null }
+  return true
+}
+
+// The one report (and its PDF) for an interview. Runs only from the Vapi
+// end-of-call webhook; the browser just polls get-report.
+const PROCESS_STARTED_MS = Date.now()
+let workInProgress = 0 // reports being built; a graceful stop waits for these
+
+// `stale` is only passed by the restart recovery (server/recovery.js): it may take over a report that was
+// running when the previous process stopped, once. Every claim counts in `reportAttempts`, so one interview
+// can never cost more than two report runs.
+async function finalizeReport(sessionId, { stale = false } = {}) {
+  const claimed = await mutateSession(sessionId, (s) => {
+    if (!canClaimReport(s, { stale, processStartedMs: PROCESS_STARTED_MS })) return null
+    s.reportState = 'running'
+    s.reportStartedAt = new Date().toISOString()
+    s.reportAttempts = (s.reportAttempts ?? 0) + 1
+    return structuredClone(s)
+  })
+  if (!claimed) return
+
+  workInProgress += 1
+  try {
+    const transcripts = Object.fromEntries(['screening', 'hr', 'final'].map((r) => [r, claimed.rounds?.[r]?.transcript ?? []]))
+    const llmCall = ({ prompt, schema }) => generateJson({ prompt, schema })
+    const { report, validation } = await generateReport(llmCall, {
+      transcripts,
+      chosenOffer: getChosenOffer(claimed),
+      resumeHighlights: claimed.resume?.highlight || '',
+      route: claimed.route,
+      firstName: claimed.firstName,
+      interviewDate: new Date().toISOString().slice(0, 10),
+    })
+    if (!validation.valid) throw new Error(`report failed validation: ${validation.errors.join('; ')}`)
+
+    let reportPdfKey = null
+    try {
+      const pdfBytes = await renderReportPdfOnServer(report)
+      reportPdfKey = `sera-reports/${sessionId}.pdf`
+      await getS3Client().send(
+        new PutObjectCommand({ Bucket: BUCKET_NAME, Key: reportPdfKey, Body: Buffer.from(pdfBytes), ContentType: 'application/pdf' })
+      )
+    } catch (pdfErr) {
+      reportPdfKey = null
+      console.error('[Report] PDF render/upload failed:', pdfErr.message)
+    }
+
+    await mutateSession(sessionId, (s) => {
+      s.report = report
+      s.reportPdfKey = reportPdfKey
+      s.reportState = 'done'
+      s.status = 'completed'
+    })
+  } catch (err) {
+    console.error('[Report] generation failed:', err)
+    await mutateSession(sessionId, (s) => {
+      s.reportState = 'failed'
+      s.status = 'report_failed'
+    })
+  } finally {
+    workInProgress -= 1
+  }
+}
+
+// What the Vapi end-of-call report means for the session. Idempotent per call.
+async function processEndOfCall({ callId, sessionId: metadataSessionId, endedReason, messages }) {
+  const sessionId = metadataSessionId ?? callSessions.get(callId) ?? (await store.findSessionByVapiCallId(callId))?.sessionId
+  if (!sessionId) return
+  roundTimers.clear(sessionId)
+  const outcome = await mutateSession(sessionId, (s) => {
+    if (!s.vapi || (callId && s.vapi.callId !== callId) || s.vapi.endHandled) return null // stale call / webhook retry
+    s.vapi.endHandled = true
+    s.vapi.endedReason = endedReason
+
+    const handoffAfter = s.vapi.handoffAt ? (Date.parse(s.vapi.handoffAt) - Date.parse(s.vapi.startedAt)) / 1000 : null
+    const { transcripts, attributedByName } = splitRounds(messages, { hrStartSeconds: handoffAfter })
+    if (!attributedByName) console.warn(`[Vapi] session ${sessionId}: no assistant names on messages — rounds split by time marks only`)
+
+    for (const round of ['screening', 'hr', 'final']) {
+      if (transcripts[round].length) s.rounds[round] = { callId, status: 'completed', transcript: transcripts[round] }
+    }
+    const result = decideOutcome({ endedReason, transcripts, candidateEnded: s.status === 'ended_by_candidate' || s.candidateEnded === true })
+    if (result === 'incomplete') s.status = 'incomplete'
+    if (result === 'dropped') {
+      s.status = 'dropped'
+      const last = ['final', 'hr', 'screening'].find((r) => transcripts[r].length)
+      if (last) s.rounds[last].status = 'dropped'
+    }
+    return result
+  })
+  if (outcome === 'report') await finalizeReport(sessionId)
+}
+
+const MAX_RESUME_TEXT = 12000
+const RESUME_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    isResume: { type: 'boolean' },
+    reason: { type: 'string' },
+    candidateFirstName: { type: 'string' },
+    highlight: { type: 'string' },
+    field: { type: 'string' },
+    resumeText: { type: 'string' },
+  },
+  required: ['isResume', 'reason', 'candidateFirstName', 'highlight', 'field', 'resumeText'],
+  additionalProperties: false,
+}
+
+
 // Server Router
+// A background task that fails must not stop the server (Node would exit on an unhandled rejection).
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] unhandled rejection:', reason)
+})
+
 const server = http.createServer(async (req, res) => {
   // CORS Preflight
+  res.requestOrigin = req.headers.origin
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Retell-Signature, X-Razorpay-Signature',
-    })
+    res.writeHead(204, corsHeaders(req.headers.origin))
     return res.end()
   }
 
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
+  // A malformed URL or Host header is a 400, never an unhandled error (that would stop the whole server).
+  let url
+  try {
+    url = new URL(req.url, 'http://localhost')
+  } catch {
+    return sendJson(res, 400, { error: 'Bad request' })
+  }
   const pathname = url.pathname
 
-  // Health check
-  if (pathname === '/health' || pathname === '/api/health') {
-    return sendJson(res, 200, { ok: true, timestamp: new Date().toISOString() })
+  // Restart on request (deploys). Each ssh session on the host has its own process id space, so a
+  // deploy cannot kill a server another session started. The server exits itself instead, and the
+  // deploy then starts the new one. Same credential as the Vapi webhook; scripts/deploy-sera-vapi.sh
+  // calls it from the server itself and refuses while an interview is live.
+  if (pathname === '/api/sera/admin/restart' && req.method === 'POST') {
+    if (!verifyVapiWebhook(req.headers, process.env.VAPI_WEBHOOK_SECRET)) return sendJson(res, 401, { error: 'Unauthorized' })
+    console.log('[admin] restart requested')
+    // Let the answer go out, then stop gracefully: requests and a report in progress finish first.
+    res.once('close', () => void gracefulStop.shutdown('admin restart'))
+    sendJson(res, 200, { restarting: true, build: BUILD })
+    return
   }
 
+  // Health check
+  if (pathname === '/health' || pathname === '/api/health' || pathname === '/api/sera/health') {
+    return sendJson(res, 200, { ok: true, build: BUILD, timestamp: new Date().toISOString() })
+  }
+
+  // Application form file upload: PUT <signed url> with the raw file as the body (see applicationUploads.js).
+  if (pathname === UPLOAD_PATH && req.method === 'PUT') {
+    try {
+      const limited = uploadLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) return sendJson(res, 429, { error: 'Too many uploads. Please wait a few minutes and try again.' })
+      if (!process.env.R2_SECRET_ACCESS_KEY || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_ACCOUNT_ID) {
+        console.error('[forms] r2-upload is not configured, missing R2 keys')
+        return sendJson(res, 503, { error: 'This service is temporarily unavailable. Please try again later.' })
+      }
+      const auth = authorizeUpload(url.searchParams, { secret: process.env.R2_SECRET_ACCESS_KEY })
+      if (!auth.ok) return sendJson(res, auth.status, { error: auth.error })
+      const buffer = await readBodyBuffer(req, auth.size)
+      if (buffer.length !== auth.size) return sendJson(res, 400, { error: 'The file did not match what was announced. Please try again.' })
+      await storeUpload({ s3: getS3Client(), bucket: BUCKET_NAME, key: auth.key, buffer, contentType: auth.contentType })
+      return sendJson(res, 200, { success: true })
+    } catch (err) {
+      if (err?.statusCode === 413) return sendJson(res, 413, { error: 'The file is larger than announced' })
+      console.error('[forms] upload failed:', err)
+      return sendJson(res, 500, { error: 'Upload failed. Please try again.' })
+    }
+  }
+
+  try {
     const hasBody = ['POST', 'PUT', 'PATCH'].includes(req.method)
     const rawBody = hasBody ? await readBody(req) : ''
     let body = {}
@@ -223,10 +508,36 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // 0. Website forms: Early Builder / Early Partner applications, contact form, phone OTP,
+    // application file uploads. Same handlers as the old Netlify Functions (see formEndpoints.js).
+    // POST /.netlify/functions/<send-otp|verify-otp|send-contact|r2-create-upload> or /api/forms/<name>
+    // ─────────────────────────────────────────────────────────────────────────────
+    const formRoute = matchFormRoute(pathname)
+    if (formRoute) {
+      const limited = formRoute.limiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) {
+        res.setHeader('Retry-After', String(limited.retryAfterSeconds))
+        return sendJson(res, 429, { error: 'Too many requests. Please wait a few minutes and try again.' })
+      }
+      const missing = missingEnv(formRoute)
+      if (missing.length) {
+        console.error(`[forms] ${formRoute.name} is not configured, missing: ${missing.join(', ')}`)
+        return sendJson(res, 503, { error: 'This service is temporarily unavailable. Please try again later.' })
+      }
+      const out = await runFormHandler(formRoute, { method: req.method, path: pathname, headers: req.headers, rawBody })
+      // The handlers set their own CORS headers for Netlify; this server's policy replaces them.
+      const headers = Object.fromEntries(Object.entries(out.headers).filter(([k]) => !k.toLowerCase().startsWith('access-control-')))
+      res.writeHead(out.statusCode, { ...headers, ...corsHeaders(req.headers.origin) })
+      return res.end(out.body)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // 1. Student Code Check
     // POST /api/sera/student-code/check
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/student-code/check') {
+      const limited = codeLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) return sendJson(res, 429, { valid: false, reason: 'unavailable' })
       const code = String(body.code || '').trim().toUpperCase()
       if (!code) return sendJson(res, 200, { valid: false, reason: 'not_found' })
 
@@ -251,61 +562,87 @@ const server = http.createServer(async (req, res) => {
     // POST /api/sera/login
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/login') {
+      const limited = loginLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) return sendJson(res, 429, { ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
+
       const { route, google, phone, msg91Token, studentCode } = body
-
-      if (!google || !google.email) {
-        return sendJson(res, 200, { ok: false, error: 'Google authentication is required' })
+      if (route !== 'visitor' && route !== 'student') {
+        return sendJson(res, 200, { ok: false, error: 'Please choose New User or Student.' })
       }
 
-      // Google access token verification
-      let verifiedEmail = google.email.toLowerCase()
-      if (google.accessToken && google.accessToken !== 'mock-google-token') {
-        try {
-          const gRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${google.accessToken}` },
-          })
-          if (gRes.ok) {
-            const gData = await gRes.json()
-            if (gData.email) verifiedEmail = gData.email.toLowerCase()
-          }
-        } catch (err) {
-          console.error('Google token verification error:', err)
-        }
+      // Identity comes from Google, never from the request body.
+      const verified = await verifyGoogleLogin(google, {
+        clientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
+        allowMock: process.env.SERA_ALLOW_MOCK_LOGIN === '1', // developer machines only
+        urls: { tokeninfo: process.env.GOOGLE_TOKENINFO_URL, userinfo: process.env.GOOGLE_USERINFO_URL },
+      })
+      if (!verified.ok) return sendJson(res, 200, { ok: false, error: verified.error })
+
+      const cleanPhone = String(phone ?? '').replace(/\D/g, '').slice(-10)
+      if (!isValidPhone(cleanPhone)) {
+        return sendJson(res, 200, { ok: false, error: 'Please enter a valid 10-digit WhatsApp number.' })
+      }
+      // The WhatsApp OTP token is verified with MSG91 once its auth key is configured.
+      const msg91Key = process.env.MSG91_AUTH_KEY
+      if (msg91Key) {
+        const otp = await verifyMsg91Token({ token: msg91Token, authKey: msg91Key })
+        if (!otp.ok) return sendJson(res, 200, { ok: false, error: otp.error })
+      } else if (!warnedNoMsg91) {
+        warnedNoMsg91 = true
+        console.warn('[Login] MSG91_AUTH_KEY is not set: the WhatsApp OTP token is NOT verified server-side')
       }
 
-      // Student code check
       if (route === 'student') {
         const check = await store.checkStudentCode(studentCode)
-        if (!check.valid || check.seatsLeft <= 0) {
-          return sendJson(res, 200, { ok: false, error: 'No seats left or invalid student code' })
+        if (!check.valid) {
+          return sendJson(res, 200, { ok: false, error: check.reason === 'expired' ? 'This student code has expired.' : 'No seats left or invalid student code' })
         }
+        if (check.seatsLeft <= 0) return sendJson(res, 200, { ok: false, error: 'No seats left or invalid student code' })
       }
 
-      // Create Session
       const sessionId = crypto.randomUUID()
-      const firstName = cleanFirstName(google.name || 'Candidate')
       const session = createSession({
         sessionId,
         route,
-        firstName,
-        email: verifiedEmail,
-        phone: String(phone || '').replace(/\D/g, '').slice(-10),
-        studentCode: route === 'student' ? studentCode : null,
+        firstName: cleanFirstName(verified.identity.name || google.name || 'Candidate'),
+        email: verified.identity.email,
+        phone: cleanPhone,
+        studentCode: route === 'student' ? String(studentCode).trim().toUpperCase() : null,
       })
-
+      session.phoneVerified = Boolean(msg91Key)
       await store.saveSession(session)
 
-      return sendJson(res, 200, {
-        ok: true,
-        login: {
-          sessionId,
-          route: session.route,
-          firstName: session.firstName,
-          email: session.email,
-          phone: session.phone,
-          studentCode: session.studentCode,
-        },
+      return sendJson(res, 200, { ok: true, login: publicLogin(session) })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 2b. Demo login — a showcase credential (no Google, no WhatsApp, no payment)
+    // POST /api/sera/demo-login { code, name? }
+    // Only works for a code flagged `demo` (SERA_DEMO_CODE). Each use is a real interview
+    // that costs real money, so it is capped by that code's seats and by a rate limit.
+    // ─────────────────────────────────────────────────────────────────────────────
+    if (pathname === '/api/sera/demo-login') {
+      const limited = demoLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) return sendJson(res, 429, { ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
+
+      const code = String(body.code ?? '').trim().toUpperCase()
+      const entry = await store.getDemoCode(code)
+      if (!entry) return sendJson(res, 200, { ok: false, error: "That demo code isn't valid." })
+      if (entry.expired) return sendJson(res, 200, { ok: false, error: 'This demo code has expired.' })
+      if (entry.seatsLeft <= 0) return sendJson(res, 200, { ok: false, error: 'This demo code has no interviews left.' })
+
+      const identity = demoIdentity(body.name, crypto.randomBytes(6).toString('hex'))
+      const session = createSession({
+        sessionId: crypto.randomUUID(),
+        route: 'student',
+        firstName: cleanFirstName(identity.name) || 'Demo',
+        email: identity.email,
+        phone: '',
+        studentCode: code,
       })
+      session.demo = true
+      await store.saveSession(session)
+      return sendJson(res, 200, { ok: true, login: publicLogin(session) })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -314,22 +651,31 @@ const server = http.createServer(async (req, res) => {
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/create-upload' || pathname === '/.netlify/functions/sera-create-upload') {
       const { filename, contentType, size, base64 } = body
-      if (!filename || (!contentType?.includes('pdf') && !/\.pdf$/i.test(filename))) {
+
+      // A PDF is judged by its content (it starts with "%PDF-"), not by the name or the
+      // browser's content type: real PDFs arrive as "Resume", "cv.pdf (1)" or octet-stream.
+      // The stored key is a random UUID, so the name never matters.
+      const buffer = typeof base64 === 'string' ? Buffer.from(base64, 'base64') : null
+      if (buffer) {
+        if (buffer.length > 10 * 1024 * 1024) return sendJson(res, 400, { error: 'That file is over 10 MB' })
+        if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
+          return sendJson(res, 400, { error: 'Only PDF résumés are accepted' })
+        }
+      } else if (!filename || (!contentType?.includes('pdf') && !/\.pdf$/i.test(filename))) {
         return sendJson(res, 400, { error: 'Only PDF résumés are accepted' })
       }
 
       const objectKey = `sera-interviews/${crypto.randomUUID()}.pdf`
 
-      if (base64) {
+      if (buffer) {
         // Direct base64 upload to Cloudflare R2 on server (zero CORS, zero ModSecurity issues)
-        const buffer = Buffer.from(base64, 'base64')
         const s3 = getS3Client()
         await s3.send(
           new PutObjectCommand({
             Bucket: BUCKET_NAME,
             Key: objectKey,
             Body: buffer,
-            ContentType: contentType || 'application/pdf',
+            ContentType: 'application/pdf',
           })
         )
         return sendJson(res, 200, { success: true, objectKey, expiresIn: 300 })
@@ -383,155 +729,86 @@ const server = http.createServer(async (req, res) => {
       if (!objectKey || !objectKey.startsWith('sera-interviews/')) {
         return sendJson(res, 400, { error: 'Invalid attachment location' })
       }
+      const session = sessionId ? await store.getSession(sessionId) : null
+      if (!session) return sendJson(res, 404, { error: 'Interview session not found. Please sign in again.' })
+      if (session.vapi?.callId) return sendJson(res, 409, { error: 'Your interview has already started.' })
+      if (!process.env.OPENAI_API_KEY) {
+        console.error('[Resume] OPENAI_API_KEY is not configured')
+        return sendJson(res, 500, { error: 'Unable to read that résumé' })
+      }
 
       let buffer
       try {
-        const s3 = getS3Client()
-        const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
+        const obj = await getS3Client().send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
         buffer = await streamToBuffer(obj.Body)
       } catch (s3Err) {
-        console.warn(`[Resume] R2 fetch failed for ${objectKey} (${s3Err.message}), using fallback sample résumé buffer`)
-        buffer = Buffer.from('%PDF-1.4 Fallback Resume Aarav Patel Software Engineer Node.js React SQL System Design')
+        console.error(`[Resume] R2 fetch failed for ${objectKey}:`, s3Err.message)
+        return sendJson(res, 500, { error: 'Unable to read that résumé' })
       }
 
+      // 1. One OpenAI read: is it a résumé, plus the highlight, field and text.
       let check
-      if (process.env.OPENAI_API_KEY) {
-        try {
-          // 1. Verify résumé with OpenAI Responses API
-          const RESUME_SCHEMA = {
-            type: 'object',
-            properties: {
-              isResume: { type: 'boolean' },
-              reason: { type: 'string' },
-              candidateFirstName: { type: 'string' },
-              highlight: { type: 'string' },
-              field: { type: 'string' },
-              resumeText: { type: 'string' },
-            },
-            required: ['isResume', 'reason', 'candidateFirstName', 'highlight', 'field', 'resumeText'],
-            additionalProperties: false,
-          }
+      try {
+        check = await generateJson({
+          schema: RESUME_CHECK_SCHEMA,
+          file: { filename: objectKey.split('/').pop() || 'resume.pdf', mimeType: 'application/pdf', base64: buffer.toString('base64') },
+          prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
 
-          check = await generateJson({
-            schema: RESUME_SCHEMA,
-            file: {
-              filename: objectKey.split('/').pop() || 'resume.pdf',
-              mimeType: 'application/pdf',
-              base64: buffer.toString('base64'),
-            },
-            prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
-Read the attached PDF. Decide if this is genuinely a résumé/CV (work history, education, or skills).
-If it IS a résumé, extract:
-- candidateFirstName: their first name if visible
-- highlight: one natural sentence a friendly interviewer could say out loud referencing something specific from their background
-- field: their general field/domain in 2-4 words (e.g. "backend engineering", "growth & sales")
-- resumeText: the résumé text content as plain text (up to 12000 characters)
-If it is NOT a résumé, set isResume=false and explain in reason.`,
-          })
-        } catch (openaiErr) {
-          console.warn('[Resume] OpenAI extraction failed, using fallback parser:', openaiErr.message)
+Read the attached PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, a scanned page with no extractable text, or a corrupted/unreadable file.
+
+If it IS a résumé, also extract:
+- candidateFirstName: their first name if visible in the text, else an empty string
+- highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
+- field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
+- resumeText: the résumé's text content, as plain text (up to roughly ${MAX_RESUME_TEXT} characters)
+
+If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeText with empty strings, and explain briefly in reason why (e.g. not a résumé, unreadable, no extractable text).`,
+        })
+      } catch (err) {
+        console.error('[Resume] OpenAI file read failed:', err.message)
+        // Only a 400 means OpenAI could not read THIS file. A bad key, quota, outage or network
+        // error is ours: say so, instead of telling the candidate to re-check a good PDF.
+        if (err.status === 400) {
+          return sendJson(res, 200, { valid: false, reason: "That file doesn't look like a readable PDF — mind double-checking it?" })
         }
+        return sendJson(res, 500, { error: 'Sera is having a problem reading résumés right now. Please try again in a few minutes.' })
       }
 
-      if (!check) {
-        // Fallback text extraction from PDF buffer
-        const rawText = buffer.toString('latin1').replace(/[^\x20-\x7E\r\n\t]/g, ' ')
-        const textSample = rawText.slice(0, 10000).replace(/\s+/g, ' ').trim()
-        check = {
-          isResume: true,
-          candidateFirstName: 'Candidate',
-          highlight: 'Strong software engineering background with solid problem-solving foundation.',
-          field: 'software development',
-          resumeText: textSample.length > 50 ? textSample : 'Experienced engineer with proven track record in software engineering.',
-        }
-      }
-
-      if (!check.isResume || !check.resumeText || check.resumeText.length < 50) {
+      if (!check.isResume) {
+        // Tell the candidate WHY (the model's first sentence), e.g. "this is a company profile",
+        // instead of a bare "not a résumé" they cannot act on.
+        const why = String(check.reason ?? '').split(/(?<=[.!?])\s/)[0].replace(/[.!?\s]+$/, '').slice(0, 150)
         return sendJson(res, 200, {
           valid: false,
-          reason: check.reason || "This doesn't look like a résumé — mind uploading your actual CV?",
+          reason: `This doesn't look like a personal résumé${why ? ` — ${why}` : ''}. Please upload your own CV.`,
         })
       }
+      if (!check.resumeText || check.resumeText.length < 80) {
+        return sendJson(res, 200, { valid: false, reason: "This PDF doesn't have enough readable text — please upload your actual résumé." })
+      }
+      const resumeText = check.resumeText.slice(0, MAX_RESUME_TEXT)
 
-      // 2. Generate 3 matched offers
-      let offers = []
-      if (process.env.OPENAI_API_KEY) {
-        try {
-          const llmCall = ({ prompt, schema }) => generateJson({ prompt, schema })
-          offers = await generateOffers(llmCall, {
-            resumeText: check.resumeText,
-            field: check.field,
-            highlight: check.highlight,
-          })
-        } catch (offerErr) {
-          console.warn('[Offers] OpenAI offer generation failed, using curated offers:', offerErr.message)
-        }
+      // 2. The 3 offers, from THIS résumé, stored before any call exists. No canned fallback.
+      let offers
+      try {
+        offers = await generateOffers(({ prompt, schema }) => generateJson({ prompt, schema }), {
+          resumeText,
+          field: check.field,
+          highlight: check.highlight,
+        })
+      } catch (offerErr) {
+        console.error('[Offers] generation failed:', offerErr.message)
+        return sendJson(res, 500, { error: "We couldn't prepare your offers — please try again in a moment." })
       }
 
-      if (!offers || !offers.length) {
-        offers = [
-          {
-            id: 'offer-1',
-            company: 'Nexus Mobility Labs',
-            logoLetter: 'N',
-            industry: 'Automotive Tech & IoT',
-            city: 'Bengaluru',
-            workMode: 'hybrid',
-            role: 'Associate Software Engineer',
-            ctcMinLpa: 8.5,
-            ctcMaxLpa: 12.0,
-            skills: ['Node.js', 'React', 'Cloud Services', 'System Design'],
-            whyFit: 'Solid engineering fundamentals with full-stack problem-solving experience.',
-            finalTwist: 'High-growth mobility startup expanding its connected vehicle platform.',
-          },
-          {
-            id: 'offer-2',
-            company: 'FinPulse Systems',
-            logoLetter: 'F',
-            industry: 'FinTech & Payments',
-            city: 'Mumbai',
-            workMode: 'remote',
-            role: 'Product Engineer',
-            ctcMinLpa: 10.0,
-            ctcMaxLpa: 14.5,
-            skills: ['Backend APIs', 'PostgreSQL', 'Microservices', 'Scalability'],
-            whyFit: 'Strong technical background with an emphasis on reliable architecture.',
-            finalTwist: 'Series-B payments unicorn processing millions of daily transactions.',
-          },
-          {
-            id: 'offer-3',
-            company: 'Zenith Health Dynamics',
-            logoLetter: 'Z',
-            industry: 'Digital Health AI',
-            city: 'Pune',
-            workMode: 'onsite',
-            role: 'Full Stack Engineer',
-            ctcMinLpa: 9.0,
-            ctcMaxLpa: 13.0,
-            skills: ['JavaScript', 'Python', 'REST APIs', 'UI Engineering'],
-            whyFit: 'Broad full-stack profile well suited to cross-functional product development.',
-            finalTwist: 'AI-first preventive healthcare provider scaling across Tier-1 hospitals.',
-          },
-        ]
-      }
-
-      // Store on session if sessionId provided
-      if (sessionId) {
-        const session = await store.getSession(sessionId)
-        if (session) {
-          session.resume = { objectKey, highlight: check.highlight, field: check.field }
-          session.resumeText = check.resumeText
-          session.offers = offers
-          await store.saveSession(session)
-        }
-      }
-
-      return sendJson(res, 200, {
-        valid: true,
-        highlight: check.highlight,
-        field: check.field,
-        offers,
+      await mutateSession(session.sessionId, (s) => {
+        s.resume = { objectKey, highlight: check.highlight, field: check.field }
+        s.resumeText = resumeText
+        s.offers = offers
+        s.chosenOfferId = null
       })
+
+      return sendJson(res, 200, { valid: true, highlight: check.highlight, field: check.field, offers })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -540,6 +817,10 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/payment/create-order') {
       const { email, phone, objectKey, sessionId } = body
+      // Nobody pays for an interview they can't start (one interview per email).
+      if (typeof email === 'string' && !isAdminEmail(email) && (await store.getReservation(email))) {
+        return sendJson(res, 403, { ok: false, error: ALREADY_USED_MESSAGE })
+      }
       const keyId = process.env.RAZORPAY_KEY_ID
       const keySecret = process.env.RAZORPAY_KEY_SECRET
 
@@ -624,7 +905,7 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // 7. Offers Choose
+    // 7. Offers Choose — the card the candidate tapped, handed to Vinit in the SAME call
     // POST /api/sera/offers/choose
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/offers/choose') {
@@ -634,115 +915,164 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
       const session = await store.getSession(sessionId)
       if (!session) return sendJson(res, 404, { ok: false, error: 'Session not found' })
 
-      session.chosenOfferId = offerId
-      await store.saveSession(session)
+      // Only one of the 3 stored offers; the browser never supplies offer content.
+      const offer = session.offers?.find((o) => o.id === offerId)
+      if (!offer) return sendJson(res, 400, { ok: false, error: 'That offer is not one of yours' })
+
+      if (session.vapi?.handoffSent) {
+        return session.chosenOfferId === offerId
+          ? sendJson(res, 200, { ok: true })
+          : sendJson(res, 409, { ok: false, error: 'You have already picked an offer' })
+      }
+      if (!session.vapi?.controlUrl || session.status !== 'live') {
+        return sendJson(res, 409, { ok: false, error: 'Your interview is not live' })
+      }
+
+      const lockKey = `choose:${session.sessionId}`
+      if (inFlight.has(lockKey)) return sendJson(res, 409, { ok: false, error: 'Still connecting — one moment' })
+      inFlight.add(lockKey)
+      try {
+        const { via } = await sendOfferHandoff(session.vapi.controlUrl, offer, {
+          variableValues: offerHandoffVariables(session, offer),
+        })
+        console.log(`[Vapi] session ${session.sessionId}: handed to Vinit via ${via}`)
+      } catch (err) {
+        console.error('[Vapi] offer handoff failed:', err.message)
+        return sendJson(res, 502, { ok: false, error: "We couldn't connect you to the next round. Please try again." })
+      } finally {
+        inFlight.delete(lockKey)
+      }
+
+      await mutateSession(session.sessionId, (s) => {
+        s.chosenOfferId = offerId
+        s.vapi.handoffSent = true
+        s.vapi.handoffAt = new Date().toISOString()
+      })
+      await enterRound(session.sessionId, 'hr') // Vinit's clock: nearly-up / up notes follow
       return sendJson(res, 200, { ok: true })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // 8. Start Round Call
+    // 8. Start Call — ONE Vapi squad call for the whole interview (Sera → Vinit → Sonia)
     // POST /api/sera/start-call OR /.netlify/functions/sera-start-call
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/start-call' || pathname === '/.netlify/functions/sera-start-call') {
-      const { sessionId, round = 'screening', route, email, paymentId, studentCode } = body
+      const { sessionId, paymentId } = body
 
-      let session = sessionId ? await store.getSession(sessionId) : null
-      if (!session && email) session = await store.findSessionByEmail(email)
+      const session = sessionId ? await store.getSession(sessionId) : null
+      if (!session) return sendJson(res, 404, { error: 'Interview session not found. Please log in again.' })
 
-      if (!session) {
-        return sendJson(res, 404, { error: 'Interview session not found. Please log in again.' })
+      const email = session.email
+      if (typeof email !== 'string' || !email.includes('@')) {
+        return sendJson(res, 400, { error: 'A valid Google account is required' })
+      }
+      // The résumé location and the offers come from the session, saved when the
+      // résumé check passed — a bad PDF never gets this far.
+      const objectKey = session.resume?.objectKey
+      if (typeof objectKey !== 'string' || !objectKey.startsWith('sera-interviews/')) {
+        return sendJson(res, 400, { error: 'Invalid attachment location' })
+      }
+      if (!Array.isArray(session.offers) || session.offers.length !== 3) {
+        return sendJson(res, 400, { error: 'Your offers are not ready — please upload your résumé again.' })
+      }
+      if (session.vapi?.callId) return sendJson(res, 409, { error: 'Your interview has already started.' })
+
+      // Nothing is reserved, charged or consumed if the service can't run.
+      try {
+        getVapiConfig()
+      } catch (err) {
+        console.error('[Vapi]', err.message)
+        return sendJson(res, 500, { error: 'Interview service is not configured' })
       }
 
-      const isAdmin = isAdminEmail(session.email)
+      const lockKey = `start:${session.sessionId}`
+      if (inFlight.has(lockKey)) return sendJson(res, 409, { error: 'Your interview is already starting.' })
+      inFlight.add(lockKey)
 
-      // Payment / Seat Gate
-      if (!isAdmin) {
-        if (session.route === 'visitor') {
-          const pid = paymentId || session.payment?.paymentId
-          if (!pid) {
-            return sendJson(res, 403, { error: 'payment-required', message: 'A verified payment is required to start.' })
+      const admin = isAdminEmail(email)
+      let reserved = false
+      let seatConsumedFor = null
+      try {
+        let order = null
+        if (!admin) {
+          // New User: a verified, unused payment for THIS email. A retry after a failed
+          // start reuses the same payment — it is only marked used once the call exists.
+          if (session.route === 'visitor') {
+            const pid = paymentId || session.payment?.paymentId
+            if (!pid) return sendJson(res, 403, { error: 'payment-required', message: 'A verified payment is required to start.' })
+            order = await store.findOrderByPaymentId(pid)
+            if (!order || order.status !== 'verified' || (order.email && order.email.toLowerCase() !== email.toLowerCase())) {
+              return sendJson(res, 403, { error: 'unverified-payment', message: 'Payment verification failed.' })
+            }
+            if (order.used) return sendJson(res, 403, { error: 'payment-used', message: 'This payment has already been used.' })
+          } else {
+            const seat = await store.checkStudentCode(session.studentCode)
+            if (!seat.valid || seat.seatsLeft <= 0) {
+              return sendJson(res, 403, { error: 'no-seats', message: 'No interview seats remaining for this code.' })
+            }
           }
-          const order = await store.findOrderByPaymentId(pid)
-          if (!order || order.status !== 'verified') {
-            return sendJson(res, 403, { error: 'unverified-payment', message: 'Payment verification failed.' })
-          }
-        } else if (session.route === 'student' && round === 'screening') {
-          const seatRes = await store.consumeStudentSeat(session.studentCode || studentCode)
-          if (!seatRes.success) {
-            return sendJson(res, 403, { error: 'no-seats', message: 'No interview seats remaining for this code.' })
+
+          // One interview per email. Reserved BEFORE the call is created.
+          reserved = await store.reserveInterview(email, { sessionId: session.sessionId })
+          if (!reserved) return sendJson(res, 403, { error: 'already-used', message: ALREADY_USED_MESSAGE })
+
+          if (session.route === 'student') {
+            const seatRes = await store.consumeStudentSeat(session.studentCode)
+            if (!seatRes.success) {
+              await store.releaseReservation(email)
+              reserved = false
+              return sendJson(res, 403, { error: 'no-seats', message: 'No interview seats remaining for this code.' })
+            }
+            seatConsumedFor = session.studentCode
+            await store.updateReservation(email, { seatConsumedFor }) // lets recovery refund the seat if the server dies before the call exists
           }
         }
+
+        let call
+        try {
+          call = await createVapiCall(session, { objectKey })
+        } catch (err) {
+          console.error('[Vapi] call creation failed:', err.message, err.body || '')
+          if (reserved) await store.releaseReservation(email)
+          if (seatConsumedFor) await store.refundStudentSeat(seatConsumedFor)
+          return sendJson(res, err instanceof VapiNotConfiguredError ? 500 : 502, {
+            error: err instanceof VapiNotConfiguredError ? 'Interview service is not configured' : 'Unable to start the interview — please try again',
+          })
+        }
+
+        await mutateSession(session.sessionId, (s) => {
+          s.vapi = {
+            callId: call.callId,
+            controlUrl: call.controlUrl, // server only — never sent to the browser
+            startedAt: new Date().toISOString(),
+            admin,
+            paymentOrderId: order?.orderId ?? null,
+            seatConsumedFor,
+            handoffSent: false,
+            round: 'screening',
+          }
+          s.rounds.screening = { callId: call.callId, status: 'live', transcript: null }
+          s.status = 'live'
+        })
+        callSessions.set(call.callId, session.sessionId)
+        if (reserved) await store.updateReservation(email, { status: 'started', callId: call.callId })
+        if (order) await store.saveOrder(order.orderId, { used: true, usedBySessionId: session.sessionId, usedAt: new Date().toISOString() })
+
+        return sendJson(res, 200, { success: true, sessionId: session.sessionId, callId: call.callId, webCallUrl: call.webCallUrl })
+      } finally {
+        inFlight.delete(lockKey)
       }
-
-      // Ensure offers and chosenOffer are present on the session
-      if (Array.isArray(body.offers) && body.offers.length > 0 && (!session.offers || session.offers.length === 0)) {
-        session.offers = body.offers
-      }
-      if (body.chosenOfferId && !session.chosenOfferId) {
-        session.chosenOfferId = body.chosenOfferId
-      }
-      if (!session.offers || session.offers.length === 0) {
-        session.offers = DEFAULT_CURATED_OFFERS
-      }
-      if (round !== 'screening' && !session.chosenOfferId) {
-        session.chosenOfferId = session.offers[0].id
-      }
-      await store.saveSession(session)
-
-      const agentId = pickAgentId(round)
-      const variables = buildCallVariables(session, round)
-
-      const apiKey = process.env.RETELL_API_KEY
-      if (!apiKey) return sendJson(res, 500, { error: 'RETELL_API_KEY is not configured on server' })
-
-      const retellRes = await fetch('https://api.retellai.com/v2/create-web-call', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          agent_id: agentId,
-          retell_llm_dynamic_variables: variables,
-          metadata: {
-            sessionId: session.sessionId,
-            round,
-            email: session.email,
-          },
-        }),
-      })
-
-      if (!retellRes.ok) {
-        const errText = await retellRes.text().catch(() => '')
-        console.error('Retell create-web-call failed:', retellRes.status, errText)
-        return sendJson(res, 502, { error: 'Unable to connect to Sera voice service. Please try again.' })
-      }
-
-      const retellData = await retellRes.json()
-
-      // Update session state
-      session = patchRound(session, round, { status: 'live', callId: retellData.call_id })
-      session.status = 'live'
-      await store.saveSession(session)
-
-      return sendJson(res, 200, {
-        success: true,
-        sessionId: session.sessionId,
-        callId: retellData.call_id,
-        accessToken: retellData.access_token,
-      })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // 9. Release Reservation
+    // 9. Release Reservation — a call that stalled in its first 90 s doesn't use up the interview
     // POST /api/sera/release-reservation OR /.netlify/functions/sera-release-reservation
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/release-reservation' || pathname === '/.netlify/functions/sera-release-reservation') {
-      const { sessionId, email } = body
-      const session = sessionId ? await store.getSession(sessionId) : await store.findSessionByEmail(email)
-      if (session && session.status === 'reserved') {
-        session.status = 'new'
-        await store.saveSession(session)
+      const { sessionId } = body
+      if (sessionId) {
+        roundTimers.clear(sessionId)
+        await mutateSession(sessionId, (s) => forgiveEarlyStall(s))
       }
       return sendJson(res, 200, { released: true })
     }
@@ -755,8 +1085,12 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
       const { sessionId } = body
       const session = await store.getSession(sessionId)
       if (session) {
-        session.status = 'ended_by_candidate'
-        await store.saveSession(session)
+        roundTimers.clear(session.sessionId)
+        await mutateSession(session.sessionId, (s) => {
+          if (s.report) return
+          s.status = 'ended_by_candidate'
+          s.candidateEnded = true
+        })
       }
       return sendJson(res, 200, { ok: true })
     }
@@ -769,7 +1103,7 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
       const sessionId = url.searchParams.get('sessionId') || body.sessionId
       const session = await store.getSession(sessionId)
       if (!session) return sendJson(res, 404, { error: 'Session not found' })
-      return sendJson(res, 200, session)
+      return sendJson(res, 200, toPublicSession(session))
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -825,363 +1159,115 @@ If it is NOT a résumé, set isResume=false and explain in reason.`,
 
       return sendJson(res, 200, {
         ok: true,
-        session,
+        session: toPublicSession(session),
         round: session.rejoinRound || 'screening',
       })
     }
 
-// ─────────────────────────────────────────────────────────────────────────────
-function buildDeterministicReport(session, chosenOffer) {
-  const allTurns = []
-  for (const roundId of ['screening', 'hr', 'final']) {
-    const roundTurns = session.rounds?.[roundId]?.transcript || []
-    let currentTime = 5
-    for (const t of roundTurns) {
-      const duration = Math.max(5, Math.min(35, (t.text || '').split(' ').length * 0.4))
-      const start = t.start > 0 ? t.start : currentTime
-      const end = t.end > start ? t.end : start + duration
-      currentTime = end + 3
-      allTurns.push({
-        role: t.role,
-        text: t.text || '',
-        start: Math.round(start),
-        end: Math.round(end),
-        round: roundId,
-      })
-    }
-  }
-
-  let userTurns = allTurns.filter((t) => t.role === 'user' && t.text.trim().length > 0)
-  if (userTurns.length === 0) {
-    userTurns = [
-      {
-        role: 'user',
-        text: 'I have experience in software development and full stack web engineering.',
-        start: 10,
-        end: 25,
-        round: 'screening',
-      },
-    ]
-    allTurns.push(userTurns[0])
-  }
-
-  const answers = userTurns.slice(0, 8).map((t, idx) => ({
-    round: t.round,
-    timestamp: t.start,
-    ratings: {
-      communication: idx % 2 === 0 ? 4 : 3,
-      roleKnowledge: 4,
-      problemSolving: 4,
-      composure: 4,
-      judgement: 3,
-    },
-  }))
-
-  const quotes = userTurns
-    .map((t) => {
-      const words = t.text.trim().split(/\s+/)
-      if (words.length >= 4) {
-        return {
-          text: words.slice(0, 10).join(' '),
-          round: t.round,
-          timestamp: t.start,
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 12b. Diagnostics — is every dependency of the interview actually reachable?
+    // GET|POST /api/sera/diagnostics, with `Authorization: Bearer <VAPI_WEBHOOK_SECRET>`.
+    // Config booleans and live checks only; never a key or any candidate data.
+    // ─────────────────────────────────────────────────────────────────────────────
+    if (pathname === '/api/sera/diagnostics') {
+      if (!verifyVapiWebhook(req.headers, process.env.VAPI_WEBHOOK_SECRET)) {
+        return sendJson(res, 401, { error: 'Unauthorized' })
+      }
+      const timed = async (fn) => {
+        try {
+          return await fn()
+        } catch (err) {
+          return { ok: false, error: String(err?.status ?? err?.name ?? 'error') }
         }
       }
-      return null
-    })
-    .filter(Boolean)
-
-  const skillQuotes = {
-    communication: quotes[0] || null,
-    roleKnowledge: quotes[1] || quotes[0] || null,
-    problemSolving: quotes[2] || quotes[0] || null,
-    composure: quotes[3] || null,
-    judgement: quotes[4] || null,
-  }
-
-  const strengths = [
-    {
-      text: quotes[0]
-        ? `Clearly articulated practical project experience: "${quotes[0].text}"`
-        : 'Demonstrated full stack ownership across development frameworks.',
-      round: quotes[0]?.round || 'screening',
-      timestamp: quotes[0]?.timestamp || userTurns[0]?.start || 10,
-    },
-    {
-      text: quotes[1]
-        ? `Strong technical problem solving reasoning: "${quotes[1].text}"`
-        : 'Structured logical approach to software architecture and debugging.',
-      round: quotes[1]?.round || 'screening',
-      timestamp: quotes[1]?.timestamp || userTurns[0]?.start || 15,
-    },
-  ]
-
-  const growth = [
-    {
-      text: 'Incorporate specific quantitative performance metrics when describing project results and deliverables.',
-      round: quotes[0]?.round || 'screening',
-      timestamp: quotes[0]?.timestamp || userTurns[0]?.start || 10,
-    },
-  ]
-
-  const rewrite = userTurns[0]
-    ? {
-        question: 'Can you tell me about your background and recent projects?',
-        youSaid: userTurns[0].text,
-        stronger: `I am a full-stack engineer who builds scalable applications from UI to database design, taking full end-to-end ownership of development and delivery.`,
-        round: userTurns[0].round,
-        timestamp: userTurns[0].start,
-      }
-    : null
-
-  const offerFit = [
-    {
-      requirement: `${chosenOffer?.role || 'Software Engineering'} Core Skills`,
-      shown: true,
-      quote: quotes[0] || null,
-    },
-    {
-      requirement: 'Problem Solving & Architecture',
-      shown: true,
-      quote: quotes[1] || null,
-    },
-    {
-      requirement: 'Cross-functional Collaboration',
-      shown: true,
-      quote: null,
-    },
-  ]
-
-  const plan = [
-    {
-      horizon: '30d',
-      title: 'Metrics & Architecture Alignment',
-      text: 'Audit recent project milestones and document concrete system design decisions with measurable KPIs.',
-      skills: chosenOffer?.skills?.slice(0, 2) || ['System Design', 'React'],
-    },
-    {
-      horizon: '1-3m',
-      title: 'Scalability & Production Hardening',
-      text: 'Deep-dive into performance tuning, database optimization, and cloud architecture patterns.',
-      skills: chosenOffer?.skills?.slice(1, 3) || ['Node.js', 'PostgreSQL'],
-    },
-    {
-      horizon: '6-12m',
-      title: 'Technical Leadership & Delivery',
-      text: 'Lead critical service features, mentor peers in code quality, and present technical RFCs to stakeholders.',
-      skills: ['Architecture', 'Technical Leadership'],
-    },
-  ]
-
-  const llmJson = {
-    answers,
-    skillQuotes,
-    summary: 'Candidate demonstrated clear technical articulation, sound software fundamentals, and practical hands-on engineering experience.',
-    roundNotes: {
-      screening: 'Solid technical introduction highlighting full-stack responsibilities and practical problem-solving.',
-      hr: 'Clear communication regarding collaborative team scenarios and deadlines.',
-      final: 'Sensible prioritization and proactive ownership of deliverables.',
-    },
-    strengths,
-    growth,
-    rewrite,
-    offerFit,
-    plan,
-  }
-
-  const { report, validation } = buildReport({
-    llmJson,
-    transcript: allTurns,
-    route: session.route,
-    plannedRounds: roundsFor(session.route),
-    chosenOffer,
-    firstName: session.firstName || 'Candidate',
-    interviewDate: new Date().toLocaleDateString('en-GB'),
-  })
-
-  if (!validation.valid) {
-    console.warn('[Report] Fallback report validation warnings:', validation.errors)
-  }
-
-  return report
-}
-
-async function ensureSessionReport(session) {
-  if (session.report) return session.report
-
-  // Ensure chosen offer
-  if (!session.offers || session.offers.length === 0) {
-    session.offers = DEFAULT_CURATED_OFFERS
-  }
-  if (!session.chosenOfferId) {
-    session.chosenOfferId = session.offers[0].id
-  }
-  const chosenOffer = getChosenOffer(session) || session.offers[0]
-
-  let report = null
-
-  // 1. Try OpenAI if configured
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const llmCall = ({ prompt, schema }) => generateJson({ prompt, schema })
-      report = await generateReport(llmCall, {
-        transcripts: session.rounds,
-        chosenOffer,
-        resumeHighlights: session.resume?.highlight || '',
-        route: session.route,
-        firstName: session.firstName,
-        interviewDate: new Date().toLocaleDateString('en-GB'),
+      const openai = await timed(async () => {
+        const key = process.env.OPENAI_API_KEY
+        if (!key) return { ok: false, error: 'OPENAI_API_KEY is not set' }
+        const r = await fetch(`${process.env.OPENAI_API_BASE || 'https://api.openai.com'}/v1/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10000) })
+        return { ok: r.ok, status: r.status, keyLength: key.length }
       })
-    } catch (err) {
-      console.warn('[Report] OpenAI generation failed, using deterministic fallback:', err.message)
-    }
-  }
-
-  // 2. Fallback
-  if (!report) {
-    report = buildDeterministicReport(session, chosenOffer)
-  }
-
-  if (report) {
-    session.report = report
-    session.status = 'completed'
-
-    // Render PDF on server
-    try {
-      const pdfBytes = await renderReportPdfOnServer(report)
-      const s3 = getS3Client()
-      const reportKey = `sera-reports/${session.sessionId}.pdf`
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: reportKey,
-          Body: Buffer.from(pdfBytes),
-          ContentType: 'application/pdf',
-        }),
-      )
-      session.reportPdfKey = reportKey
-    } catch (pdfErr) {
-      console.warn('PDF upload warning:', pdfErr.message)
+      const r2 = await timed(async () => {
+        await getS3Client().send(new ListObjectsV2Command({ Bucket: BUCKET_NAME, MaxKeys: 1 }))
+        return { ok: true }
+      })
+      return sendJson(res, 200, {
+        ok: openai.ok && r2.ok,
+        openai,
+        r2,
+        vapi: {
+          publicKey: Boolean(process.env.VAPI_PUBLIC_KEY),
+          squadId: Boolean(process.env.VAPI_SQUAD_ID),
+          webhookSecret: Boolean(process.env.VAPI_WEBHOOK_SECRET),
+          privateKey: Boolean(process.env.VAPI_PRIVATE_KEY), // read back finished calls after a restart
+        },
+        razorpay: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+        login: { googleClientId: Boolean(process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID), msg91Verification: Boolean(process.env.MSG91_AUTH_KEY) },
+        demoCode: Boolean(process.env.SERA_DEMO_CODE),
+        forms: formsStatus(),
+      })
     }
 
-    await store.saveSession(session)
-  }
-
-  return report
-}
-
     // ─────────────────────────────────────────────────────────────────────────────
-    // 13. Retell Webhook (per round transcript, summary, and final report + PDF)
-    // POST /api/sera/retell-webhook OR /.netlify/functions/sera-retell-webhook
+    // 13. Vapi webhook — the ONLY place the report (and its PDF) is ever generated
+    // POST /api/sera/vapi-webhook   (Vapi "Server URL", with VAPI_WEBHOOK_SECRET as the credential)
     // ─────────────────────────────────────────────────────────────────────────────
-    if (pathname === '/api/sera/retell-webhook' || pathname === '/.netlify/functions/sera-retell-webhook') {
-      const signature = req.headers['x-retell-signature']
-      const secret = process.env.RETELL_WEBHOOK_SECRET
-
-      if (secret && !verifyRetellSignature(rawBody, signature, secret)) {
-        return sendJson(res, 401, { error: 'Invalid Retell webhook signature' })
+    if (pathname === '/api/sera/vapi-webhook') {
+      if (!verifyVapiWebhook(req.headers, process.env.VAPI_WEBHOOK_SECRET)) {
+        // Which way it failed, never the values: a wrong token here means Vapi's Bearer credential
+        // differs from VAPI_WEBHOOK_SECRET; "no credential" means it is not attached to this server URL.
+        const sent = req.headers.authorization || req.headers['x-vapi-secret']
+        console.warn(`[Vapi] webhook refused: ${!process.env.VAPI_WEBHOOK_SECRET ? 'VAPI_WEBHOOK_SECRET is not set' : sent ? 'credential does not match VAPI_WEBHOOK_SECRET' : 'no Authorization header'}`)
+        return sendJson(res, 401, { error: 'Invalid webhook credential' })
       }
 
-      if (body.event !== 'call_ended') {
+      // show_offers must be answered (well inside Vapi's 20 s) or Sera hangs on the tool.
+      // No handoff here: the page shows the cards, and the handoff follows the card tap.
+      if (body?.message?.type === 'tool-calls') {
+        const message = body.message
+        if (isShowOffersMessage(message)) {
+          try {
+            const call = message.call ?? {}
+            const sessionId = sessionIdFromCall(call) ?? (await store.findSessionByVapiCallId(call.id))?.sessionId
+            if (sessionId) {
+              await mutateSession(sessionId, (s) => {
+                if (s.vapi && !s.vapi.offersShownAt) s.vapi.offersShownAt = new Date().toISOString()
+              })
+            }
+          } catch (err) {
+            console.error('[Vapi] could not record show_offers:', err.message)
+          }
+        }
+        return sendJson(res, 200, buildToolCallResults(message) ?? {})
+      }
+
+      const ended = parseEndOfCall(body)
+      if (!ended) {
+        // assistant.started / speech-update / conversation-update: which round is speaking now.
+        // Answer first; the work happens in the background.
+        void noteRoundSignal(body?.message).catch((err) => console.error('[Vapi] round signal failed:', err.message))
         return sendJson(res, 200, { received: true })
       }
 
-      const call = body.call || {}
-      const sessionId = call.metadata?.sessionId
-      const round = call.metadata?.round
-      const transcriptObject = call.transcript_object || []
-
-      if (!sessionId || !round) {
-        return sendJson(res, 200, { received: true, note: 'non-sera call ignored' })
-      }
-
-      const session = await store.getSession(sessionId)
-      if (!session) return sendJson(res, 200, { received: true })
-
-      // Store round transcript turns [{ role, text, start, end }]
-      const turns = transcriptObject.map((t) => ({
-        role: t.role === 'agent' ? 'agent' : 'user',
-        text: t.content || '',
-        start: t.start_timestamp ? t.start_timestamp / 1000 : 0,
-        end: t.end_timestamp ? t.end_timestamp / 1000 : 0,
-      }))
-
-      session.rounds[round] = {
-        callId: call.call_id,
-        status: call.disconnection_reason === 'user_hangup' ? 'cut_short' : 'completed',
-        transcript: turns,
-      }
-
-      const llmCall = ({ prompt, schema }) => generateJson({ prompt, schema })
-
-      // Generate per-round summaries
-      if (round === 'screening') {
-        if (process.env.OPENAI_API_KEY) {
-          try {
-            const summaryPrompt = buildSummaryPrompt(turns, 'screening')
-            const summaryJson = await llmCall({ prompt: summaryPrompt, schema: SUMMARY_LLM_SCHEMA })
-            session.summaries.screening = parseSummary(summaryJson)
-          } catch (e) {
-            console.error('Screening summary generation error:', e)
-          }
-        }
-        if (!session.summaries.screening) {
-          const userWords = turns.filter((t) => t.role === 'user').map((t) => t.text).join(' ')
-          session.summaries.screening = userWords.length > 20
-            ? 'Candidate answered questions about their background and technical projects with confidence.'
-            : 'Candidate completed the initial screening conversation.'
-        }
-      } else if (round === 'hr') {
-        if (process.env.OPENAI_API_KEY) {
-          try {
-            const summaryPrompt = buildSummaryPrompt(turns, 'hr')
-            const summaryJson = await llmCall({ prompt: summaryPrompt, schema: SUMMARY_LLM_SCHEMA })
-            session.summaries.hr = parseSummary(summaryJson)
-          } catch (e) {
-            console.error('HR summary generation error:', e)
-          }
-        }
-        if (!session.summaries.hr) {
-          session.summaries.hr = 'Candidate discussed practical workplace scenarios, deadlines, and team collaboration.'
-        }
-      } else if (round === 'final') {
-        // Final round ended -> generate full report ONCE
-        await ensureSessionReport(session)
-      }
-
-      await store.saveSession(session)
+      // Answer at once; the report takes a while and Vapi would retry a slow reply.
+      processEndOfCall(ended).catch((err) => console.error('[Vapi] end-of-call processing failed:', err))
       return sendJson(res, 200, { received: true })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // 14. Get Report
+    // 14. Get Report — read only, no LLM. The browser polls this.
     // POST /api/sera/get-report OR /.netlify/functions/sera-get-report
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/get-report' || pathname === '/.netlify/functions/sera-get-report') {
-      const { sessionId, email } = body
-      let session = sessionId ? await store.getSession(sessionId) : await store.findSessionByEmail(email)
-
+      const { sessionId } = body
+      const session = sessionId ? await store.getSession(sessionId) : null
       if (!session) return sendJson(res, 200, { ready: false })
 
-      if (session.report) {
-        return sendJson(res, 200, { ready: true, report: session.report })
-      }
+      if (session.report) return sendJson(res, 200, { ready: true, report: session.report })
 
-      // Check if session has any completed round transcript or was ended
-      const hasTurns = session.rounds?.screening?.transcript?.length > 0 ||
-                       session.rounds?.hr?.transcript?.length > 0 ||
-                       session.rounds?.final?.transcript?.length > 0
-      if (hasTurns || session.status === 'completed' || session.status === 'ended_by_candidate') {
-        const report = await ensureSessionReport(session)
-        if (report) {
-          return sendJson(res, 200, { ready: true, report })
-        }
-      }
-
-      if (session.status === 'incomplete') {
+      const stuck = session.reportState === 'running' && Date.now() - Date.parse(session.reportStartedAt) > REPORT_STALE_MS
+      if (session.status === 'incomplete' || session.status === 'report_failed' || stuck) {
         return sendJson(res, 200, { ready: true, incomplete: true })
       }
-
       return sendJson(res, 200, { ready: false })
     }
 
@@ -1210,10 +1296,31 @@ async function ensureSessionReport(session) {
     return sendJson(res, 404, { error: 'Endpoint not found', path: pathname })
   } catch (err) {
     console.error(`API Error on ${pathname}:`, err)
+    if (err?.statusCode === 413) return sendJson(res, 413, { error: 'Payload too large' })
     return sendJson(res, 500, { error: err.message || 'Internal server error' })
   }
 })
 
+// Graceful stop on SIGTERM, SIGINT and the admin restart; an unexpected crash is logged and exits with 1
+// so the watchdog (server/supervise.mjs) starts a clean process.
+const gracefulStop = createShutdown({ server, isBusy: () => workInProgress > 0 })
+installProcessHandlers({ shutdown: gracefulStop.shutdown })
+
+// After any restart: re-arm the round timers, catch up calls that ended while we were down, retry a report
+// that was cut short once, and release a slot taken just before a crash (server/recovery.js).
+const recovery = createRecovery({
+  store,
+  roundTimers,
+  roundSeconds: ROUND_SECONDS,
+  hasVapiKey: () => Boolean(process.env.VAPI_PRIVATE_KEY?.trim()),
+  getCall,
+  callToEndOfCall,
+  processEndOfCall,
+  finalizeReport,
+  mutateSession,
+})
+
 server.listen(PORT, HOST, () => {
   console.log(`YZI Works Sera Backend Server listening on http://${HOST}:${PORT}`)
+  recovery.start()
 })

@@ -118,7 +118,7 @@ test('New User (route "visitor") gets the same 3 rounds and offer fit as Student
   assert.equal(validation.valid, true)
   assert.equal(report.route, 'visitor')
   assert.deepEqual(report.rounds.map((r) => r.id), ['screening', 'hr', 'final'])
-  assert.equal(report.interviewMinutes, 11)
+  assert.equal(report.interviewMinutes, 13) // 5 + 4 + 4 planned minutes (src/config/seraRounds.js)
   assert.equal(reportSections(report).rounds, true)
   assert.equal(reportSections(report).offerFit, true)
 })

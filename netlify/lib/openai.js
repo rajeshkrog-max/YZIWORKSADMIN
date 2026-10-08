@@ -29,7 +29,7 @@ export async function generateJson({ prompt, schema, file }) {
       ]
     : prompt
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const response = await fetch(`${process.env.OPENAI_API_BASE || 'https://api.openai.com'}/v1/responses`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -51,15 +51,32 @@ export async function generateJson({ prompt, schema, file }) {
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '')
-    throw new Error(`OpenAI request failed (${response.status}): ${errorBody}`)
+    // `status` lets callers tell "the file is bad" (400) from "our key / quota / OpenAI is down".
+    throw Object.assign(new Error(`OpenAI request failed (${response.status}): ${errorBody}`), { status: response.status })
   }
 
   const data = await response.json()
-  const text = data?.output?.[0]?.content?.[0]?.text
+  const text = extractOutputText(data)
 
   if (!text) {
-    throw new Error('OpenAI returned no content')
+    // Say why: an incomplete answer (token limit / filter) is different from an empty one.
+    const why = data?.status && data.status !== 'completed' ? `status ${data.status}${data.incomplete_details?.reason ? ` (${data.incomplete_details.reason})` : ''}` : 'no message in output'
+    throw Object.assign(new Error(`OpenAI returned no content: ${why}`), { status: 502 })
   }
 
   return JSON.parse(text)
+}
+
+// The Responses API returns a list of output items. A reasoning model puts a `reasoning` item
+// FIRST and the answer in a later `message` item, so output[0] is not the answer. Find the
+// message item's output_text instead (and accept the SDK-style `output_text` shortcut).
+export function extractOutputText(data) {
+  if (typeof data?.output_text === 'string' && data.output_text) return data.output_text
+  for (const item of data?.output ?? []) {
+    if (item?.type && item.type !== 'message') continue // skip `reasoning` and tool-call items
+    for (const part of item.content ?? []) {
+      if ((part?.type === 'output_text' || part?.type === 'text') && typeof part.text === 'string' && part.text) return part.text
+    }
+  }
+  return null
 }

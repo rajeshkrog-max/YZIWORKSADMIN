@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import * as store from './store.js'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
+// Own temp data dir: these tests consume seats and write sessions, which must never touch server/data.
+process.env.SERA_DATA_DIR = await fs.mkdtemp(path.join(os.tmpdir(), 'sera-store-'))
+process.env.SERA_SEED_SAMPLE_CODES = '1' // the store seeds no student codes unless asked
+const store = await import('./store.js')
 
 test('store: checkStudentCode valid and invalid codes', async () => {
   const valid = await store.checkStudentCode('YZI-PUNE-OCT26')
