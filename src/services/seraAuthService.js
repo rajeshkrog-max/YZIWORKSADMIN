@@ -69,20 +69,22 @@ export async function checkStudentCode(code) {
 
 // → { ok: true, login: { route, firstName, email, phone, studentCode } } | { ok: false, error }
 // (the hook turns `login` into the session — src/shared/seraSession.js)
-export async function completeLogin({ route, google, phone, msg91Token, studentCode }) {
+// Either `google` or `manual` ({ name, email } typed by a candidate without Google) is set.
+export async function completeLogin({ route, google, manual = null, phone, msg91Token, studentCode }) {
   if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     const code = route === 'student' ? String(studentCode || '').trim().toUpperCase() : null
     return {
       ok: true,
-      login: { route, firstName: cleanFirstName(google.name), email: google.email, phone, studentCode: code },
+      login: { route, firstName: cleanFirstName((google ?? manual).name), email: (google ?? manual).email.toLowerCase(), phone, studentCode: code },
     }
   }
 
   // The server verifies the Google token, the student code and (once configured) the MSG91 token.
   const data = await postJson('/api/sera/login', {
     route,
-    google,
+    google: google ?? undefined,
+    manual: google ? undefined : manual,
     phone,
     msg91Token,
     studentCode: route === 'student' ? studentCode : null,

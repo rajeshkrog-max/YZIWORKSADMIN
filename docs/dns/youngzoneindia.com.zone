@@ -1,0 +1,20 @@
+; youngzoneindia.com - WordPress site. Mail (MX/SPF/autodiscover) is Microsoft 365 and must stay as is.
+$ORIGIN youngzoneindia.com.
+$TTL 600
+@ IN A 129.121.169.26
+www IN CNAME youngzoneindia.com.
+mail IN A 129.121.169.26
+@ IN MX 0 youngzoneindia-com.mail.protection.outlook.com.
+@ IN TXT "v=spf1 include:spf.protection.outlook.com ip4:129.121.169.26 -all"
+autodiscover IN CNAME autodiscover.outlook.com.
+yziworks IN A 129.121.169.26
+www.yziworks IN A 129.121.169.26
+yziworks IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+work IN A 129.121.169.26
+www.work IN A 129.121.169.26
+work IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+works IN A 129.121.169.26
+www.works IN A 129.121.169.26
+works IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+yzi2026._domainkey IN TXT "v=DKIM1;h=sha256;k=rsa;p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoWbP/AknD9orXn02QFq7EuSMwak7E6IH7OGRAIg3U/mYlz4tbRfSwjgBs9UCUX/PqbkJyxeKtTeQUIKqDLPX48/NlVjafBT9KixQ6WvEhS18fS959UQ0GYL5TuIEANM2syT" "lQ2ZO0L+LpuQRTU6AqxDMkDqVl/biq905HgNI7PhpHoVZ8IIDIYaA7ABHD7I1SkyakHsMaZaTpz7XsQL05SGKHVPV5N71vnCKJudhXSZYQeEIgKSR2q9TnCoa2Rn+wZ1IlsrQu6f1272CGKe+bPJs9D2fMlhKSEAHGnqufvq+RHmYarAmDdOHhSzPIXDlCHDRNjEHFT38EU1IU8WkfQIDAQAB"
+_dmarc IN TXT "v=DMARC1; p=none;"

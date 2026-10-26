@@ -4,7 +4,7 @@ import OrderSummary from './OrderSummary'
 import PriceBreakdown from './PriceBreakdown'
 import { SERA_VISITOR_PLAN, formatRupees } from '../../../config/seraPricing'
 import { INTERVIEW_LENGTH_LABEL } from '../../../config/seraRounds'
-import { createOrder, verifyPayment } from '../../../services/seraPaymentService'
+import { VERIFY_PENDING, createOrder, verifyPayment } from '../../../services/seraPaymentService'
 import { isMockMode } from '../../../services/seraAuthService'
 import { loadRazorpayScript, openRazorpayCheckout } from '../../../utils/razorpay'
 import { takeMockPayOutcome } from '../../../services/seraMockCall'
@@ -37,9 +37,10 @@ function SeraPay({ session, fileName, onPaymentSuccess, onChangeResume }) {
 
   const confirm = async ({ orderId, paymentId, signature }) => {
     setStatus('verifying')
-    const result = await verifyPayment({ orderId, paymentId, signature })
+    const result = await verifyPayment({ orderId, paymentId, signature, sessionId: session?.sessionId })
     if (result.ok) onPaymentSuccess({ orderId, paymentId: result.paymentId })
-    else release(result.error || FAILED)
+    // Razorpay already took the money here: never tell them they weren't charged.
+    else release(result.error === 'Payment signature mismatch' ? FAILED : VERIFY_PENDING)
   }
 
   const pay = async () => {
@@ -48,9 +49,15 @@ function SeraPay({ session, fileName, onPaymentSuccess, onChangeResume }) {
     setError(null)
     setStatus('opening')
 
-    const order = await createOrder({ email: session?.email, phone: session?.phone, objectKey: session?.resume.objectKey })
+    const order = await createOrder({ sessionId: session?.sessionId })
     if (!order.ok) {
       release(order.error || FAILED)
+      return
+    }
+    // Paid already (an earlier tab, or a payment the page never confirmed): straight to the interview.
+    if (order.alreadyPaid) {
+      setStatus('verifying')
+      onPaymentSuccess({ orderId: order.orderId, paymentId: order.paymentId })
       return
     }
 
@@ -132,8 +139,12 @@ function SeraPay({ session, fileName, onPaymentSuccess, onChangeResume }) {
 
             {error && <p className="mt-3 text-xs text-red-400 light:text-red-600">{error}</p>}
 
-            {/* TODO: link Terms and Refund Policy once those pages exist (no routes yet). */}
-            <p className="mt-4 text-[11px] text-fg/40">By paying you agree to our Terms and Refund Policy.</p>
+            {/* New tab, so the pay step stays open. */}
+            <p className="mt-4 text-[11px] text-fg/40">
+              By paying you agree to our{' '}
+              <a href="/terms" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-fg/70">Terms</a> and{' '}
+              <a href="/refund-policy" target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-fg/70">Refund Policy</a>.
+            </p>
 
             <button
               type="button"

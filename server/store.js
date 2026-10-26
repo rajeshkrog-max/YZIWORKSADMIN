@@ -143,7 +143,26 @@ export async function saveOrder(orderId, orderData) {
   const safeId = String(orderId).replace(/[^a-zA-Z0-9_\-]/g, '')
   const filePath = path.join(ORDERS_DIR, `${safeId}.json`)
   const existing = (await getOrder(orderId)) ?? {}
-  await writeJsonAtomic(filePath, { ...existing, ...orderData, orderId, updatedAt: new Date().toISOString() })
+  const now = new Date().toISOString()
+  await writeJsonAtomic(filePath, { createdAt: now, ...existing, ...orderData, orderId, updatedAt: now })
+}
+
+// Every order, read from disk (the payment reconcile looks up one email's orders). Unreadable files are skipped.
+export async function listOrders() {
+  const orders = []
+  try {
+    for (const file of await fs.readdir(ORDERS_DIR)) {
+      if (!file.endsWith('.json')) continue
+      try {
+        orders.push(JSON.parse(await fs.readFile(path.join(ORDERS_DIR, file), 'utf8')))
+      } catch {
+        /* a file being written: seen next time */
+      }
+    }
+  } catch (err) {
+    console.error('listOrders error:', err.code || err.message)
+  }
+  return orders
 }
 
 export async function getOrder(orderId) {
@@ -215,7 +234,19 @@ export async function getDemoCode(code) {
   return { instituteName: entry.instituteName, seatsLeft: entry.seatsLeft, expired: isExpired(entry) }
 }
 
-export async function consumeStudentSeat(code) {
+// Seat counts are read-modify-write on one file: two students starting at the same moment must not
+// both take the last seat, so every seat change waits for the one before it.
+let seatQueue = Promise.resolve()
+const serialSeat = (fn) => {
+  const run = seatQueue.then(fn)
+  seatQueue = run.catch(() => {})
+  return run
+}
+
+export const consumeStudentSeat = (code) => serialSeat(() => consumeSeatNow(code))
+export const refundStudentSeat = (code) => serialSeat(() => refundSeatNow(code))
+
+async function consumeSeatNow(code) {
   const clean = String(code || '').trim().toUpperCase()
   const codes = await getStudentCodes()
   const entry = codes[clean]
@@ -232,7 +263,7 @@ export async function consumeStudentSeat(code) {
   return { success: true, seatsLeft: entry.seatsLeft }
 }
 
-export async function refundStudentSeat(code) {
+async function refundSeatNow(code) {
   const clean = String(code || '').trim().toUpperCase()
   const codes = await getStudentCodes()
   const entry = codes[clean]

@@ -74,7 +74,8 @@ Sera's prompt must contain this rule, and her `handoff_to_assistant` must not fi
 - What a call end means:
   - candidate said nothing → `incomplete`, no LLM call;
   - candidate hung up, silence, max duration, assistant ended → finished (possibly short) → report;
-  - a transport/provider error before the final round, and the candidate did not press End → `dropped` (the lost screen), no report.
+  - lost before the offers (error, refresh, closed tab, silence; not End, not Sera) → `restart_available`, one free restart (spec 0002);
+  - lost after the offers, or a second loss → the report on what was said (the round is still marked `dropped`).
 
 ## Browser
 
@@ -137,5 +138,5 @@ Round times live in one place, `src/config/seraRounds.js`: screening 300 (Sera r
 
 ## Known limits
 
-- **Rejoin after a drop** is not implemented on the squad: a squad call always starts at its first member, so restarting at HR or Final needs a decision. The lost screen and the `/api/sera/rejoin` endpoint exist but cannot restart a call.
+- **Rejoin after a drop** is not possible on the squad (a squad call always starts at its first member). Decided 2026-10-26 (spec 0002): a call lost before the offers gets one free restart from Sera (`restart_available`, `start-call` again); after the offers the report is built on what was said. `/api/sera/session/lost` only records a note and `/api/sera/rejoin` issues nothing.
 - The Netlify functions (`netlify/functions/sera-*`) and `netlify/lib/seraCall/agents.js` are the old Retell path and are unused.

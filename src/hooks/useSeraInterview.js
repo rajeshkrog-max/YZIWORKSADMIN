@@ -10,6 +10,9 @@ import { buildCallVariables } from '../../netlify/lib/seraCall/variables.js'
 import { isShowOffersMessage } from '../../netlify/lib/seraVapi/clientEvents.js'
 import { roundOfAssistantName } from '../../netlify/lib/seraVapi/squad.js'
 import { OFFER_PICK_SECONDS, roundsFor } from '../config/seraRounds'
+import { clearSessionId, fetchServerSession, loadSessionId, saveSessionId } from '../services/seraRestoreService'
+import { resumePoint } from '../shared/seraResumePoint'
+import { checkMicrophone } from '../utils/micCheck'
 
 // @vapi-ai/web is a CommonJS package (`exports.default = Vapi`). Depending on the bundler's
 // interop, `import()` hands back the class, or a module object holding it one level down
@@ -44,8 +47,9 @@ const STALL_GRACE_SECONDS = 15
 // don't burn the candidate's one-per-login slot over it.
 const STALL_FORGIVENESS_WINDOW_SECONDS = 90
 
-// Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | blocked | lost
-// `lost` = the call dropped without the candidate pressing End (rejoin comes by WhatsApp).
+// Screens: hero | signin | upload | preparing | pay | interview | wrapup | report | restart | blocked | lost
+// `restart` = the call was lost before the offers; the server allows ONE free restart (spec 0002).
+// `lost` = DEV mock only now: a real lost call goes to wrapup, where the server's decision arrives.
 // `pay` is New User-only (route 'visitor'): students go from preparing straight to the interview.
 //
 // All interview DATA lives in one `session` (src/shared/seraSession.js); the
@@ -86,6 +90,8 @@ export function useSeraInterview() {
   const [roundIndex, setRoundIndex] = useState(0)
   const roundIndexRef = useRef(0)
   const candidateEndedRef = useRef(false)
+  const restartRef = useRef(false) // the current call is the interview's one free restart
+  const preparedFileRef = useRef(null) // the file the stored offers were built from (a retry never re-reads it)
   const [connectingTo, setConnectingTo] = useState(null) // next round during the HR → Final hand-over
   const [lostInfo, setLostInfo] = useState(null) // { rejoinIssued } on the lost screen
   // DEV ONLY — the simulated call in mock mode (seraMockCall).
@@ -103,6 +109,7 @@ export function useSeraInterview() {
   }, [])
 
   const reset = useCallback(() => {
+    clearSessionId()
     setScreen('hero')
     setError(null)
     setBusy(false)
@@ -140,10 +147,18 @@ export function useSeraInterview() {
   const goToSignIn = useCallback(() => setScreen('signin'), [])
 
   // Login from the glass card (SeraLogin): { route, firstName, email, phone, studentCode }.
+  // A login the server matched to this email's existing interview (`resumed`) reopens it where it is.
   const completeLogin = useCallback(
-    (login) => {
+    (login, { resumed = false } = {}) => {
       setError(null)
-      updateSession(createSession(login))
+      if (login.sessionId) saveSessionId(login.sessionId)
+      if (resumed && login.sessionId) {
+        liveRef.current.restoreSession?.(login.sessionId, { fallback: login })
+        return
+      }
+      const fresh = createSession(login)
+      // A verified payment this email has not used yet (paid in an earlier tab): never ask again.
+      updateSession(login.payment?.paymentId ? { ...fresh, payment: login.payment, status: 'reserved' } : fresh)
       setScreen('upload')
     },
     [updateSession]
@@ -168,11 +183,16 @@ export function useSeraInterview() {
     callActiveRef.current = false
     stopSessionTimer()
     vapiRef.current?.stop().catch(() => {})
+    // The server only forgives a start that stalled in its first 90 seconds (and ends that call). Otherwise
+    // the call's end decides: a free restart before the offers, or the report on what was said.
+    if (elapsedRef.current >= STALL_FORGIVENESS_WINDOW_SECONDS) return liveRef.current.finishInterview?.()
     setError("Sera's having a connection hiccup — let's try that again.")
-    setScreen('upload')
-    // The server only forgives a start that stalled in its first 90 seconds.
-    if (elapsedRef.current < STALL_FORGIVENESS_WINDOW_SECONDS) releaseReservation(sessionRef.current)
-  }, [stopSessionTimer])
+    if (restartRef.current) updateSession((s) => ({ ...s, status: 'restart_available' }))
+    setScreen(restartRef.current ? 'restart' : 'upload')
+    releaseReservation(sessionRef.current).then((released) => {
+      if (!released) liveRef.current.finishInterview?.()
+    })
+  }, [stopSessionTimer, updateSession])
 
   const finishInterview = useCallback(async () => {
     stopSessionTimer()
@@ -182,15 +202,22 @@ export function useSeraInterview() {
     // The report is generated exactly once, server-side, after the final
     // round — never here. Polling a cheap read-only endpoint means every
     // interview costs one analysis call, not two.
-    const POLL_INTERVAL_MS = 2000
-    const MAX_ATTEMPTS = 45 // ~90s, then the "still on its way by email" message
+    // Every 2 s for the first minute, then every 5 s: a report (and its one retry) can take a few minutes.
+    const MAX_WAIT_MS = 6 * 60 * 1000
+    const started = Date.now()
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    for (let attempt = 0; Date.now() - started < MAX_WAIT_MS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, attempt < 30 ? 2000 : 5000))
       const result = await fetchReport(sessionRef.current)
       if (!result.ready) continue
+      if (result.restart) {
+        // The call was lost before the offers: the server offers one free restart (spec 0002).
+        updateSession((s) => ({ ...s, status: 'restart_available' }))
+        setScreen('restart')
+        return
+      }
       if (result.incomplete) {
-        setIncomplete(true)
+        setIncomplete(result.reason === 'failed' ? 'failed' : true)
         setScreen('report')
         return
       }
@@ -202,7 +229,8 @@ export function useSeraInterview() {
         return
       }
     }
-    setError("Your report is taking longer than expected — it's still on its way to our team by email, and we'll make sure you see it.")
+    // Nothing is lost: the report is saved on the server and the login reopens it.
+    setError("Your report is taking longer than usual. It's saved — refresh this page in a few minutes, or sign in again later with the same Google account to see it.")
     setScreen('report')
   }, [stopSessionTimer, updateSession])
 
@@ -541,6 +569,15 @@ export function useSeraInterview() {
     if (!current?.resume.objectKey) return
     setBusy(true)
     setError(null)
+    // A restart skips the upload, so its microphone check is here.
+    if (current.status === 'restart_available' && !isMockMode()) {
+      const mic = await checkMicrophone()
+      if (!mic.ok) {
+        setError(mic.error)
+        setBusy(false)
+        return
+      }
+    }
 
     // Mock mode never creates a real call. On the dev server it simulates one.
     if (isMockMode()) {
@@ -559,6 +596,8 @@ export function useSeraInterview() {
         return
       }
       if (!result.ok) throw new Error(result.error)
+      saveSessionId(result.sessionId)
+      restartRef.current = current.status === 'restart_available'
 
       updateSession((s) => ({
         ...patchRound(s, 'screening', { callId: result.callId, status: 'live' }),
@@ -572,7 +611,8 @@ export function useSeraInterview() {
       await connectVapi(result)
     } catch (err) {
       setError(err.message || 'Something went wrong — please try again')
-      setScreen('upload')
+      // A restart that failed to start is still a restart (the server kept it); anything else goes back to upload.
+      setScreen(sessionRef.current?.status === 'restart_available' ? 'restart' : 'upload')
     } finally {
       setBusy(false)
     }
@@ -586,6 +626,23 @@ export function useSeraInterview() {
       if (!file || !sessionRef.current) return
       setBusy(true)
       setError(null)
+      // The microphone first: before the résumé read, the payment or the call cost anything.
+      if (!isMockMode()) {
+        const mic = await checkMicrophone()
+        if (!mic.ok) {
+          setError(mic.error)
+          setBusy(false)
+          return
+        }
+      }
+      // "Try again" after a start that did not connect: the offers from this file are already stored.
+      const current = sessionRef.current
+      if (file === preparedFileRef.current && current.offers?.length === 3 && current.resume?.objectKey) {
+        setBusy(false)
+        if (current.route === 'student' || current.payment?.paymentId) await startInterview()
+        else setScreen('pay')
+        return
+      }
       setScreen('preparing')
 
       try {
@@ -597,6 +654,7 @@ export function useSeraInterview() {
           return
         }
 
+        preparedFileRef.current = file
         const current = updateSession((s) => ({ ...s, resume: result.resume, offers: result.offers, chosenOfferId: null }))
         setBusy(false)
         // A verified payment whose interview never started is reused, never charged twice.
@@ -689,6 +747,31 @@ export function useSeraInterview() {
   useEffect(() => {
     liveRef.current = {
       chooseOffer,
+      finishInterview,
+
+      // Reopens an existing interview from the server (a refresh, or a login matched to it).
+      restoreSession: async (sessionId, { fallback = null } = {}) => {
+        let server
+        try {
+          server = await fetchServerSession(sessionId)
+        } catch {
+          setError("We couldn't reach the server. Check your connection and refresh the page.")
+          if (fallback) {
+            updateSession(createSession(fallback))
+            setScreen('upload')
+          }
+          return
+        }
+        if (!server) {
+          clearSessionId()
+          return
+        }
+        const point = resumePoint(server)
+        updateSession({ ...createSession(server), ...server, sessionId })
+        if (point.screen === 'wrapup') return finishInterview()
+        if (point.incomplete) setIncomplete(server.status === 'report_failed' ? 'failed' : true)
+        setScreen(point.screen)
+      },
 
       // Safety nets only — the assistants hand over by themselves.
       onClockTick: (elapsedSeconds) => {
@@ -768,8 +851,9 @@ export function useSeraInterview() {
           finishInterview()
           return
         }
-        // Screening never ends the call itself, so ending before the HR round is a drop.
-        handleConnectionLost('screening')
+        // Ended before the HR round (a drop, a refresh, silence): the server decides between the one free
+        // restart and the report on what was said (spec 0002). Wait for it on the wrap-up screen.
+        finishInterview()
       },
 
       onVapiError: (err) => {
@@ -786,16 +870,38 @@ export function useSeraInterview() {
           return
         }
         if (!callStartedRef.current) {
-          setError('The call dropped unexpectedly — please try again.')
-          setScreen('upload')
-          releaseReservation(sessionRef.current)
+          setError('The call could not connect — please try again.')
+          // A forgiven restart is still the restart; a forgiven first start goes back to Begin.
+          if (restartRef.current) updateSession((s) => ({ ...s, status: 'restart_available' }))
+          setScreen(restartRef.current ? 'restart' : 'upload')
+          releaseReservation(sessionRef.current).then((released) => {
+            if (!released) finishInterview()
+          })
           return
         }
-        const round = roundsFor(sessionRef.current?.route)[roundIndexRef.current]
-        handleConnectionLost(round?.id === 'offer' ? 'screening' : (round?.id ?? 'screening'))
+        // The server hears the call's end from Vapi and decides (restart or report): wait for it.
+        finishInterview()
       },
     }
   })
+
+  // A refresh in this tab: reopen the interview where the server has it (never in DEV mock mode).
+  useEffect(() => {
+    if (isMockMode()) return
+    const saved = loadSessionId()
+    if (saved) liveRef.current.restoreSession?.(saved)
+  }, [])
+
+  // A live call cannot survive a reload: ask before the tab is closed or refreshed by accident.
+  useEffect(() => {
+    if (screen !== 'interview') return
+    const warn = (event) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [screen])
 
   useEffect(() => stopSessionTimer, [stopSessionTimer])
   useEffect(

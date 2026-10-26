@@ -37,12 +37,23 @@ function ReportNotice({ title, text, onDone }) {
 
 // The report page. Renders ONLY a report that passes validate(); every section
 // whose data is missing is hidden (reportSections), never shown empty.
+// `incomplete`: 'silent' (Sera heard no answers, so there is nothing to report on) or 'failed' (our side
+// could not write the report, even after its retry). `true` is treated as 'silent'.
 function SeraReport({ report, sessionId, incomplete, error, onDone }) {
+  if (incomplete === 'failed') {
+    return (
+      <ReportNotice
+        title="We couldn't write your report"
+        text="Your interview was saved, but something went wrong on our side while writing the report. This is not your fault. Please reach out to YZI Works through the Contact form at the bottom of yziworks.com with the Google email you signed in with, and we'll make it right."
+        onDone={onDone}
+      />
+    )
+  }
   if (incomplete) {
     return (
       <ReportNotice
         title="Interview ended early"
-        text="Looks like the interview ended early — no worries, we'll get you scheduled for another session soon."
+        text="Sera didn't hear any answers in this interview, so there's nothing to report on. If your microphone wasn't working, reach out to YZI Works through the Contact form at the bottom of yziworks.com with the Google email you signed in with."
         onDone={onDone}
       />
     )

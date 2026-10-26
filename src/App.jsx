@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import ApplicationProcess from './pages/ApplicationProcess'
 import AboutUs from './pages/AboutUs'
 import MeetSera from './pages/MeetSera'
+import Policies from './pages/Policies'
 import AnnouncementBar from './components/AnnouncementBar'
 
 function App() {
@@ -14,6 +15,8 @@ function App() {
         <Route path="/application-process" element={<ApplicationProcess />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/meet-sera" element={<MeetSera />} />
+        <Route path="/terms" element={<Policies page="terms" />} />
+        <Route path="/refund-policy" element={<Policies page="refund" />} />
       </Routes>
     </BrowserRouter>
   )

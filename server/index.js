@@ -51,6 +51,7 @@ function loadEnv() {
 loadEnv()
 
 import { createSession, getChosenOffer } from '../src/shared/seraSession.js'
+import { sendAlert } from './alert.js'
 import { cleanFirstName } from '../netlify/lib/seraCall/cleanFirstName.js'
 import { generateOffers } from '../netlify/lib/seraOffers/index.js'
 import { generateReport } from '../netlify/lib/seraReport/index.js'
@@ -62,6 +63,7 @@ import {
   demoIdentity,
   isValidPhone,
   verifyGoogleLogin,
+  typedIdentity,
   verifyMsg91Token,
 } from '../netlify/lib/seraLogin/index.js'
 import {
@@ -83,9 +85,21 @@ import {
   sendControlMessage,
   getCall,
   callToEndOfCall,
+  decideAfterCall,
+  reachedOffers,
+  MAX_RESTARTS,
+  END_CALL,
 } from '../netlify/lib/seraVapi/index.js'
+import {
+  ORDER_REUSE_MS,
+  createRazorpayOrder,
+  listOrderPayments,
+  ordersToReconcile,
+  pickPaidPayment,
+  unusedPayment,
+} from '../netlify/lib/seraPayment/index.js'
 import { createShutdown, installProcessHandlers } from './shutdown.js'
-import { canClaimReport, createRecovery } from './recovery.js'
+import { MAX_REPORT_ATTEMPTS, canClaimReport, createRecovery } from './recovery.js'
 import { roundsFor } from '../src/config/seraRounds.js'
 import * as store from './store.js'
 import { formsStatus, matchFormRoute, missingEnv, runFormHandler } from './formEndpoints.js'
@@ -238,9 +252,15 @@ const loginLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 15 })
 const demoLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 10 })
 const codeLimiter = createRateLimiter({ windowMs: 5 * 60 * 1000, max: 60 })
 const uploadLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 60 })
+// Each résumé read is two OpenAI calls; each order is a Razorpay request. Per client IP.
+const resumeLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 20 })
+const payLimiter = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 20 })
+const MAX_RESUME_READS_PER_SESSION = 6
+const MAX_FORGIVEN_STARTS = 3 // early-stall forgiveness per session; past this a stall is a normal end
 let warnedNoMsg91 = false
 
-// What the browser gets back from a login.
+// What the browser gets back from a login. `payment` is a verified payment this email has not used
+// yet (a refresh or a lost tab after paying), so the page never asks to pay twice.
 const publicLogin = (session) => ({
   sessionId: session.sessionId,
   route: session.route,
@@ -248,7 +268,36 @@ const publicLogin = (session) => ({
   email: session.email,
   phone: session.phone,
   studentCode: session.studentCode,
+  payment: session.payment ?? { orderId: null, paymentId: null },
 })
+
+const isRazorpayConfigured = () => Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+
+// A verified, unused payment for this email, after asking Razorpay about orders that were paid but never
+// verified by the browser. Never throws: a Razorpay outage only means nothing new is found.
+// `phone` narrows it to orders paid from that number: a typed (unverified) email must not unlock someone else's payment.
+async function findPaymentCredit(email, phone = null) {
+  if (typeof email !== 'string' || !email.includes('@')) return null
+  const orders = (await store.listOrders()).filter((o) => !phone || o.phone === phone)
+  if (isRazorpayConfigured()) {
+    for (const order of ordersToReconcile(orders, email)) {
+      try {
+        const paid = pickPaidPayment(
+          await listOrderPayments(order.orderId, { keyId: process.env.RAZORPAY_KEY_ID, keySecret: process.env.RAZORPAY_KEY_SECRET }),
+        )
+        if (!paid) continue
+        await store.saveOrder(order.orderId, { paymentId: paid.id, status: 'verified', used: false, reconciled: true })
+        Object.assign(order, { paymentId: paid.id, status: 'verified', used: false })
+        console.log(`[Payment] order ${order.orderId} was paid (${paid.status}) but never verified by the page: recovered`)
+      } catch (err) {
+        console.warn(`[Payment] could not check order ${order.orderId} with Razorpay: ${err.status ?? err.name}`)
+      }
+    }
+  }
+  const credit = unusedPayment(orders, email)
+  return credit ? { orderId: credit.orderId, paymentId: credit.paymentId } : null
+}
+const paymentCreditFor = (session) => findPaymentCredit(session.email, session.emailVerified === false ? session.phone : null)
 
 // The round timers: "time is nearly up" / "time is up" notes into the live call (Vinit's and Sonia's
 // prompts expect them), plus backstops. SERA_ROUND_TIME_SCALE only shrinks the delays in tests.
@@ -316,19 +365,31 @@ const REPORT_STALE_MS = 5 * 60 * 1000
 
 // A call that stalled right at the start doesn't use up the interview: give back the
 // slot, the payment and the seat. Enforced on the server (not just the client timer).
+// The forgiven call is ENDED here: before, it stayed open, so a page could release and keep talking,
+// over and over, on one payment. A session gets MAX_FORGIVEN_STARTS of these.
 async function forgiveEarlyStall(session) {
   const v = session.vapi
-  if (!v?.callId || session.report || Date.now() - Date.parse(v.startedAt) > FORGIVENESS_WINDOW_MS) return false
-  if (!v.admin) {
+  if (!v?.callId || session.report || v.endHandled || Date.now() - Date.parse(v.startedAt) > FORGIVENESS_WINDOW_MS) return false
+  if ((session.forgivenStarts ?? 0) >= MAX_FORGIVEN_STARTS) return false
+  session.forgivenStarts = (session.forgivenStarts ?? 0) + 1
+  if (v.controlUrl) {
+    await sendControlMessage(v.controlUrl, END_CALL).catch((err) => console.warn('[Vapi] could not end a forgiven call:', err.message))
+  }
+  callSessions.delete(v.callId)
+  if (!v.admin && !v.restart) {
     await store.releaseReservation(session.email)
     if (v.paymentOrderId) await store.saveOrder(v.paymentOrderId, { used: false, usedBySessionId: null })
     if (v.seatConsumedFor) await store.refundStudentSeat(v.seatConsumedFor)
   }
+  // A restarted interview keeps its slot, payment and seat (they belong to the first call), and may start again.
+  session.status = v.restart ? 'restart_available' : 'new'
+  if (v.restart) session.restartsUsed = Math.max(0, (session.restartsUsed ?? 1) - 1)
   session.vapi = null
-  session.status = 'new'
   session.rounds.screening = { callId: null, status: 'pending', transcript: null }
   return true
 }
+
+const REPORT_RETRY_DELAY_MS = Number(process.env.SERA_REPORT_RETRY_MS) || 20 * 1000
 
 // The one report (and its PDF) for an interview. Runs only from the Vapi
 // end-of-call webhook; the browser just polls get-report.
@@ -382,10 +443,27 @@ async function finalizeReport(sessionId, { stale = false } = {}) {
     })
   } catch (err) {
     console.error('[Report] generation failed:', err)
+    // One automatic retry (confirmed 2026-10-26, spec 0002): at most MAX_REPORT_ATTEMPTS runs per interview.
+    const retry = (claimed.reportAttempts ?? 1) < MAX_REPORT_ATTEMPTS
     await mutateSession(sessionId, (s) => {
-      s.reportState = 'failed'
-      s.status = 'report_failed'
+      s.reportState = retry ? 'retry_pending' : 'failed'
+      s.status = retry ? 'report_retrying' : 'report_failed'
+      if (retry) s.reportRetryAt = new Date(Date.now() + REPORT_RETRY_DELAY_MS).toISOString()
     })
+    if (retry) {
+      console.log(`[Report] session ${sessionId.slice(0, 8)}: retrying once in ${Math.round(REPORT_RETRY_DELAY_MS / 1000)} s`)
+      setTimeout(() => void finalizeReport(sessionId).catch((e) => console.error('[Report] retry failed:', e)), REPORT_RETRY_DELAY_MS).unref?.()
+    } else {
+      void sendAlert(`Report failed for session ${sessionId.slice(0, 8)}`, [
+        'A Sera report failed twice and will not be retried. The candidate was told to use the Contact form.',
+        '',
+        `Session: ${sessionId}`,
+        `Candidate: ${claimed.firstName ?? ''} <${claimed.email ?? ''}> (${claimed.route})`,
+        `Error: ${err?.message ?? err}`,
+        '',
+        'Per the Refund Policy, offer a refund or a new interview.',
+      ])
+    }
   } finally {
     workInProgress -= 1
   }
@@ -408,12 +486,19 @@ async function processEndOfCall({ callId, sessionId: metadataSessionId, endedRea
     for (const round of ['screening', 'hr', 'final']) {
       if (transcripts[round].length) s.rounds[round] = { callId, status: 'completed', transcript: transcripts[round] }
     }
-    const result = decideOutcome({ endedReason, transcripts, candidateEnded: s.status === 'ended_by_candidate' || s.candidateEnded === true })
-    if (result === 'incomplete') s.status = 'incomplete'
-    if (result === 'dropped') {
-      s.status = 'dropped'
+    const candidateEnded = s.status === 'ended_by_candidate' || s.candidateEnded === true
+    // Spec 0002: a call lost before the offers gets one free restart; anything else is reported on what was said.
+    const result = decideAfterCall({ endedReason, transcripts, candidateEnded, offersReached: reachedOffers(s.vapi), restartsUsed: s.restartsUsed ?? 0 })
+    s.vapi.outcome = result
+    if (decideOutcome({ endedReason, transcripts, candidateEnded }) === 'dropped') {
       const last = ['final', 'hr', 'screening'].find((r) => transcripts[r].length)
       if (last) s.rounds[last].status = 'dropped'
+    }
+    if (result === 'incomplete') s.status = 'incomplete'
+    if (result === 'restart') {
+      s.status = 'restart_available'
+      s.previousCalls = [...(s.previousCalls ?? []), { callId, endedReason, endedAt: new Date().toISOString() }]
+      console.log(`[Vapi] session ${sessionId.slice(0, 8)}: call ended before the offers (${endedReason}); one free restart offered`)
     }
     return result
   })
@@ -421,6 +506,8 @@ async function processEndOfCall({ callId, sessionId: metadataSessionId, endedRea
 }
 
 const MAX_RESUME_TEXT = 12000
+// Two calls (check, then offers) while the candidate waits; together they must finish inside Apache's 120 s.
+const RESUME_LLM_TIMEOUT_MS = 50 * 1000
 const RESUME_CHECK_SCHEMA = {
   type: 'object',
   properties: {
@@ -565,17 +652,20 @@ const server = http.createServer(async (req, res) => {
       const limited = loginLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
       if (!limited.allowed) return sendJson(res, 429, { ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
 
-      const { route, google, phone, msg91Token, studentCode } = body
+      const { route, google, manual, phone, msg91Token, studentCode } = body
       if (route !== 'visitor' && route !== 'student') {
         return sendJson(res, 200, { ok: false, error: 'Please choose New User or Student.' })
       }
 
-      // Identity comes from Google, never from the request body.
-      const verified = await verifyGoogleLogin(google, {
-        clientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
-        allowMock: process.env.SERA_ALLOW_MOCK_LOGIN === '1', // developer machines only
-        urls: { tokeninfo: process.env.GOOGLE_TOKENINFO_URL, userinfo: process.env.GOOGLE_USERINFO_URL },
-      })
+      // Identity comes from Google; without Google (`manual`), from a typed name and email that are not verified.
+      const typed = !google && manual != null
+      const verified = typed
+        ? typedIdentity(manual, { isAdminEmail })
+        : await verifyGoogleLogin(google, {
+            clientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
+            allowMock: process.env.SERA_ALLOW_MOCK_LOGIN === '1', // developer machines only
+            urls: { tokeninfo: process.env.GOOGLE_TOKENINFO_URL, userinfo: process.env.GOOGLE_USERINFO_URL },
+          })
       if (!verified.ok) return sendJson(res, 200, { ok: false, error: verified.error })
 
       const cleanPhone = String(phone ?? '').replace(/\D/g, '').slice(-10)
@@ -592,6 +682,23 @@ const server = http.createServer(async (req, res) => {
         console.warn('[Login] MSG91_AUTH_KEY is not set: the WhatsApp OTP token is NOT verified server-side')
       }
 
+      // This email already has an interview (started, finished, or waiting for its restart): open THAT one,
+      // so a refresh, a lost tab or a second device shows the report or the restart instead of a dead end.
+      const email = verified.identity.email
+      if (!isAdminEmail(email)) {
+        const reservation = await store.getReservation(email)
+        const existing = reservation?.sessionId ? await store.getSession(reservation.sessionId) : null
+        if (existing && existing.email?.toLowerCase() === email.toLowerCase()) {
+          // A typed email proves nothing, so it reopens an interview only from the number that took it.
+          if (typed && existing.phone !== cleanPhone) {
+            return sendJson(res, 200, { ok: false, error: 'This email has already been used for an interview. Use the WhatsApp number you used then, or sign in with Google.' })
+          }
+          return sendJson(res, 200, { ok: true, resumed: true, login: publicLogin(existing) })
+        }
+      } else if (typed) {
+        return sendJson(res, 200, { ok: false, error: 'Please sign in with Google to use this email.' })
+      }
+
       if (route === 'student') {
         const check = await store.checkStudentCode(studentCode)
         if (!check.valid) {
@@ -604,12 +711,20 @@ const server = http.createServer(async (req, res) => {
       const session = createSession({
         sessionId,
         route,
-        firstName: cleanFirstName(verified.identity.name || google.name || 'Candidate'),
+        firstName: cleanFirstName(verified.identity.name || google?.name || 'Candidate'),
         email: verified.identity.email,
         phone: cleanPhone,
         studentCode: route === 'student' ? String(studentCode).trim().toUpperCase() : null,
       })
       session.phoneVerified = Boolean(msg91Key)
+      session.emailVerified = !typed
+      if (route === 'visitor') {
+        const credit = await paymentCreditFor(session)
+        if (credit) {
+          session.payment = credit
+          session.status = 'reserved'
+        }
+      }
       await store.saveSession(session)
 
       return sendJson(res, 200, { ok: true, login: publicLogin(session) })
@@ -650,6 +765,9 @@ const server = http.createServer(async (req, res) => {
     // POST /api/sera/create-upload OR /.netlify/functions/sera-create-upload
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/create-upload' || pathname === '/.netlify/functions/sera-create-upload') {
+      if (!resumeLimiter.hit(`upload:${clientIp(req.headers, req.socket.remoteAddress)}`).allowed) {
+        return sendJson(res, 429, { error: 'Too many uploads. Please wait a few minutes and try again.' })
+      }
       const { filename, contentType, size, base64 } = body
 
       // A PDF is judged by its content (it starts with "%PDF-"), not by the name or the
@@ -732,83 +850,102 @@ const server = http.createServer(async (req, res) => {
       const session = sessionId ? await store.getSession(sessionId) : null
       if (!session) return sendJson(res, 404, { error: 'Interview session not found. Please sign in again.' })
       if (session.vapi?.callId) return sendJson(res, 409, { error: 'Your interview has already started.' })
+      if (session.status === 'restart_available') return sendJson(res, 409, { error: 'Your interview is ready to restart — no new résumé is needed.' })
       if (!process.env.OPENAI_API_KEY) {
         console.error('[Resume] OPENAI_API_KEY is not configured')
         return sendJson(res, 500, { error: 'Unable to read that résumé' })
       }
-
-      let buffer
-      try {
-        const obj = await getS3Client().send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
-        buffer = await streamToBuffer(obj.Body)
-      } catch (s3Err) {
-        console.error(`[Resume] R2 fetch failed for ${objectKey}:`, s3Err.message)
-        return sendJson(res, 500, { error: 'Unable to read that résumé' })
+      if (!resumeLimiter.hit(`read:${clientIp(req.headers, req.socket.remoteAddress)}`).allowed) {
+        return sendJson(res, 429, { error: 'Too many attempts. Please wait a few minutes and try again.' })
       }
-
-      // 1. One OpenAI read: is it a résumé, plus the highlight, field and text.
-      let check
+      // Each read is two OpenAI calls: cap them per session, and one at a time (a double click or two tabs).
+      if ((session.resumeReads ?? 0) >= MAX_RESUME_READS_PER_SESSION) {
+        return sendJson(res, 429, { error: "You've tried several résumés already. Please sign in again to start over." })
+      }
+      const readLock = `resume:${session.sessionId}`
+      if (inFlight.has(readLock)) return sendJson(res, 409, { error: 'Sera is already reading your résumé — one moment.' })
+      inFlight.add(readLock)
       try {
-        check = await generateJson({
-          schema: RESUME_CHECK_SCHEMA,
-          file: { filename: objectKey.split('/').pop() || 'resume.pdf', mimeType: 'application/pdf', base64: buffer.toString('base64') },
-          prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
-
-Read the attached PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, a scanned page with no extractable text, or a corrupted/unreadable file.
-
-If it IS a résumé, also extract:
-- candidateFirstName: their first name if visible in the text, else an empty string
-- highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
-- field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
-- resumeText: the résumé's text content, as plain text (up to roughly ${MAX_RESUME_TEXT} characters)
-
-If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeText with empty strings, and explain briefly in reason why (e.g. not a résumé, unreadable, no extractable text).`,
+        await mutateSession(session.sessionId, (s) => {
+          s.resumeReads = (s.resumeReads ?? 0) + 1
         })
-      } catch (err) {
-        console.error('[Resume] OpenAI file read failed:', err.message)
-        // Only a 400 means OpenAI could not read THIS file. A bad key, quota, outage or network
-        // error is ours: say so, instead of telling the candidate to re-check a good PDF.
-        if (err.status === 400) {
-          return sendJson(res, 200, { valid: false, reason: "That file doesn't look like a readable PDF — mind double-checking it?" })
+
+        let buffer
+        try {
+          const obj = await getS3Client().send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
+          buffer = await streamToBuffer(obj.Body)
+        } catch (s3Err) {
+          console.error(`[Resume] R2 fetch failed for ${objectKey}:`, s3Err.message)
+          return sendJson(res, 500, { error: 'Unable to read that résumé' })
         }
-        return sendJson(res, 500, { error: 'Sera is having a problem reading résumés right now. Please try again in a few minutes.' })
-      }
 
-      if (!check.isResume) {
-        // Tell the candidate WHY (the model's first sentence), e.g. "this is a company profile",
-        // instead of a bare "not a résumé" they cannot act on.
-        const why = String(check.reason ?? '').split(/(?<=[.!?])\s/)[0].replace(/[.!?\s]+$/, '').slice(0, 150)
-        return sendJson(res, 200, {
-          valid: false,
-          reason: `This doesn't look like a personal résumé${why ? ` — ${why}` : ''}. Please upload your own CV.`,
+        // 1. One OpenAI read: is it a résumé, plus the highlight, field and text.
+        let check
+        try {
+          check = await generateJson({
+            timeoutMs: RESUME_LLM_TIMEOUT_MS,
+            schema: RESUME_CHECK_SCHEMA,
+            file: { filename: objectKey.split('/').pop() || 'resume.pdf', mimeType: 'application/pdf', base64: buffer.toString('base64') },
+            prompt: `You are checking an uploaded PDF before a job-interview product lets someone start a voice interview.
+
+  Read the attached PDF. Decide if this is genuinely a résumé/CV (a real person's work history, education, or skills) — not a random document, invoice, article, a scanned page with no extractable text, or a corrupted/unreadable file.
+
+  If it IS a résumé, also extract:
+  - candidateFirstName: their first name if visible in the text, else an empty string
+  - highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
+  - field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
+  - resumeText: the résumé's text content, as plain text (up to roughly ${MAX_RESUME_TEXT} characters)
+
+  If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeText with empty strings, and explain briefly in reason why (e.g. not a résumé, unreadable, no extractable text).`,
+          })
+        } catch (err) {
+          console.error('[Resume] OpenAI file read failed:', err.message)
+          // Only a 400 means OpenAI could not read THIS file. A bad key, quota, outage or network
+          // error is ours: say so, instead of telling the candidate to re-check a good PDF.
+          if (err.status === 400) {
+            return sendJson(res, 200, { valid: false, reason: "That file doesn't look like a readable PDF — mind double-checking it?" })
+          }
+          return sendJson(res, 500, { error: 'Sera is having a problem reading résumés right now. Please try again in a few minutes.' })
+        }
+
+        if (!check.isResume) {
+          // Tell the candidate WHY (the model's first sentence), e.g. "this is a company profile",
+          // instead of a bare "not a résumé" they cannot act on.
+          const why = String(check.reason ?? '').split(/(?<=[.!?])\s/)[0].replace(/[.!?\s]+$/, '').slice(0, 150)
+          return sendJson(res, 200, {
+            valid: false,
+            reason: `This doesn't look like a personal résumé${why ? ` — ${why.charAt(0).toLowerCase()}${why.slice(1)}` : ''}. Please upload your own CV.`,
+          })
+        }
+        if (!check.resumeText || check.resumeText.length < 80) {
+          return sendJson(res, 200, { valid: false, reason: "This PDF doesn't have enough readable text — please upload your actual résumé." })
+        }
+        const resumeText = check.resumeText.slice(0, MAX_RESUME_TEXT)
+
+        // 2. The 3 offers, from THIS résumé, stored before any call exists. No canned fallback.
+        let offers
+        try {
+          offers = await generateOffers(({ prompt, schema }) => generateJson({ prompt, schema, timeoutMs: RESUME_LLM_TIMEOUT_MS }), {
+            resumeText,
+            field: check.field,
+            highlight: check.highlight,
+          })
+        } catch (offerErr) {
+          console.error('[Offers] generation failed:', offerErr.message)
+          return sendJson(res, 500, { error: "We couldn't prepare your offers — please try again in a moment." })
+        }
+
+        await mutateSession(session.sessionId, (s) => {
+          s.resume = { objectKey, highlight: check.highlight, field: check.field }
+          s.resumeText = resumeText
+          s.offers = offers
+          s.chosenOfferId = null
         })
-      }
-      if (!check.resumeText || check.resumeText.length < 80) {
-        return sendJson(res, 200, { valid: false, reason: "This PDF doesn't have enough readable text — please upload your actual résumé." })
-      }
-      const resumeText = check.resumeText.slice(0, MAX_RESUME_TEXT)
 
-      // 2. The 3 offers, from THIS résumé, stored before any call exists. No canned fallback.
-      let offers
-      try {
-        offers = await generateOffers(({ prompt, schema }) => generateJson({ prompt, schema }), {
-          resumeText,
-          field: check.field,
-          highlight: check.highlight,
-        })
-      } catch (offerErr) {
-        console.error('[Offers] generation failed:', offerErr.message)
-        return sendJson(res, 500, { error: "We couldn't prepare your offers — please try again in a moment." })
+        return sendJson(res, 200, { valid: true, highlight: check.highlight, field: check.field, offers })
+      } finally {
+        inFlight.delete(readLock)
       }
-
-      await mutateSession(session.sessionId, (s) => {
-        s.resume = { objectKey, highlight: check.highlight, field: check.field }
-        s.resumeText = resumeText
-        s.offers = offers
-        s.chosenOfferId = null
-      })
-
-      return sendJson(res, 200, { valid: true, highlight: check.highlight, field: check.field, offers })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -816,48 +953,67 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
     // POST /api/sera/payment/create-order
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/payment/create-order') {
-      const { email, phone, objectKey, sessionId } = body
+      if (!payLimiter.hit(clientIp(req.headers, req.socket.remoteAddress)).allowed) {
+        return sendJson(res, 429, { ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
+      }
+      // The order belongs to a signed-in session: email and phone come from it, never from the request.
+      const session = body.sessionId ? await store.getSession(body.sessionId) : null
+      if (!session) return sendJson(res, 400, { ok: false, error: 'Your sign-in has expired. Please refresh the page and sign in again.' })
+      if (session.route !== 'visitor') return sendJson(res, 400, { ok: false, error: 'Student interviews are not paid.' })
+      if (session.vapi?.callId || session.status === 'restart_available') {
+        return sendJson(res, 409, { ok: false, error: 'Your interview has already started.' })
+      }
+      const email = session.email
       // Nobody pays for an interview they can't start (one interview per email).
-      if (typeof email === 'string' && !isAdminEmail(email) && (await store.getReservation(email))) {
+      if (!isAdminEmail(email) && (await store.getReservation(email))) {
         return sendJson(res, 403, { ok: false, error: ALREADY_USED_MESSAGE })
+      }
+      if (!isRazorpayConfigured()) {
+        return sendJson(res, 500, { ok: false, error: 'Payment gateway is not configured' })
       }
       const keyId = process.env.RAZORPAY_KEY_ID
       const keySecret = process.env.RAZORPAY_KEY_SECRET
 
-      if (!keyId || !keySecret) {
-        return sendJson(res, 500, { ok: false, error: 'Payment gateway is not configured' })
+      // Already paid (this tab, an earlier tab, or a payment the page never confirmed): never charge twice.
+      const credit = session.payment?.paymentId ? session.payment : await paymentCreditFor(session)
+      if (credit) {
+        await mutateSession(session.sessionId, (s) => {
+          s.payment = { orderId: credit.orderId, paymentId: credit.paymentId }
+          s.status = 'reserved'
+        })
+        return sendJson(res, 200, { ok: true, alreadyPaid: true, orderId: credit.orderId, paymentId: credit.paymentId })
       }
 
-      const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
-      const rzRes = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: 24900, // ₹249 in paise (server-enforced)
-          currency: 'INR',
-          receipt: `sera_${Date.now()}`,
-          notes: { email, phone, objectKey, sessionId },
-        }),
-      })
-
-      if (!rzRes.ok) {
-        const err = await rzRes.text().catch(() => '')
-        console.error('Razorpay order creation failed:', rzRes.status, err)
-        return sendJson(res, 502, { ok: false, error: "Couldn't initiate payment. Please try again." })
+      // A recent unpaid order of this session is offered again (Razorpay allows retries on one order).
+      const pending = session.pendingOrderId ? await store.getOrder(session.pendingOrderId) : null
+      if (pending?.status === 'created' && Date.now() - Date.parse(pending.createdAt ?? 0) < ORDER_REUSE_MS) {
+        return sendJson(res, 200, { ok: true, orderId: pending.orderId, amountPaise: pending.amountPaise, currency: pending.currency, keyId })
       }
 
-      const orderData = await rzRes.json()
+      let orderData
+      try {
+        orderData = await createRazorpayOrder({
+          keyId,
+          keySecret,
+          amountPaise: 24900, // ₹249 in paise (server-enforced)
+          notes: { email, phone: session.phone, objectKey: session.resume?.objectKey ?? '', sessionId: session.sessionId },
+        })
+      } catch (err) {
+        console.error('Razorpay order creation failed:', err.status ?? err.name, err.message)
+        return sendJson(res, 502, { ok: false, error: "Couldn't initiate payment. You haven't been charged — please try again." })
+      }
+
       await store.saveOrder(orderData.id, {
         email,
-        phone,
-        objectKey,
-        sessionId,
+        phone: session.phone,
+        objectKey: session.resume?.objectKey ?? null,
+        sessionId: session.sessionId,
         amountPaise: 24900,
         currency: 'INR',
         status: 'created',
+      })
+      await mutateSession(session.sessionId, (s) => {
+        s.pendingOrderId = orderData.id
       })
 
       return sendJson(res, 200, {
@@ -877,7 +1033,7 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
       const { orderId, paymentId, signature, sessionId } = body
       const keySecret = process.env.RAZORPAY_KEY_SECRET
 
-      if (!orderId || !paymentId || !signature || !keySecret) {
+      if (typeof orderId !== 'string' || typeof paymentId !== 'string' || typeof signature !== 'string' || !orderId || !paymentId || !keySecret) {
         return sendJson(res, 400, { ok: false, error: 'Invalid verification details' })
       }
 
@@ -889,19 +1045,20 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
         return sendJson(res, 400, { ok: false, error: 'Payment signature mismatch' })
       }
 
-      // Mark order verified & unused
-      await store.saveOrder(orderId, { paymentId, status: 'verified', used: false })
+      // Only orders this server created; a repeat verify is answered the same way and never resets `used`.
+      const order = await store.getOrder(orderId)
+      if (!order) return sendJson(res, 400, { ok: false, error: 'Invalid verification details' })
+      if (order.status !== 'verified') await store.saveOrder(orderId, { paymentId, status: 'verified', used: false })
 
-      if (sessionId) {
-        const session = await store.getSession(sessionId)
-        if (session) {
-          session.payment = { orderId, paymentId }
-          session.status = 'reserved'
-          await store.saveSession(session)
-        }
+      const session = sessionId ? await store.getSession(sessionId) : null
+      if (session && order.email && session.email?.toLowerCase() === order.email.toLowerCase()) {
+        await mutateSession(session.sessionId, (s) => {
+          s.payment = { orderId, paymentId: order.paymentId ?? paymentId }
+          if (s.status === 'new') s.status = 'reserved'
+        })
       }
 
-      return sendJson(res, 200, { ok: true, paymentId })
+      return sendJson(res, 200, { ok: true, paymentId: order.paymentId ?? paymentId })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -975,7 +1132,10 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
       if (!Array.isArray(session.offers) || session.offers.length !== 3) {
         return sendJson(res, 400, { error: 'Your offers are not ready — please upload your résumé again.' })
       }
-      if (session.vapi?.callId) return sendJson(res, 409, { error: 'Your interview has already started.' })
+      // Spec 0002: the call was lost before the offers, so this interview may start ONE more call. Its
+      // slot, payment and seat were taken by the first call and stay taken: nothing is checked or charged again.
+      const restart = session.status === 'restart_available' && session.vapi?.endHandled === true && (session.restartsUsed ?? 0) < MAX_RESTARTS
+      if (session.vapi?.callId && !restart) return sendJson(res, 409, { error: 'Your interview has already started.' })
 
       // Nothing is reserved, charged or consumed if the service can't run.
       try {
@@ -994,11 +1154,15 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
       let seatConsumedFor = null
       try {
         let order = null
-        if (!admin) {
+        if (restart && !admin) {
+          const reservation = await store.getReservation(email)
+          if (reservation?.sessionId !== session.sessionId) return sendJson(res, 403, { error: 'already-used', message: ALREADY_USED_MESSAGE })
+        } else if (!admin) {
           // New User: a verified, unused payment for THIS email. A retry after a failed
           // start reuses the same payment — it is only marked used once the call exists.
+          // A payment the page never confirmed (lost tab, refresh) is found by email.
           if (session.route === 'visitor') {
-            const pid = paymentId || session.payment?.paymentId
+            const pid = paymentId || session.payment?.paymentId || (await paymentCreditFor(session))?.paymentId
             if (!pid) return sendJson(res, 403, { error: 'payment-required', message: 'A verified payment is required to start.' })
             order = await store.findOrderByPaymentId(pid)
             if (!order || order.status !== 'verified' || (order.email && order.email.toLowerCase() !== email.toLowerCase())) {
@@ -1041,21 +1205,31 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
         }
 
         await mutateSession(session.sessionId, (s) => {
+          const previous = s.vapi
           s.vapi = {
             callId: call.callId,
             controlUrl: call.controlUrl, // server only — never sent to the browser
             startedAt: new Date().toISOString(),
             admin,
-            paymentOrderId: order?.orderId ?? null,
-            seatConsumedFor,
+            paymentOrderId: restart ? (previous?.paymentOrderId ?? null) : (order?.orderId ?? null),
+            seatConsumedFor: restart ? (previous?.seatConsumedFor ?? null) : seatConsumedFor,
             handoffSent: false,
             round: 'screening',
+            ...(restart ? { restart: true } : {}),
+          }
+          if (restart) {
+            s.restartsUsed = (s.restartsUsed ?? 0) + 1
+            s.candidateEnded = false
+            s.chosenOfferId = null
+            s.rounds.hr = { callId: null, status: 'pending', transcript: null }
+            s.rounds.final = { callId: null, status: 'pending', transcript: null }
           }
           s.rounds.screening = { callId: call.callId, status: 'live', transcript: null }
           s.status = 'live'
         })
+        if (restart) console.log(`[Vapi] session ${session.sessionId.slice(0, 8)}: restarted after a lost call`)
         callSessions.set(call.callId, session.sessionId)
-        if (reserved) await store.updateReservation(email, { status: 'started', callId: call.callId })
+        if (reserved || (restart && !admin)) await store.updateReservation(email, { status: 'started', callId: call.callId })
         if (order) await store.saveOrder(order.orderId, { used: true, usedBySessionId: session.sessionId, usedAt: new Date().toISOString() })
 
         return sendJson(res, 200, { success: true, sessionId: session.sessionId, callId: call.callId, webCallUrl: call.webCallUrl })
@@ -1070,11 +1244,12 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/release-reservation' || pathname === '/.netlify/functions/sera-release-reservation') {
       const { sessionId } = body
+      let released = false
       if (sessionId) {
-        roundTimers.clear(sessionId)
-        await mutateSession(sessionId, (s) => forgiveEarlyStall(s))
+        released = (await mutateSession(sessionId, (s) => forgiveEarlyStall(s))) === true
+        if (released) roundTimers.clear(sessionId)
       }
-      return sendJson(res, 200, { released: true })
+      return sendJson(res, 200, { released })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1111,28 +1286,16 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
     // POST /api/sera/session/lost
     // ─────────────────────────────────────────────────────────────────────────────
     if (pathname === '/api/sera/session/lost') {
+      // Only a note for the logs now. What a lost call means (one free restart, or the report on what was said)
+      // is decided from Vapi's end-of-call report (spec 0002); a page saying "lost" must not change the session,
+      // and no rejoin code is issued (a squad call cannot be rejoined part way).
       const { sessionId, round } = body
       const session = await store.getSession(sessionId)
       if (!session) return sendJson(res, 200, { ok: false, rejoinIssued: false })
-
-      if (session.status === 'ended_by_candidate' || session.rejoinIssued) {
-        return sendJson(res, 200, { ok: true, rejoinIssued: false })
-      }
-
-      // Issue single-use 48h rejoin code
-      const code = `REJOIN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
-      const token = crypto.randomUUID()
-
-      session.rejoinCode = code
-      session.rejoinToken = token
-      session.rejoinRound = round
-      session.rejoinIssued = true
-      session.rejoinIssuedAt = Date.now()
-      session.status = 'dropped'
-
-      await store.saveSession(session)
-
-      return sendJson(res, 200, { ok: true, rejoinIssued: true, code, token })
+      await mutateSession(session.sessionId, (s) => {
+        s.clientLost = { round: typeof round === 'string' ? round.slice(0, 20) : null, at: new Date().toISOString() }
+      })
+      return sendJson(res, 200, { ok: true, rejoinIssued: false })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1263,10 +1426,13 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
       if (!session) return sendJson(res, 200, { ready: false })
 
       if (session.report) return sendJson(res, 200, { ready: true, report: session.report })
+      // The call was lost before the offers: the page offers the one free restart (spec 0002).
+      if (session.status === 'restart_available') return sendJson(res, 200, { ready: true, restart: true })
 
       const stuck = session.reportState === 'running' && Date.now() - Date.parse(session.reportStartedAt) > REPORT_STALE_MS
       if (session.status === 'incomplete' || session.status === 'report_failed' || stuck) {
-        return sendJson(res, 200, { ready: true, incomplete: true })
+        // `reason` tells the page which honest message to show: the candidate said nothing, or our report failed.
+        return sendJson(res, 200, { ready: true, incomplete: true, reason: session.status === 'incomplete' ? 'silent' : 'failed' })
       }
       return sendJson(res, 200, { ready: false })
     }
@@ -1284,7 +1450,23 @@ If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeTe
       }
 
       const s3 = getS3Client()
-      const reportKey = session.reportPdfKey || `sera-reports/${session.sessionId}.pdf`
+      // The PDF render or upload failed when the report was built: render it now from the stored report
+      // (no language model call), instead of signing a link to a file that does not exist.
+      if (!session.reportPdfKey) {
+        try {
+          const key = `sera-reports/${session.sessionId}.pdf`
+          const pdfBytes = await renderReportPdfOnServer(session.report)
+          await s3.send(new PutObjectCommand({ Bucket: BUCKET_NAME, Key: key, Body: Buffer.from(pdfBytes), ContentType: 'application/pdf' }))
+          await mutateSession(session.sessionId, (s) => {
+            s.reportPdfKey = key
+          })
+          session.reportPdfKey = key
+        } catch (err) {
+          console.error('[Report] PDF render on download failed:', err.message)
+          return sendJson(res, 503, { ok: false, error: "We couldn't prepare your PDF just now. Your report is safe — please try again in a minute." })
+        }
+      }
+      const reportKey = session.reportPdfKey
       const command = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: reportKey })
       const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 })
 

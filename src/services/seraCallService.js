@@ -32,10 +32,12 @@ export async function startInterviewCall(session) {
 }
 
 // A call that stalled right at the start shouldn't use up the one interview
-// (the server only forgives it inside the first 90 seconds).
-export function releaseReservation(session) {
-  if (!session?.sessionId) return
-  postJson('/api/sera/release-reservation', { sessionId: session.sessionId })
+// (the server only forgives it inside the first 90 seconds, and ends that call).
+// → Promise<boolean>: false when the server did not forgive it (then the call's end decides).
+export async function releaseReservation(session) {
+  if (!session?.sessionId) return false
+  const { data } = await postJson('/api/sera/release-reservation', { sessionId: session.sessionId })
+  return data?.released === true
 }
 
 // Where is the live call? The server learns it from Vapi (the show_offers tool call, and which

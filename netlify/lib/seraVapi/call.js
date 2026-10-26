@@ -66,6 +66,7 @@ export async function createVapiCall(session, { objectKey, env = process.env, fe
     method: 'POST',
     headers: { Authorization: `Bearer ${webCallKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(buildCreateCallBody(session, { squadId, objectKey })),
+    signal: AbortSignal.timeout(20000), // a hung Vapi must not hold the candidate's start (or the slot) forever
   })
   if (!res.ok) throw new VapiRequestError(res.status, await res.text().catch(() => ''))
   const data = await res.json()

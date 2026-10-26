@@ -26,9 +26,15 @@ async function postJson(path, body) {
   }
 }
 
-// TODO(backend): POST /api/sera/payment/webhook (Razorpay) — idempotent on payment_id.
-// → { ok: true, orderId, amountPaise, currency, keyId } | { ok: false, error }
-export async function createOrder({ email, phone, objectKey }) {
+// After Razorpay took the money, a failed confirm must never say "you haven't been charged".
+export const VERIFY_PENDING =
+  "Your payment went through, but we couldn't confirm it yet. Please don't pay again — refresh this page in a minute and it will be picked up automatically."
+
+// The server takes the email and phone from the signed-in session, never from here.
+// → { ok: true, orderId, amountPaise, currency, keyId }
+//   | { ok: true, alreadyPaid: true, orderId, paymentId } — this email has a verified, unused payment
+//   | { ok: false, error }
+export async function createOrder({ sessionId }) {
   if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     return {
@@ -40,21 +46,25 @@ export async function createOrder({ email, phone, objectKey }) {
     }
   }
 
-  // TODO(backend): POST /api/sera/payment/create-order — not built yet.
-  const data = await postJson('/api/sera/payment/create-order', { email, phone, objectKey })
+  const data = await postJson('/api/sera/payment/create-order', { sessionId })
   if (!data || typeof data.ok !== 'boolean') return { ok: false, error: FRIENDLY_ERROR }
   return data
 }
 
+// Retried on a network failure (the money is already taken by then).
 // → { ok: true, paymentId } | { ok: false, error }
-export async function verifyPayment({ orderId, paymentId, signature }) {
+export async function verifyPayment({ orderId, paymentId, signature, sessionId }) {
   if (import.meta.env.DEV && isMockMode()) {
     await wait(400)
     return { ok: true, paymentId }
   }
 
-  // TODO(backend): POST /api/sera/payment/verify — not built yet.
-  const data = await postJson('/api/sera/payment/verify', { orderId, paymentId, signature })
-  if (!data || typeof data.ok !== 'boolean') return { ok: false, error: FRIENDLY_ERROR }
+  let data = null
+  for (let attempt = 0; attempt < 4 && !data; attempt++) {
+    if (attempt) await wait(1500 * attempt)
+    data = await postJson('/api/sera/payment/verify', { orderId, paymentId, signature, sessionId })
+    if (data && typeof data.ok !== 'boolean') data = null
+  }
+  if (!data) return { ok: false, error: VERIFY_PENDING }
   return data
 }

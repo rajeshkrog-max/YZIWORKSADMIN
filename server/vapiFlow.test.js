@@ -365,7 +365,8 @@ test('a webhook for a stale / unknown call is ignored', async () => {
 test('candidate said nothing: incomplete, no LLM cost', async () => {
   const callId = (await readSession('stu-2')).vapi.callId
   const before = llmCalls
-  await post(app, '/api/sera/vapi-webhook', endOfCall(callId, 'stu-2', messagesFor(['screening']).filter((m) => m.role === 'assistant').slice(0, 1), 'customer-ended-call'), auth)
+  // Sera ended the call herself (not a drop, so no restart): nothing said means no report.
+  await post(app, '/api/sera/vapi-webhook', endOfCall(callId, 'stu-2', messagesFor(['screening']).filter((m) => m.role === 'assistant').slice(0, 1), 'assistant-ended-call'), auth)
   const res = await waitFor(async () => {
     const r = await post(app, '/api/sera/get-report', { sessionId: 'stu-2' })
     return r.body.ready ? r.body : null
@@ -428,20 +429,37 @@ test('the webhook finds the session by call id when Vapi sends no metadata back'
   await seedSession('stu-6')
   await post(app, '/api/sera/start-call', { sessionId: 'stu-6' })
   const callId = (await readSession('stu-6')).vapi.callId
-  const body = endOfCall(callId, 'stu-6', messagesFor(['screening']).filter((m) => m.role === 'assistant').slice(0, 1), 'customer-ended-call')
+  const body = endOfCall(callId, 'stu-6', messagesFor(['screening']).filter((m) => m.role === 'assistant').slice(0, 1), 'assistant-ended-call')
   delete body.message.call.metadata
   await post(app, '/api/sera/vapi-webhook', body, auth)
   await waitFor(async () => (await readSession('stu-6')).status === 'incomplete')
 })
 
-test('a real drop mid-interview is "dropped" (lost screen), not a report; hang-up is not a drop', async () => {
+test('spec 0002: a drop before the offers gets ONE free restart (no seat, no charge); a second drop is reported on what was said', async () => {
   await seedSession('stu-3')
+  const seats = async () => (await post(app, '/api/sera/student-code/check', { code: 'YZI-PUNE-OCT26' })).body.seatsLeft
   await post(app, '/api/sera/start-call', { sessionId: 'stu-3' })
+  const seatsAfterFirst = await seats()
   const callId = (await readSession('stu-3')).vapi.callId
   const before = llmCalls
   await post(app, '/api/sera/vapi-webhook', endOfCall(callId, 'stu-3', messagesFor(['screening']), 'pipeline-error-openai-llm-failed'), auth)
-  await waitFor(async () => (await readSession('stu-3')).status === 'dropped')
-  assert.equal(llmCalls, before)
+  await waitFor(async () => (await readSession('stu-3')).status === 'restart_available')
+  assert.equal(llmCalls, before, 'no report for a restartable drop')
+  assert.deepEqual((await post(app, '/api/sera/get-report', { sessionId: 'stu-3' })).body, { ready: true, restart: true })
+
+  const again = await post(app, '/api/sera/start-call', { sessionId: 'stu-3' })
+  assert.equal(again.status, 200)
+  assert.notEqual(again.body.callId, callId, 'a new call')
+  assert.equal(await seats(), seatsAfterFirst, 'no second seat')
+  // a late webhook for the FIRST call changes nothing
+  await post(app, '/api/sera/vapi-webhook', endOfCall(callId, 'stu-3', messagesFor(['screening']), 'customer-ended-call'), auth)
+  assert.equal((await readSession('stu-3')).status, 'live')
+
+  // the restarted call drops too: no third call, the one report on what was said
+  await post(app, '/api/sera/vapi-webhook', endOfCall(again.body.callId, 'stu-3', messagesFor(['screening']), 'customer-ended-call'), auth)
+  await waitFor(async () => (await readSession('stu-3')).report)
+  assert.equal(llmCalls, before + 1)
+  assert.equal((await post(app, '/api/sera/start-call', { sessionId: 'stu-3' })).status, 409)
 
   await seedSession('stu-4')
   await post(app, '/api/sera/start-call', { sessionId: 'stu-4' })

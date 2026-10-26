@@ -11,7 +11,8 @@ const OPENAI_MODEL = 'gpt-5.6-terra'
 // content part alongside the `input_text` part, with the file bytes as a
 // base64 data URL. Existing callers that don't pass `file` are unaffected —
 // content is still sent as a plain string in that case.
-export async function generateJson({ prompt, schema, file }) {
+// `timeoutMs` bounds one request: the résumé check runs while the candidate waits behind Apache's 120 s proxy timeout.
+export async function generateJson({ prompt, schema, file, timeoutMs = 180000 }) {
   const apiKey = process.env.OPENAI_API_KEY
 
   if (!apiKey) {
@@ -47,6 +48,7 @@ export async function generateJson({ prompt, schema, file }) {
         },
       },
     }),
+    signal: AbortSignal.timeout(timeoutMs),
   })
 
   if (!response.ok) {

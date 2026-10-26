@@ -2,7 +2,7 @@
 
 ## Overview
 
-`server/index.js` is the live Meet Sera backend: a plain Node `http` server (no framework) on port 4005, self hosted on `ssh YZIServer` under `~/yzi-backend`. Apache proxies `/api/sera/*` to it. It stores sessions, orders and reservations as JSON files, and imports the pure logic from `netlify/lib/*`.
+`server/index.js` is the live Meet Sera backend: a plain Node `http` server (no framework) on port 4005, self hosted on `ssh YZIVPS` under `/home/yzi/yzi-backend` (systemd unit `yzi-backend`). Apache proxies `/api/sera/*` to it. It stores sessions, orders and reservations as JSON files, and imports the pure logic from `netlify/lib/*`.
 
 ## Key files
 
@@ -11,6 +11,7 @@
 | server/index.js | All routes (login, upload, extract-resume, payment, offers, start-call, session, rejoin, vapi-webhook, get-report, report/download, diagnostics, health) |
 | server/formEndpoints.js | Runs the four website form handlers from `netlify/functions/` (send-otp, verify-otp, send-contact, r2-create-upload) with per IP rate limits and a 503 when their keys are missing |
 | server/applicationUploads.js | Signed upload links for the application forms (HMAC with the R2 secret, 15 minute lifetime, size and type fixed in the link) and the check that a PUT matches its link |
+| server/alert.js | Owner alert emails through the local Postfix (`sendmail -t`), off unless `SERA_ALERT_EMAIL` is set. Used when a report fails twice |
 | server/store.js | File store in `server/data/` (sessions, orders, reservations, student codes). Set `SERA_DATA_DIR` to relocate it |
 | server/start.sh | `start`, `stop`, `restart`, `check`, `status`. It never starts Node itself: it calls `ensure.sh` and the `run/stop` flag |
 | server/supervise.mjs | The watchdog. Holds a port lock (4006), starts Node, health checks it, restarts it with a growing delay (1, 2, 4, 8, then 15 s), logs `[watchdog]` lines with the reason, touches `run/watchdog.beat`, reads `NODE_BIN` from `run/config` |
@@ -18,6 +19,7 @@
 | server/shutdown.js | Graceful stop on SIGTERM, SIGINT and the admin restart (waits up to 40 s for requests and a report). An uncaught exception logs one short line and exits with code 1 |
 | server/recovery.js | At start and every 2 minutes: re arms round timers part way through, reads calls that ended during an outage back from Vapi, retries a cut short report once, releases a slot left by a crash |
 | server/vapiFlow.test.js, loginFlow.test.js, server.test.js | Spawn the real server against fake Vapi and OpenAI. No network, no secrets |
+| server/edgeCases.test.js | Spec 0002 against the real server with fake Google, Vapi, OpenAI, Razorpay and R2: lost payments, login reopening an interview, the free restart, report retry, seat race, capped forgiveness, the WhatsApp login with a typed email |
 | server/supervise.test.js, shutdown.test.js, recovery.test.js, restartRecovery.test.js | Watchdog drills against a fake server, graceful stop, recovery with fakes, and the real server restarted in the middle of a fake call |
 | server/api-proxy.php, ecosystem.config.cjs | Older hosting glue. `start.sh` is what runs in production |
 
@@ -26,13 +28,13 @@
 ```bash
 node server/index.js            # run locally on :4005 (npm run server)
 node --check server/index.js    # always run before shipping
-bash scripts/deploy-sera-vapi.sh [--frontend]   # tests, upload, restart, live checks
+bash scripts/deploy-yzivps.sh [--frontend]      # tests, upload, restart, live checks
 npm run smoke                                   # live endpoint check against https://yziworks.com
 curl https://yziworks.com/api/sera/health       # {"ok":true,"build":"<commit>-<time>"}
-touch ~/yzi-backend/run/stop                    # on the host: stop the backend on purpose (rm it and cron brings it back)
+sudo systemctl stop yzi-backend                  # on the VPS: stop the backend on purpose (start restarts it)
 ```
 
-On the server restart with `bash ~/yzi-backend/server/start.sh restart`, not `pm2`. pm2's daemon is reaped when the SSH session ends and leaves the API down.
+On the VPS restart with `sudo systemctl restart yzi-backend` (graceful stop), not `pm2`. `server/start.sh`, `supervise.mjs` and `ensure.sh` are legacy from the cPanel host.
 
 ## Conventions
 
@@ -44,7 +46,7 @@ On the server restart with `bash ~/yzi-backend/server/start.sh restart`, not `pm
 - Reserve the one interview per email slot before creating the Vapi call, and release it if Vapi fails. A payment is marked used only after the call exists.
 - `GET /api/sera/diagnostics` with `Authorization: Bearer <VAPI_WEBHOOK_SECRET>` checks OpenAI, R2, Vapi, Razorpay and login config.
 - `VAPI_PRIVATE_KEY` (server `.env` only) is used for one thing: reading a finished call back (`GET /call/{id}`) after a restart. `/api/sera/diagnostics` shows `vapi.privateKey`.
-- Every file the server imports at run time must be in the `RUNTIME` list of `scripts/deploy-sera-vapi.sh`, or the host cannot start after a deploy.
+- Every file the server imports at run time must be in the `RUNTIME` list of `scripts/deploy-yzivps.sh`, or the VPS cannot start after a deploy.
 - Tests use `node --test` (no framework). `SERA_SKIP_DOTENV` and `SERA_ROUND_TIME_SCALE` exist for tests.
 
 ## Gotchas

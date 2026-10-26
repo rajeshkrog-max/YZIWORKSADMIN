@@ -27,7 +27,7 @@ export async function verifyGoogleLogin(google, { fetchImpl = fetch, clientId = 
   }
 
   try {
-    const infoRes = await fetchImpl(`${urls.tokeninfo ?? GOOGLE_TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`)
+    const infoRes = await fetchImpl(`${urls.tokeninfo ?? GOOGLE_TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`, { signal: AbortSignal.timeout(10000) })
     if (!infoRes.ok) return { ok: false, error: 'Your Google sign-in expired. Please try again.' }
     const info = await infoRes.json()
 
@@ -41,7 +41,7 @@ export async function verifyGoogleLogin(google, { fetchImpl = fetch, clientId = 
 
     let name = ''
     let picture = null
-    const userRes = await fetchImpl(urls.userinfo ?? GOOGLE_USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } })
+    const userRes = await fetchImpl(urls.userinfo ?? GOOGLE_USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10000) })
     if (userRes.ok) {
       const user = await userRes.json()
       name = String(user.name ?? user.given_name ?? '')
@@ -53,6 +53,20 @@ export async function verifyGoogleLogin(google, { fetchImpl = fetch, clientId = 
   }
 }
 
+// The WhatsApp-only login: the candidate types a name and an email instead of using Google.
+// The email is not verified, so it only identifies the interview (one per email); it never
+// grants an admin or demo identity. → { ok: true, identity: { email, name } } | { ok: false, error }
+export function typedIdentity(manual, { isAdminEmail = () => false } = {}) {
+  const email = String(manual?.email ?? '').trim().toLowerCase()
+  const name = String(manual?.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
+  if (!/\p{L}/u.test(name)) return { ok: false, error: 'Please enter your name.' }
+  if (!isValidEmail(email)) return { ok: false, error: 'Please enter a valid email address.' }
+  if (isAdminEmail(email) || email.endsWith('@demo.yziworks.com')) {
+    return { ok: false, error: 'Please sign in with Google to use this email.' }
+  }
+  return { ok: true, identity: { email, name } }
+}
+
 // MSG91 widget success token → verified server-side with the MSG91 auth key.
 // → { ok: true } | { ok: false, error }. Only call when the auth key is configured.
 export async function verifyMsg91Token({ token, authKey, fetchImpl = fetch, url = MSG91_VERIFY_URL }) {
@@ -62,6 +76,7 @@ export async function verifyMsg91Token({ token, authKey, fetchImpl = fetch, url 
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ authkey: authKey, 'access-token': token }),
+      signal: AbortSignal.timeout(10000),
     })
     const data = await res.json().catch(() => null)
     if (res.ok && data && String(data.type).toLowerCase() === 'success') return { ok: true }

@@ -1,0 +1,31 @@
+; yziworks.com - YZI Works / Sera. Records to recreate at the new DNS host. No cPanel service records on purpose.
+$ORIGIN yziworks.com.
+$TTL 600
+@ IN A 129.121.169.26
+@ IN MX 0 mail.yziworks.com.
+@ IN TXT "v=spf1 ip4:129.121.169.26 a mx ~all"
+mail IN A 129.121.169.26
+www IN CNAME yziworks.com.
+* IN A 129.121.169.26
+* IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+admin IN A 129.121.169.26
+www.admin IN A 129.121.169.26
+admin IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+app IN A 129.121.169.26
+www.app IN A 129.121.169.26
+app IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+eventrics IN A 129.121.169.26
+www.eventrics IN A 129.121.169.26
+eventrics IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+vd-technical IN A 129.121.169.26
+www.vd-technical IN A 129.121.169.26
+vd-technical IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+hypertech IN A 129.121.169.26
+www.hypertech IN A 129.121.169.26
+hypertech IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+apex-cloud-partners IN A 129.121.169.26
+www.apex-cloud-partners IN A 129.121.169.26
+apex-cloud-partners IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"
+apex-labs IN A 129.121.169.26
+www.apex-labs IN A 129.121.169.26
+apex-labs IN TXT "v=spf1 +a +mx +ip4:129.121.169.26 ~all"

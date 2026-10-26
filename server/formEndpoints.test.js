@@ -174,7 +174,7 @@ test('uploads: a changed link, a wrong size or a file larger than announced is r
   const { uploadUrl } = prep.body.uploads[0]
   const before = stored.length
 
-  const tampered = uploadUrl.replace(/sig=[0-9a-f]/, 'sig=0')
+  const tampered = uploadUrl.replace(/sig=([0-9a-f])/, (_, c) => `sig=${c === '0' ? '1' : '0'}`) // always a different first digit
   assert.equal((await put(shared, uploadUrl.replace('ct=application%2Fpdf', 'ct=text%2Fhtml'), file)).status, 403, 'the stored type cannot be changed')
   assert.equal((await put(shared, tampered, file)).status, 403)
   const otherKey = uploadUrl.replace('applications%2Fbuilders', 'applications%2Fpartners')

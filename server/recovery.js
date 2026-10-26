@@ -5,7 +5,8 @@
 //   1. re-arms the round timers of a live call, part way through, without repeating a note already sent
 //   2. finds a call that ended while the server was down (reads it back from Vapi) and hands it to the same
 //      end of call processing the webhook uses
-//   3. retries a report that was running when the server stopped, once
+//   3. retries a report that was running when the server stopped, once, and runs the one retry of a failed
+//      report (confirmed 2026-10-26, spec 0002) whose timer a restart lost
 //   4. releases an interview slot taken just before a crash, before any call existed
 //
 // It never makes a language model call of its own: a report is only ever built by `finalizeReport`, the
@@ -28,6 +29,7 @@ const HOUR_MS = 60 * 60 * 1000
  */
 export function canClaimReport(session, { stale = false, processStartedMs = 0 } = {}) {
   if (session.report || session.reportState === 'done') return false
+  if ((session.reportAttempts ?? 0) >= MAX_REPORT_ATTEMPTS) return false // never more than two runs, on any path
   if (session.reportState === 'running' && !(stale && Date.parse(session.reportStartedAt) < processStartedMs)) return false
   if (stale && (session.reportState === 'failed' || (session.reportAttempts ?? 0) >= MAX_REPORT_ATTEMPTS)) return false
   return true
@@ -127,6 +129,7 @@ export function createRecovery({
   }
 
   const wouldReport = (session) =>
+    !['restart_available', 'incomplete', 'report_failed'].includes(session.status) &&
     decideOutcome({
       endedReason: session.vapi.endedReason,
       transcripts: Object.fromEntries(['screening', 'hr', 'final'].map((r) => [r, session.rounds?.[r]?.transcript ?? []])),
@@ -138,10 +141,12 @@ export function createRecovery({
     if (session.report || session.reportState === 'done' || session.reportState === 'failed') return
     if ((session.reportAttempts ?? 0) >= MAX_REPORT_ATTEMPTS) return
     const stuckRunning = session.reportState === 'running' && Date.parse(session.reportStartedAt) < startedMs
+    // A failed report waiting for its one retry (server/index.js sets the time); a restart lost the timer.
+    const retryDue = session.reportState === 'retry_pending' && Date.parse(session.reportRetryAt ?? 0) <= now()
     // "Ended with no report yet" is only a crash leftover at start up; later it is just a report about to begin.
     const stranded = startup && !session.reportState && wouldReport(session)
-    if (!stuckRunning && !stranded) return
-    log(`[recovery] session ${short(session.sessionId)}: report ${stuckRunning ? 'was running when the server stopped' : 'never started'}, retrying once`)
+    if (!stuckRunning && !stranded && !retryDue) return
+    log(`[recovery] session ${short(session.sessionId)}: report ${stuckRunning ? 'was running when the server stopped' : retryDue ? 'failed once, running its retry' : 'never started'}, retrying once`)
     await finalizeReport(session.sessionId, { stale: true })
     summary.reportsRetried += 1
   }
