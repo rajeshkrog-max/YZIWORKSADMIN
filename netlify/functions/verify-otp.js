@@ -563,7 +563,7 @@ export async function handler(event) {
         },
         body: JSON.stringify({
           from: 'YZI Works <onboarding@resend.dev>',
-          to: ['admin@youngzoneindia.com'],
+          to: ['works@youngzoneindia.com'],
           subject,
           html: htmlContent
         })

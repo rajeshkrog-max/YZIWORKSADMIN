@@ -4,8 +4,7 @@ import { useSeraInterview } from '../hooks/useSeraInterview'
 import HeroSlider from '../components/HeroSlider'
 import Footer from '../components/Footer'
 import SeraNetworkBackground from '../components/sera/SeraNetworkBackground'
-import SeraHero from '../components/sera/SeraHero'
-import SeraSteps from '../components/sera/SeraSteps'
+import SeraLanding from '../components/sera/SeraLanding'
 import SeraLogin from '../components/sera/login/SeraLogin'
 import SeraUpload from '../components/sera/SeraUpload'
 import SeraPreparing from '../components/sera/SeraPreparing'
@@ -14,6 +13,7 @@ import SeraWrapup from '../components/sera/SeraWrapup'
 import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
 import SeraConnectionLost from '../components/sera/SeraConnectionLost'
+import SeraRestart from '../components/sera/SeraRestart'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
 import { roundsFor } from '../config/seraRounds'
 import { getDevTestSession } from '../services/seraAuthService'
@@ -48,7 +48,7 @@ const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, se
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
   ? {
-      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'blocked', 'lost'],
+      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'restart', 'blocked', 'lost'],
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
     }
   : null
@@ -58,6 +58,8 @@ const noop = () => {}
 function MeetSera() {
   const sera = useSeraInterview()
   const location = useLocation()
+  // Which login tab the landing opened: the campus-code line opens Student.
+  const [loginTab, setLoginTab] = useState('visitor')
 
   // Dev preview overrides the screen and its data; otherwise `view` is the real hook.
   const params = new URLSearchParams(location.search)
@@ -158,7 +160,7 @@ function MeetSera() {
     </>
   )
 
-  // Landing: hero slider → engine → steps → footer.
+  // Landing: hero slider → sales page (SeraLanding) → footer.
   if (view.screen === 'hero') {
     return (
       <div className="min-h-screen bg-surface text-fg">
@@ -169,8 +171,10 @@ function MeetSera() {
             lightSlides={SERA_LIGHT_SLIDES}
             altLabel="Meet Sera slide"
           />
-          <SeraHero onStart={view.goToSignIn} />
-          <SeraSteps />
+          <SeraLanding
+            onStart={() => { setLoginTab('visitor'); view.goToSignIn() }}
+            onStudent={() => { setLoginTab('student'); view.goToSignIn() }}
+          />
         </main>
         <Footer />
       </div>
@@ -194,6 +198,7 @@ function MeetSera() {
             onRejoin={view.resumeSession}
             rejoinToken={rejoinToken}
             initialCode={devRejoinCode}
+            initialTab={loginTab}
           />
         )}
 
@@ -240,6 +245,8 @@ function MeetSera() {
             connectingTo={view.connectingTo}
           />
         )}
+
+        {view.screen === 'restart' && <SeraRestart onRestart={view.startInterview} busy={view.busy} error={view.error} />}
 
         {view.screen === 'lost' && (
           <SeraConnectionLost session={view.session} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />

@@ -796,10 +796,10 @@ function EarlyPartnersForm({ isOpen, onClose }) {
                       data erasure at any time by emailing our Data Protection
                       Officer at{' '}
                       <a
-                        href="mailto:admin@youngzoneindia.com"
+                        href="mailto:works@youngzoneindia.com"
                         className="text-fg/80 underline underline-offset-2 hover:text-fg transition-colors"
                       >
-                        admin@youngzoneindia.com
+                        works@youngzoneindia.com
                       </a>{' '}
                       [DPDPA 2023].
                     </p>

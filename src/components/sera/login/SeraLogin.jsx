@@ -5,6 +5,8 @@ import LoginTabs from './LoginTabs'
 import GoogleStep from './GoogleStep'
 import StudentCodeStep from './StudentCodeStep'
 import WhatsAppStep from './WhatsAppStep'
+import ManualIdentityStep from './ManualIdentityStep'
+import { typedIdentityOrNull } from './typedIdentity'
 import DemoAccess from './DemoAccess'
 import { checkStudentCode, completeLogin } from '../../../services/seraAuthService'
 import { redeemRejoin } from '../../../services/seraSessionService'
@@ -24,6 +26,8 @@ const REJOIN_LINK_ERRORS = {
 // Glass login card. Steps unlock in order and each turns into a green ✓ row:
 //   New User (route 'visitor'): Google → WhatsApp OTP → Continue
 //   Student: Google → student code → WhatsApp OTP → Continue
+// Without Google, "Use WhatsApp" swaps the Google row for a typed name and email
+// (not verified; the server keeps it to one interview per email).
 // The WhatsApp step stays locked until the code is valid, so no OTP is spent
 // on a bad code. Google and phone survive a tab switch; only the code row toggles.
 //
@@ -32,9 +36,11 @@ const REJOIN_LINK_ERRORS = {
 //   Student: a one-time rejoin code typed in the Student code field.
 // Either way onRejoin({ session, round }) resumes the interview (no upload, no pay).
 // initialCode (DEV ONLY) pre-fills the Student tab with a code.
-function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null }) {
-  const [tab, setTab] = useState(initialCode ? 'student' : 'visitor')
+function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, initialTab = 'visitor' }) {
+  const [tab, setTab] = useState(initialCode ? 'student' : initialTab)
   const [google, setGoogle] = useState(null) // { name, email, picture, accessToken }
+  const [useTyped, setUseTyped] = useState(false) // no Google: name and email typed in
+  const [typed, setTyped] = useState({ name: '', email: '' })
   const [phone, setPhone] = useState(null) // { number, token }
   const [code, setCode] = useState(initialCode ?? '')
   const [codeStatus, setCodeStatus] = useState({ state: initialCode ? 'checking' : 'idle' })
@@ -46,7 +52,9 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
 
   const isStudent = !rejoinToken && tab === 'student'
   const codeOk = codeStatus.state === 'valid' || codeStatus.state === 'rejoin'
-  const canContinue = Boolean(google && phone && (!isStudent || codeOk)) && !submitting
+  const manual = useTyped ? typedIdentityOrNull(typed) : null
+  const identity = useTyped ? manual : google
+  const canContinue = Boolean(identity && phone && (!isStudent || codeOk)) && !submitting
 
   // Debounced server check; state updates happen only in the timer callback.
   const scheduleCheck = (next) => {
@@ -107,9 +115,9 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
     const result = await redeemRejoin({
       token: rejoinToken ?? undefined,
       code: rejoinToken ? undefined : code.trim(),
-      email: google.email,
+      email: identity.email,
       phone: phone.number,
-      name: google.name,
+      name: identity.name,
     })
     setSubmitting(false)
     if (result.ok) {
@@ -128,13 +136,14 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
     if (rejoinToken || (isStudent && codeStatus.state === 'rejoin')) return rejoin()
     const result = await completeLogin({
       route: tab,
-      google,
+      google: useTyped ? null : google,
+      manual,
       phone: phone.number,
       msg91Token: phone.token,
       studentCode: isStudent ? code.trim() : null,
     })
     setSubmitting(false)
-    if (result.ok) onDone(result.login)
+    if (result.ok) onDone(result.login, { resumed: result.resumed === true })
     else setSubmitError(result.error || 'Something went wrong. Please try again.')
   }
 
@@ -162,15 +171,28 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null })
           {!rejoinToken && <LoginTabs value={tab} onChange={(next) => { setTab(next); setSubmitError(null) }} />}
 
           <div className={`${rejoinToken ? '' : 'mt-5 '}flex flex-col gap-3`}>
-            <GoogleStep google={google} onSignedIn={signedIn} onChange={() => setGoogle(null)} />
+            {useTyped ? (
+              <ManualIdentityStep value={typed} onChange={(next) => { setTyped(next); setSubmitError(null) }} />
+            ) : (
+              <GoogleStep google={google} onSignedIn={signedIn} onChange={() => setGoogle(null)} />
+            )}
+            {!rejoinToken && (
+              <button
+                type="button"
+                onClick={() => { setUseTyped(!useTyped); setSubmitError(null) }}
+                className="-mt-1 self-start text-xs text-fg/60 underline underline-offset-2 hover:text-fg"
+              >
+                {useTyped ? 'Sign in with Google instead' : 'No Google account? Use WhatsApp and your email'}
+              </button>
+            )}
 
             {isStudent && (
-              <StudentCodeStep code={code} status={codeStatus} locked={!google} onCodeChange={changeCode} />
+              <StudentCodeStep code={code} status={codeStatus} locked={!identity} onCodeChange={changeCode} />
             )}
 
             <WhatsAppStep
               phone={phone}
-              locked={!google || (isStudent && !codeOk)}
+              locked={!identity || (isStudent && !codeOk)}
               onVerified={phoneVerified}
               onChange={() => setPhone(null)}
             />
