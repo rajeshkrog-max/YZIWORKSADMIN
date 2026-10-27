@@ -8,8 +8,9 @@
 // "Prepared by Sera · YZI Works" + the AI notice + "Page X of Y" on every page.
 // English only: Noto Sans (₹, accented Latin). Non-Latin characters are dropped;
 // a name with no Latin letters shows as "Candidate".
-import { LineCapStyle, PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { LineCapStyle, PDFDocument, PDFString, StandardFonts, rgb } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
+import { COMMUNITY_LINK_TEXT, COMMUNITY_NAME, COMMUNITY_URL } from '../../../src/config/community.js'
 import { SCORE_BANDS } from '../../../src/config/seraRubric.js'
 import { REPORT_FINE_PRINT, ROUND_LABELS, formatTimestamp, reportSections } from '../../../src/shared/seraReportSchema.js'
 
@@ -401,7 +402,21 @@ export async function renderReportPdf(report, { logoJpeg = null, fonts = null } 
   // ── Closing ──
   block(() => {
     space(22)
-    text('Want help getting there? The YZI community connects you with real work and people who can help you build these skills — yziworks.netlify.app', { size: 9.5, color: MUTED })
+    text(`Want help getting there? The ${COMMUNITY_NAME} connects you with real work and people who can help you build these skills.`, { size: 9.5, color: MUTED })
+    space(9.5 * 1.45 + 4)
+    if (measuring) return
+    // The label is the link; the URL itself is not printed.
+    draw(COMMUNITY_LINK_TEXT, { f: face.bold, size: 9.5, color: PURPLE })
+    const linkWidth = widthOf(COMMUNITY_LINK_TEXT, face.bold, 9.5)
+    rect({ x: M, y: y - 1.8, width: linkWidth, height: 0.6, color: PURPLE })
+    const annot = doc.context.register(doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [M, y - 3, M + linkWidth, y + 9.5],
+      Border: [0, 0, 0],
+      A: { Type: 'Action', S: 'URI', URI: PDFString.of(COMMUNITY_URL) },
+    }))
+    page.node.addAnnot(annot)
   })
 
   // ── Footer on every page ──
