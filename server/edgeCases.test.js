@@ -161,6 +161,12 @@ before(async () => {
       return res.end(JSON.stringify({ aud: CLIENT_ID, email: token.slice(4), email_verified: 'true' }))
     }
     if (url.pathname === '/userinfo') return res.end(JSON.stringify({ name: 'Priya Sharma' }))
+    // MSG91 answers the token `msg91:<10 digits>` as a verified 91<digits>.
+    if (url.pathname === '/msg91') {
+      const token = String(JSON.parse(raw || '{}')['access-token'] ?? '')
+      if (!token.startsWith('msg91:')) return res.end(JSON.stringify({ type: 'error', message: 'invalid token' }))
+      return res.end(JSON.stringify({ type: 'success', message: `91${token.slice(6)}` }))
+    }
     if (url.pathname === '/call/web') {
       vapiCalls.push(JSON.parse(raw))
       const id = `call-${vapiCalls.length}`
@@ -412,4 +418,42 @@ test('a page reporting "connection lost" no longer changes the interview or issu
   const s = await readSession(id)
   assert.equal(s.status, 'live')
   assert.equal(s.rejoinCode, undefined)
+})
+
+test("sign in with only a WhatsApp number reopens that number's interview, and only with its own OTP", async () => {
+  const phone = '9123400001'
+  const signedUp = await login('phone-signin@example.com', { phone })
+  assert.equal(signedUp.body.ok, true, signedUp.body.error)
+  const id = signedUp.body.login.sessionId
+  await patchSession(id, ready)
+
+  const withMsg91 = await startApp({ MSG91_AUTH_KEY: 'test-msg91', MSG91_VERIFY_URL: `http://127.0.0.1:${fake.port}/msg91` })
+  try {
+    const signIn = (body) =>
+      fetch(`http://127.0.0.1:${withMsg91.port}/api/sera/phone-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.200.0.1' },
+        body: JSON.stringify(body),
+      }).then((r) => r.json())
+
+    const ok = await signIn({ phone, msg91Token: `msg91:${phone}` })
+    assert.equal(ok.ok, true, ok.error)
+    assert.equal(ok.resumed, true)
+    assert.equal(ok.login.sessionId, id)
+    assert.equal(ok.login.email, 'phone-signin@example.com')
+
+    // An OTP verified for another number never opens this one.
+    assert.equal((await signIn({ phone, msg91Token: 'msg91:9000000000' })).ok, false)
+    assert.equal((await signIn({ phone, msg91Token: 'not-a-real-token' })).ok, false)
+    // A verified number with no interview is told to start one, and nothing is created.
+    const none = await signIn({ phone: '9000000000', msg91Token: 'msg91:9000000000' })
+    assert.equal(none.ok, false)
+    assert.match(none.error, /No interview found/)
+  } finally {
+    withMsg91.proc.kill()
+  }
+
+  // Without the MSG91 key the number cannot be proven, so sign in is off.
+  const off = await post('/api/sera/phone-login', { phone, msg91Token: `msg91:${phone}` }, { 'X-Forwarded-For': '10.200.0.2' })
+  assert.equal(off.body.ok, false)
 })

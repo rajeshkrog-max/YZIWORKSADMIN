@@ -66,6 +66,7 @@ import {
   typedIdentity,
   verifyMsg91Token,
 } from '../netlify/lib/seraLogin/index.js'
+import { msg91NumberMatches, pickPhoneSession } from '../netlify/lib/seraLogin/phoneSignIn.js'
 import {
   VapiNotConfiguredError,
   buildToolCallResults,
@@ -728,6 +729,41 @@ const server = http.createServer(async (req, res) => {
       await store.saveSession(session)
 
       return sendJson(res, 200, { ok: true, login: publicLogin(session) })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 2a. Sign in with only a WhatsApp number + OTP (same MSG91 widget and key as the login)
+    // POST /api/sera/phone-login { phone, msg91Token }
+    // Reopens the interview this number already has; never creates one. MSG91 must name this
+    // exact number as the one it verified, so it refuses to run without the MSG91 key.
+    // ─────────────────────────────────────────────────────────────────────────────
+    if (pathname === '/api/sera/phone-login') {
+      const limited = loginLimiter.hit(clientIp(req.headers, req.socket.remoteAddress))
+      if (!limited.allowed) return sendJson(res, 429, { ok: false, error: 'Too many attempts. Please wait a few minutes and try again.' })
+
+      const cleanPhone = String(body.phone ?? '').replace(/\D/g, '').slice(-10)
+      if (!isValidPhone(cleanPhone)) {
+        return sendJson(res, 200, { ok: false, error: 'Please enter a valid 10-digit WhatsApp number.' })
+      }
+      const msg91Key = process.env.MSG91_AUTH_KEY
+      if (!msg91Key) {
+        console.error('[PhoneLogin] MSG91_AUTH_KEY is not set: sign in with a number is off')
+        return sendJson(res, 200, { ok: false, error: 'Sign in with WhatsApp is unavailable right now. Please try again later.' })
+      }
+      const otp = await verifyMsg91Token({ token: body.msg91Token, authKey: msg91Key, url: process.env.MSG91_VERIFY_URL || undefined })
+      if (!otp.ok) return sendJson(res, 200, { ok: false, error: otp.error })
+      if (!msg91NumberMatches(otp.identifier, cleanPhone)) {
+        // Shape only, never the number: tells a format change (no digits) apart from a real mismatch.
+        const digits = String(otp.identifier ?? '').replace(/\D/g, '').length
+        console.warn(`[PhoneLogin] MSG91 verified a different identifier than the number sent (${digits} digits in it)`)
+        return sendJson(res, 200, { ok: false, error: "We couldn't verify this WhatsApp number. Please try again." })
+      }
+
+      const existing = await pickPhoneSession(await store.listSessions(), cleanPhone, (email) => store.getReservation(email))
+      if (!existing) {
+        return sendJson(res, 200, { ok: false, error: 'No interview found for this number. Choose New User or Student to start one.' })
+      }
+      return sendJson(res, 200, { ok: true, resumed: true, login: publicLogin(existing) })
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

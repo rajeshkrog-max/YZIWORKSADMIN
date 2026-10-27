@@ -93,6 +93,18 @@ export async function completeLogin({ route, google, manual = null, phone, msg91
   return data
 }
 
+// Sign in with only the WhatsApp number + OTP: reopens the interview that number already has.
+// → { ok: true, resumed: true, login } | { ok: false, error }
+export async function phoneLogin({ phone, msg91Token }) {
+  if (import.meta.env.DEV && isMockMode()) {
+    await wait(400)
+    return { ok: false, error: 'No interview found for this number. Choose New User or Student to start one.' }
+  }
+  const data = await postJson('/api/sera/phone-login', { phone, msg91Token })
+  if (!data || typeof data.ok !== 'boolean') return { ok: false, error: data?.error || FRIENDLY_ERROR }
+  return data
+}
+
 // The showcase credential: a demo code signs in with no Google and no WhatsApp OTP.
 // The server accepts it only for a code flagged `demo` (seat-capped, rate-limited).
 // → { ok: true, login } | { ok: false, error }

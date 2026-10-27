@@ -8,13 +8,14 @@ import WhatsAppStep from './WhatsAppStep'
 import ManualIdentityStep from './ManualIdentityStep'
 import { typedIdentityOrNull } from './typedIdentity'
 import DemoAccess from './DemoAccess'
-import { checkStudentCode, completeLogin } from '../../../services/seraAuthService'
+import { checkStudentCode, completeLogin, phoneLogin } from '../../../services/seraAuthService'
 import { redeemRejoin } from '../../../services/seraSessionService'
 
 const CODE_DEBOUNCE_MS = 450
 const SUBTITLES = {
   visitor: 'Sign in to start your interview.',
   student: 'Use the code your campus shared with you.',
+  signin: 'Already started or taken an interview? Use the WhatsApp number you signed up with.',
 }
 const REJOIN_LINK_ERRORS = {
   expired: 'This link has expired.',
@@ -36,6 +37,7 @@ const REJOIN_LINK_ERRORS = {
 //   Student: a one-time rejoin code typed in the Student code field.
 // Either way onRejoin({ session, round }) resumes the interview (no upload, no pay).
 // initialCode (DEV ONLY) pre-fills the Student tab with a code.
+// Sign in tab: WhatsApp OTP only (same MSG91 widget); the server reopens that number's interview.
 function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, initialTab = 'visitor' }) {
   const [tab, setTab] = useState(initialCode ? 'student' : initialTab)
   const [google, setGoogle] = useState(null) // { name, email, picture, accessToken }
@@ -51,10 +53,12 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, i
   const checkIdRef = useRef(0)
 
   const isStudent = !rejoinToken && tab === 'student'
+  // Sign in: the WhatsApp number + OTP alone reopen the interview that number has.
+  const isSignIn = !rejoinToken && tab === 'signin'
   const codeOk = codeStatus.state === 'valid' || codeStatus.state === 'rejoin'
   const manual = useTyped ? typedIdentityOrNull(typed) : null
   const identity = useTyped ? manual : google
-  const canContinue = Boolean(identity && phone && (!isStudent || codeOk)) && !submitting
+  const canContinue = Boolean((isSignIn || identity) && phone && (!isStudent || codeOk)) && !submitting
 
   // Debounced server check; state updates happen only in the timer callback.
   const scheduleCheck = (next) => {
@@ -134,6 +138,13 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, i
     setSubmitting(true)
     setSubmitError(null)
     if (rejoinToken || (isStudent && codeStatus.state === 'rejoin')) return rejoin()
+    if (isSignIn) {
+      const result = await phoneLogin({ phone: phone.number, msg91Token: phone.token })
+      setSubmitting(false)
+      if (result.ok) onDone(result.login, { resumed: true })
+      else setSubmitError(result.error || 'Something went wrong. Please try again.')
+      return
+    }
     const result = await completeLogin({
       route: tab,
       google: useTyped ? null : google,
@@ -171,12 +182,12 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, i
           {!rejoinToken && <LoginTabs value={tab} onChange={(next) => { setTab(next); setSubmitError(null) }} />}
 
           <div className={`${rejoinToken ? '' : 'mt-5 '}flex flex-col gap-3`}>
-            {useTyped ? (
+            {isSignIn ? null : useTyped ? (
               <ManualIdentityStep value={typed} onChange={(next) => { setTyped(next); setSubmitError(null) }} />
             ) : (
               <GoogleStep google={google} onSignedIn={signedIn} onChange={() => setGoogle(null)} />
             )}
-            {!rejoinToken && (
+            {!rejoinToken && !isSignIn && (
               <button
                 type="button"
                 onClick={() => { setUseTyped(!useTyped); setSubmitError(null) }}
@@ -192,7 +203,7 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, i
 
             <WhatsAppStep
               phone={phone}
-              locked={!identity || (isStudent && !codeOk)}
+              locked={!isSignIn && (!identity || (isStudent && !codeOk))}
               onVerified={phoneVerified}
               onChange={() => setPhone(null)}
             />
@@ -204,7 +215,7 @@ function SeraLogin({ onDone, onRejoin, rejoinToken = null, initialCode = null, i
             disabled={!canContinue}
             className="mt-6 w-full h-[50px] rounded-full bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple text-white font-semibold transition hover:brightness-110 disabled:from-fg/15 disabled:via-fg/15 disabled:to-fg/15 disabled:text-fg/40 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
-            {submitting ? 'Signing you in…' : 'Continue'}
+            {submitting ? 'Signing you in…' : isSignIn ? 'Sign in' : 'Continue'}
           </button>
           {submitError && <p className="mt-2 text-xs text-red-400 light:text-red-600">{submitError}</p>}
 

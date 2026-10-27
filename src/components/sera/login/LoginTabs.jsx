@@ -3,9 +3,11 @@ const TABS = [
   // bodies, stored data). It is the paying route (₹249); Student uses a code.
   { id: 'visitor', label: 'New User' },
   { id: 'student', label: 'Student' },
+  // Returning candidates: WhatsApp number + OTP only, reopens their interview.
+  { id: 'signin', label: 'Sign in' },
 ]
 
-// New User | Student segmented control with a sliding highlight pill.
+// New User | Student | Sign in segmented control with a sliding highlight pill.
 function LoginTabs({ value, onChange }) {
   const index = TABS.findIndex((tab) => tab.id === value)
 
@@ -13,11 +15,11 @@ function LoginTabs({ value, onChange }) {
     <div
       role="tablist"
       aria-label="Sign in as"
-      className="relative grid grid-cols-2 p-1 rounded-full bg-fg/5 border border-fg/10"
+      className="relative grid grid-cols-3 p-1 rounded-full bg-fg/5 border border-fg/10"
     >
       <span
         aria-hidden="true"
-        className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-fg/10 border border-fg/15 shadow-sm light:bg-white light:border-black/5 transition-transform duration-300 ease-out motion-reduce:transition-none"
+        className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] rounded-full bg-fg/10 border border-fg/15 shadow-sm light:bg-white light:border-black/5 transition-transform duration-300 ease-out motion-reduce:transition-none"
         style={{ transform: `translateX(${index * 100}%)` }}
       />
       {TABS.map((tab) => (

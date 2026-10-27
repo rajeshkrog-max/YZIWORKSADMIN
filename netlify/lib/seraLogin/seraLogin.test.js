@@ -50,8 +50,8 @@ test('google: the dev mock token is refused unless explicitly allowed, and never
 })
 
 test('msg91: only an explicit success counts', async () => {
-  const ok = async () => json({ type: 'success', message: 'verified' })
-  assert.deepEqual(await verifyMsg91Token({ token: 'abcdefgh1234', authKey: 'k', fetchImpl: ok }), { ok: true })
+  const ok = async () => json({ type: 'success', message: '919876543210' })
+  assert.deepEqual(await verifyMsg91Token({ token: 'abcdefgh1234', authKey: 'k', fetchImpl: ok }), { ok: true, identifier: '919876543210' })
   assert.equal((await verifyMsg91Token({ token: 'abcdefgh1234', authKey: 'k', fetchImpl: async () => json({ type: 'error' }) })).ok, false)
   assert.equal((await verifyMsg91Token({ token: 'abcdefgh1234', authKey: 'k', fetchImpl: async () => json({ type: 'success' }, false) })).ok, false)
   assert.equal((await verifyMsg91Token({ token: 'short', authKey: 'k', fetchImpl: ok })).ok, false)

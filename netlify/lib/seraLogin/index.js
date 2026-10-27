@@ -79,7 +79,8 @@ export async function verifyMsg91Token({ token, authKey, fetchImpl = fetch, url 
       signal: AbortSignal.timeout(10000),
     })
     const data = await res.json().catch(() => null)
-    if (res.ok && data && String(data.type).toLowerCase() === 'success') return { ok: true }
+    // MSG91 returns the verified identifier (the mobile, with country code) in `message`.
+    if (res.ok && data && String(data.type).toLowerCase() === 'success') return { ok: true, identifier: String(data.message ?? '') }
     return { ok: false, error: "We couldn't verify your WhatsApp number. Please try again." }
   } catch {
     return { ok: false, error: "We couldn't reach the verification service. Please try again." }
