@@ -79,7 +79,7 @@ function SeraPromo() {
           </p>
 
           <h2 className="text-4xl md:text-5xl font-bold leading-[1.1] tracking-tight mb-5 text-balance">
-            Practise before the{' '}
+            Practice before the{' '}
             <span className="bg-gradient-to-r from-yzi-orange via-yzi-pink to-yzi-purple bg-clip-text text-transparent">
               real interview.
             </span>

@@ -22,7 +22,7 @@ const SAVE_PERCENT = Math.round((1 - SERA_VISITOR_PLAN.pricePaise / SERA_VISITOR
 
 const BENEFITS = [
   {
-    title: 'Practise before the real thing',
+    title: 'Practice before the real thing',
     body: 'Experience an AI interview rather than relying entirely on mental preparation.',
     icon: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5 11a7 7 0 0 0 14 0M12 18v3',
   },
@@ -52,7 +52,7 @@ const INCLUDED = [
 const STEPS = [
   { title: 'Get started', body: `Sign in, upload your CV and purchase SERA Interview for ${PRICE}.` },
   {
-    title: 'Practise',
+    title: 'Practice',
     body: `SERA reads your CV and builds three role offers for you. Then complete three voice rounds: ${ROUND_LINE}, ${INTERVIEW_LENGTH_LABEL} in all.`,
   },
   {
@@ -64,7 +64,7 @@ const STEPS = [
 const FAQS = [
   {
     q: 'Who is this interview for?',
-    a: 'Students, fresh graduates and job seekers who want to practise for interviews and review their performance.',
+    a: 'Students, fresh graduates and job seekers who want to practice for interviews and review their performance.',
   },
   {
     q: 'What do I receive?',
@@ -142,7 +142,7 @@ function PriceCard({ onStart, onStudent }) {
   return (
     <div className="w-full max-w-md mx-auto rounded-3xl border border-fg/10 bg-card p-6 sm:p-8 text-center shadow-2xl shadow-black/30 light:shadow-black/10">
       <span className="text-xs font-semibold tracking-widest uppercase text-fg/55">SERA Interview by YZI Works</span>
-      <h3 className="mt-3 text-2xl sm:text-[28px] font-bold leading-tight">Practise before the real interview.</h3>
+      <h3 className="mt-3 text-2xl sm:text-[28px] font-bold leading-tight">Practice before the real interview.</h3>
       <p className="mt-2 text-fg/60">AI Interview Practice + Detailed PDF Report</p>
 
       <div className="my-6 py-6 border-y border-fg/10 grid grid-cols-[1fr_auto_1fr] items-center gap-2 tabular-nums">
@@ -210,10 +210,10 @@ function SeraLanding({ onStart, onStudent }) {
               </h1>
               <p className="mt-6 text-fg/70 text-base md:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0">
                 An interview can open the door to your next opportunity. Before the real conversation, give yourself a
-                chance to practise, review your performance and understand where you can improve.
+                chance to practice, review your performance and understand where you can improve.
               </p>
               <p className="mt-4 text-fg/70 text-base md:text-lg leading-relaxed max-w-xl mx-auto lg:mx-0">
-                With SERA Interview, you can practise with an AI interviewer and receive a{' '}
+                With SERA Interview, you can practice with an AI interviewer and receive a{' '}
                 <b className="text-fg font-semibold">detailed PDF report</b> to guide your interview preparation.
               </p>
             </div>
@@ -230,7 +230,7 @@ function SeraLanding({ onStart, onStudent }) {
               You may know your subject. You may have the right qualifications.{' '}
               <span className="text-fg font-medium">But do you know how you perform in an interview?</span>
             </p>
-            <p>Practising gives you an opportunity to prepare before the stakes are real.</p>
+            <p>Practicing gives you an opportunity to prepare before the stakes are real.</p>
           </SectionHeading>
           <ul className="grid md:grid-cols-3 gap-5">
             {BENEFITS.map((b) => (
@@ -339,7 +339,7 @@ function SeraLanding({ onStart, onStudent }) {
             </h2>
             <p className="mt-4 text-white/60">SERA Interview by YZI Works</p>
             <p className="mt-1 text-lg font-medium bg-gradient-to-r from-yzi-cyan via-yzi-purple to-yzi-pink bg-clip-text text-transparent">
-              Practise. Review. Prepare.
+              Practice. Review. Prepare.
             </p>
             <CtaButton onClick={onStart} className="mt-8 w-full sm:w-auto">Get started for {PRICE}</CtaButton>
           </div>

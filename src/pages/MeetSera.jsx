@@ -55,6 +55,9 @@ const PREVIEW = import.meta.env.DEV
 
 const noop = () => {}
 
+// Screens where a call is starting, live or ending: no Sign Out there.
+const SIGN_OUT_HIDDEN_ON = ['preparing', 'interview', 'wrapup']
+
 function MeetSera() {
   const sera = useSeraInterview()
   const location = useLocation()
@@ -147,13 +150,24 @@ function MeetSera() {
           mobile (measured, not assumed). top-16 (64px) clears it on both
           with margin — top-6 (24px) used to sit entirely inside that band,
           so the marquee's far higher z-index just won the overlap outright. */}
-      <div className="fixed top-16 left-6 z-50">
+      <div className="fixed top-16 left-6 z-50 flex items-center gap-3">
         <Link
           to="/"
           className="px-5 py-2.5 rounded-full bg-fg/15 backdrop-blur-md border border-fg/25 text-fg text-sm hover:bg-fg/25 transition"
         >
           ← Back to YZI Works
         </Link>
+        {/* Sign out = forget this tab's session id and return to the landing. Hidden while a
+            call is being set up or running, so it never leaves a live Vapi call behind. */}
+        {view.session && !SIGN_OUT_HIDDEN_ON.includes(view.screen) && (
+          <button
+            type="button"
+            onClick={view.reset}
+            className="px-5 py-2.5 rounded-full bg-fg/15 backdrop-blur-md border border-fg/25 text-fg text-sm hover:bg-fg/25 transition"
+          >
+            Sign Out
+          </button>
+        )}
       </div>
 
       <FloatingThemeToggle />

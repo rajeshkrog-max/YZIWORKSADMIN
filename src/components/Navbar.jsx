@@ -101,7 +101,7 @@ function Navbar() {
               }}
               className="w-full mt-2 py-3 rounded-full bg-gradient-to-r from-yzi-orange to-yzi-pink text-white text-sm font-medium"
             >
-              Apply Here
+              Join Now
             </button>
           </div>
         )}

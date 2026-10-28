@@ -346,8 +346,8 @@ function Footer() {
             {/* h-28 + my-2 = the old h-32 img with py-2: same 112px logo, same 128px footprint */}
             <Logo className="h-28 my-2" />
 
-            <p className="text-fg/50 text-sm max-w-xs leading-relaxed">
-              A flexible work and opportunity platform by Young Zone India, connecting people, businesses and service providers to discover, collaborate and grow through a better way of working.
+            <p className="text-fg/50 text-sm max-w-sm leading-relaxed">
+              An AI-powered work and career platform by Young Zone India, connecting people, businesses and opportunities. With SERA, our intelligent AI layer, we help turn ideas into action, improve career readiness and simplify the journey from finding the right opportunity to getting work done.
             </p>
           </div>
 
