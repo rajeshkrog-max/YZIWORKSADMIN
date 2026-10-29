@@ -7,6 +7,8 @@ import { getEligibilityStore } from '../lib/eligibilityStore.js'
 // releases a record that's still 'reserved'; never touches a completed
 // or already-incomplete record, so this can't be used to wipe someone's
 // real result.
+// TODO(backend): verify the caller owns this email (Google token / session) before releasing —
+// today anyone can release anyone's reservation.
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }

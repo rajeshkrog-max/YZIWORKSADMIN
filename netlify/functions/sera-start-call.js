@@ -20,6 +20,9 @@ function isAdminEmail(email) {
   return allowlist.includes(email.toLowerCase())
 }
 
+// TODO(backend): per-round calls — load the session by sessionId, use pickAgentId(round) and
+// buildCallVariables(session, round) (netlify/lib/seraCall) instead of RETELL_AGENT_ID + candidate_name,
+// put { sessionId, round } in the call metadata, and enforce payment/seat (docs/BACKEND_HANDOFF.md §4, §7).
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed' })

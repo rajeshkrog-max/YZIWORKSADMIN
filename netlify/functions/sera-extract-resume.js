@@ -62,6 +62,8 @@ const RESUME_CHECK_SCHEMA = {
   additionalProperties: false,
 }
 
+// TODO(backend): after a valid résumé, call generateOffers(llmCall, { resumeText, field, highlight })
+// (netlify/lib/seraOffers) and return `offers`; store resumeText + offers on the server session.
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) }

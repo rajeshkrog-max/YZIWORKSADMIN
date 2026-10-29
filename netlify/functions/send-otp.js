@@ -22,8 +22,10 @@ export async function handler(event) {
         'Content-Type': 'application/json',
         'authkey': process.env.MSG91_AUTH_KEY
       },
+      // MSG91's widget API takes widgetId and tokenAuth (a `widget_id` field answers "Widget Not Found").
       body: JSON.stringify({
-        widget_id: process.env.MSG91_WIDGET_ID,
+        widgetId: process.env.MSG91_WIDGET_ID,
+        tokenAuth: process.env.MSG91_TOKEN_AUTH || process.env.VITE_MSG91_TOKEN_AUTH,
         identifier: `91${phone}`
       })
     })
@@ -31,7 +33,7 @@ export async function handler(event) {
     const data = await response.json()
     console.log('MSG91 Response:', data)
 
-    if (data.hasError || data.type === 'error' || data.status === 'fail') {
+    if (!response.ok || data.error || data.hasError || data.type !== 'success') {
       console.error('MSG91 Error:', data)
       return {
         statusCode: 500,

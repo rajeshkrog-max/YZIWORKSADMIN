@@ -10,7 +10,8 @@ const PRIVACY_NOTICE_VERSION = 'v1'
 const PRIVACY_CONSENT_TEXT =
   'I agree to the collection and processing of my personal data by Young Zone India for the YZI Works platform as detailed in the Privacy Notice above [DPDPA 2023].'
 
-const BUCKET_NAME = 'yzi-application-files'
+// The same bucket the uploads are stored in (server/applicationUploads.js). Read when used.
+const bucketName = () => process.env.R2_BUCKET_NAME || 'yzi-application-files'
 
 const MAX_FILES = 5
 const MAX_TOTAL_SIZE = 20 * 1024 * 1024
@@ -117,7 +118,7 @@ async function prepareAttachmentLinks(attachments, formType) {
 
       const headResult = await s3.send(
         new HeadObjectCommand({
-          Bucket: BUCKET_NAME,
+          Bucket: bucketName(),
           Key: attachment.objectKey
         })
       )
@@ -148,7 +149,7 @@ async function prepareAttachmentLinks(attachments, formType) {
   const links = await Promise.all(
     preparedAttachments.map(async (attachment) => {
       const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName(),
         Key: attachment.objectKey,
         ResponseContentDisposition:
           `inline; filename="${attachment.originalFilename.replace(/"/g, '')}"`
@@ -562,7 +563,7 @@ export async function handler(event) {
         },
         body: JSON.stringify({
           from: 'YZI Works <onboarding@resend.dev>',
-          to: ['admin@youngzoneindia.com'],
+          to: ['works@youngzoneindia.com'],
           subject,
           html: htmlContent
         })

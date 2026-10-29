@@ -67,8 +67,9 @@ export async function uploadFilesToR2(files, applicationType) {
       const uploadResponse = await fetch(upload.uploadUrl, {
         method: 'PUT',
         headers: {
-          'Content-Type':
-            file.type || 'application/octet-stream'
+          // Always octet-stream: the host's firewall refuses application/pdf and msword bodies (HTTP 406).
+          // The server stores the file under its real type, which it has from the prepare step above.
+          'Content-Type': 'application/octet-stream'
         },
         body: file
       })

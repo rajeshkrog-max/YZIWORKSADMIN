@@ -1,19 +1,25 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useSeraInterview } from '../hooks/useSeraInterview'
 import HeroSlider from '../components/HeroSlider'
 import Footer from '../components/Footer'
 import SeraNetworkBackground from '../components/sera/SeraNetworkBackground'
-import SeraHero from '../components/sera/SeraHero'
-import SeraSteps from '../components/sera/SeraSteps'
-import SeraSignIn from '../components/sera/SeraSignIn'
+import SeraLanding from '../components/sera/SeraLanding'
+import SeraLogin from '../components/sera/login/SeraLogin'
 import SeraUpload from '../components/sera/SeraUpload'
 import SeraPreparing from '../components/sera/SeraPreparing'
-import SeraInterview from '../components/sera/SeraInterview'
+import InterviewRoom from '../components/sera/interview/InterviewRoom'
 import SeraWrapup from '../components/sera/SeraWrapup'
 import SeraReport from '../components/sera/SeraReport'
 import SeraBlockedScreen from '../components/sera/SeraBlockedScreen'
+import SeraConnectionLost from '../components/sera/SeraConnectionLost'
+import SeraRestart from '../components/sera/SeraRestart'
 import FloatingThemeToggle from '../theme/FloatingThemeToggle'
+import { roundsFor } from '../config/seraRounds'
+import { getDevTestSession } from '../services/seraAuthService'
+import { isDevMock } from '../services/seraMockCall'
+import SeraDevPanel from '../components/sera/dev/SeraDevPanel'
+import { getChosenOffer } from '../shared/seraSession'
 import seraSlide1Dark from '../assets/sera_hero/slide1dark.png'
 import seraSlide2Dark from '../assets/sera_hero/slide2dark.png'
 import seraSlide3Dark from '../assets/sera_hero/slide3dark.png'
@@ -24,81 +30,111 @@ import seraSlide3Light from '../assets/sera_hero/slide3light.png'
 import seraSlide4Light from '../assets/sera_hero/slide4light.png'
 
 // Same index = same slide; the theme picks the set. Always 4.
+// New User-only pay screen (route 'visitor'), loaded on demand so students never download the
+// payment code (Razorpay loader, pricing, payment service).
+const SeraPay = lazy(() => import('../components/sera/pay/SeraPay'))
+
 const SERA_DARK_SLIDES = [seraSlide1Dark, seraSlide2Dark, seraSlide3Dark, seraSlide4Dark]
 const SERA_LIGHT_SLIDES = [seraSlide1Light, seraSlide2Light, seraSlide3Light, seraSlide4Light]
 
 // DEV ONLY — design review of the flow screens without sign-in, upload or a call:
-//   /meet-sera?preview=signin|upload|preparing|interview|wrapup|report|blocked
+//   /meet-sera?preview=signin|upload|preparing|pay|interview|wrapup|report|blocked|lost
 //   extras: &error=1 (signin/upload error line), &file=1 (upload: file chosen),
-//           &muted=1 (interview), &variant=incomplete|error (report states)
+//           &muted=1 (interview), &variant=incomplete|error|gaps (report states;
+//           gaps = a skill with no evidence + a cut-short round), &route=visitor
+//           interview: &round=screening|offer|hr|final, &turn=sera-speaking|your-turn|wrapping-up,
+//                      &connecting=1 (HR → Final hand-over)
 // import.meta.env.DEV is replaced with `false` in production builds, so this
 // data and the preview branch below are removed from the shipped bundle.
 const PREVIEW = import.meta.env.DEV
   ? {
-      screens: ['signin', 'upload', 'preparing', 'interview', 'wrapup', 'report', 'blocked'],
-      profile: { name: 'Priya Sharma', email: 'priya@example.com' },
+      screens: ['signin', 'upload', 'preparing', 'pay', 'interview', 'wrapup', 'report', 'restart', 'blocked', 'lost'],
       resumeFile: { name: 'Priya_Sharma_Resume.pdf', size: 245760 },
-      resumeMeta: { originalFilename: 'Priya_Sharma_Resume.pdf', size: 245760 },
-      report: {
-        strengths: [
-          'Explains past work clearly, with concrete examples from real projects.',
-          'Calm under a follow-up question — stays on the point.',
-        ],
-        growthAreas: [
-          'Quantify results: numbers make impact easier to believe.',
-          'Shorter answers — lead with the outcome, then the detail.',
-        ],
-        seraNote: 'You clearly know your tools. Now tell the story of what changed because of your work.',
-        roadmap: [
-          { role: 'Junior Data Analyst', description: 'Where your current skills already fit today.', skills: ['Excel', 'SQL basics'] },
-          { role: 'Data Analyst', description: 'One focused step up within 6–12 months.', skills: ['Power BI', 'Python', 'Stakeholder updates'] },
-          { role: 'Analytics Lead', description: 'Where this path can go with steady growth.', skills: ['Team leading', 'Data strategy'] },
-        ],
-        resources: [
-          { topic: 'SQL', title: 'SQL for analysts — the queries you use every week', videoUrl: '#', thumbnailUrl: seraSlide1Dark },
-          { topic: 'Storytelling', title: 'How to present numbers so people remember them', videoUrl: '#', thumbnailUrl: seraSlide2Dark },
-          { topic: 'Interviews', title: 'Answering “tell me about a project” with impact', videoUrl: '#', thumbnailUrl: seraSlide3Dark },
-        ],
-      },
     }
   : null
 
 const noop = () => {}
 
+// Screens where a call is starting, live or ending: no Sign Out there.
+const SIGN_OUT_HIDDEN_ON = ['preparing', 'interview', 'wrapup']
+
 function MeetSera() {
   const sera = useSeraInterview()
   const location = useLocation()
+  // Which login tab the landing opened: the campus-code line opens Student.
+  const [loginTab, setLoginTab] = useState('visitor')
 
   // Dev preview overrides the screen and its data; otherwise `view` is the real hook.
   const params = new URLSearchParams(location.search)
   const previewScreen = PREVIEW?.screens.includes(params.get('preview')) ? params.get('preview') : null
-  const view = previewScreen
+  // DEV ONLY — ?testlogin=visitor|student signs in a fake profile and opens
+  // upload (mock mode on the dev server only; see getDevTestSession).
+  const testLogin = import.meta.env.DEV ? params.get('testlogin') : null
+  const { completeLogin, goToSignIn, reset } = sera
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const session = getDevTestSession(testLogin)
+    if (session) completeLogin(session)
+  }, [testLogin, completeLogin])
+
+  // Rejoin after a dropped call: /meet-sera?rejoin=TOKEN (visitor link from
+  // WhatsApp) opens the login with a "Continue your interview" banner.
+  // DEV ONLY — ?rejoincode=CODE pre-fills the Student tab with a rejoin code.
+  const rejoinToken = params.get('rejoin')
+  const devRejoinCode = import.meta.env.DEV ? params.get('rejoincode') : null
+  useEffect(() => {
+    if (!rejoinToken && !devRejoinCode) return
+    reset()
+    goToSignIn()
+  }, [rejoinToken, devRejoinCode, reset, goToSignIn])
+
+  // DEV ONLY — the preview's sample data is loaded on demand, so the fixtures
+  // never reach the production bundle.
+  const [previewModule, setPreviewModule] = useState(null)
+  useEffect(() => {
+    if (!import.meta.env.DEV || !previewScreen) return
+    import('../services/seraMockPreview').then((mod) => setPreviewModule(mod))
+  }, [previewScreen])
+
+  const view = previewScreen && previewModule
     ? {
         ...sera,
         screen: previewScreen,
-        profile: PREVIEW.profile,
+        // DEV ONLY — sample session + report built by the real pipeline (seraMockPreview).
+        session: previewModule.previewSession({
+          route: params.get('route') === 'visitor' ? 'visitor' : 'student',
+          variant: params.get('variant'),
+        }),
         resumeFile: params.has('file') ? PREVIEW.resumeFile : null,
-        resumeMeta: PREVIEW.resumeMeta,
-        report: params.get('variant') === 'error' ? null : PREVIEW.report,
         incomplete: params.get('variant') === 'incomplete',
         error: params.has('error') || params.get('variant') === 'error'
           ? 'Sample error — this is how a problem message looks.'
           : null,
         busy: false,
-        sessionSecondsLeft: 187,
-        phase: 'skills',
-        turnState: 'your-turn',
+        turnState: params.get('turn') ?? 'your-turn',
         turnElapsed: 27,
-        turnSeconds: 35,
+        turnSeconds: 45,
+        rounds: roundsFor(),
+        roundIndex: Math.max(0, roundsFor().findIndex((r) => r.id === params.get('round'))),
+        connectingTo: params.has('connecting') ? roundsFor().find((r) => r.id === 'final') : null,
+        roundSecondsLeft: 187,
+        chooseOffer: noop,
+        holdOfferTimer: noop,
+        offerSecondsLeft: 38,
         muted: params.has('muted'),
         blockedMessage: null,
         goToSignIn: noop,
-        signIn: noop,
+        completeLogin: noop,
         selectFile: noop,
         beginInterview: noop,
+        startInterview: noop,
+        onPaymentSuccess: noop,
+        changeResume: noop,
         toggleMute: noop,
         endCallEarly: noop,
         reset: noop,
+        lostInfo: { rejoinIssued: true },
+        resumeSession: noop,
       }
     : sera
 
@@ -114,20 +150,31 @@ function MeetSera() {
           mobile (measured, not assumed). top-16 (64px) clears it on both
           with margin — top-6 (24px) used to sit entirely inside that band,
           so the marquee's far higher z-index just won the overlap outright. */}
-      <div className="fixed top-16 left-6 z-50">
+      <div className="fixed top-16 left-6 z-50 flex items-center gap-3">
         <Link
           to="/"
           className="px-5 py-2.5 rounded-full bg-fg/15 backdrop-blur-md border border-fg/25 text-fg text-sm hover:bg-fg/25 transition"
         >
           ← Back to YZI Works
         </Link>
+        {/* Sign out = forget this tab's session id and return to the landing. Hidden while a
+            call is being set up or running, so it never leaves a live Vapi call behind. */}
+        {view.session && !SIGN_OUT_HIDDEN_ON.includes(view.screen) && (
+          <button
+            type="button"
+            onClick={view.reset}
+            className="px-5 py-2.5 rounded-full bg-fg/15 backdrop-blur-md border border-fg/25 text-fg text-sm hover:bg-fg/25 transition"
+          >
+            Sign Out
+          </button>
+        )}
       </div>
 
       <FloatingThemeToggle />
     </>
   )
 
-  // Landing: hero slider → engine → steps → footer.
+  // Landing: hero slider → sales page (SeraLanding) → footer.
   if (view.screen === 'hero') {
     return (
       <div className="min-h-screen bg-surface text-fg">
@@ -138,8 +185,10 @@ function MeetSera() {
             lightSlides={SERA_LIGHT_SLIDES}
             altLabel="Meet Sera slide"
           />
-          <SeraHero onStart={view.goToSignIn} />
-          <SeraSteps />
+          <SeraLanding
+            onStart={() => { setLoginTab('visitor'); view.goToSignIn() }}
+            onStudent={() => { setLoginTab('student'); view.goToSignIn() }}
+          />
         </main>
         <Footer />
       </div>
@@ -152,14 +201,24 @@ function MeetSera() {
 
       {topControls}
 
+      {/* DEV ONLY — mock-mode controls (simulated call, payment outcomes). */}
+      {import.meta.env.DEV && isDevMock() && <SeraDevPanel />}
+
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-28">
         {view.screen === 'signin' && (
-          <SeraSignIn onSignIn={view.signIn} busy={view.busy} error={view.error} />
+          <SeraLogin
+            key={rejoinToken ?? devRejoinCode ?? 'login'}
+            onDone={view.completeLogin}
+            onRejoin={view.resumeSession}
+            rejoinToken={rejoinToken}
+            initialCode={devRejoinCode}
+            initialTab={loginTab}
+          />
         )}
 
         {view.screen === 'upload' && (
           <SeraUpload
-            profile={view.profile}
+            session={view.session}
             resumeFile={view.resumeFile}
             onSelectFile={view.selectFile}
             onBegin={view.beginInterview}
@@ -170,26 +229,49 @@ function MeetSera() {
 
         {view.screen === 'preparing' && <SeraPreparing />}
 
+        {view.screen === 'pay' && (
+          <Suspense fallback={null}>
+            <SeraPay
+              session={view.session}
+              fileName={view.resumeFile?.name ?? view.session?.resume.objectKey?.split('/').pop()}
+              onPaymentSuccess={view.onPaymentSuccess}
+              onChangeResume={view.changeResume}
+            />
+          </Suspense>
+        )}
+
         {view.screen === 'interview' && (
-          <SeraInterview
-            sessionSecondsLeft={view.sessionSecondsLeft}
-            phase={view.phase}
+          <InterviewRoom
+            rounds={view.rounds}
+            roundIndex={view.roundIndex}
+            roundSecondsLeft={view.roundSecondsLeft}
             turnState={view.turnState}
             turnElapsed={view.turnElapsed}
             turnSeconds={view.turnSeconds}
             muted={view.muted}
+            offers={view.session?.offers}
+            chosenOffer={getChosenOffer(view.session)}
+            onChooseOffer={view.chooseOffer}
+            onTapOffer={view.holdOfferTimer}
+            offerSecondsLeft={view.offerSecondsLeft}
             onToggleMute={view.toggleMute}
             onEndCall={view.endCallEarly}
+            connectingTo={view.connectingTo}
           />
         )}
 
-        {view.screen === 'wrapup' && <SeraWrapup profile={view.profile} />}
+        {view.screen === 'restart' && <SeraRestart onRestart={view.startInterview} busy={view.busy} error={view.error} />}
+
+        {view.screen === 'lost' && (
+          <SeraConnectionLost session={view.session} rejoinIssued={view.lostInfo?.rejoinIssued ?? true} />
+        )}
+
+        {view.screen === 'wrapup' && <SeraWrapup session={view.session} reportReady={view.reportReady} />}
 
         {view.screen === 'report' && (
           <SeraReport
-            profile={view.profile}
-            resumeMeta={view.resumeMeta}
-            report={view.report}
+            report={view.session?.report}
+            sessionId={view.session?.sessionId}
             incomplete={view.incomplete}
             error={view.error}
             onDone={view.reset}

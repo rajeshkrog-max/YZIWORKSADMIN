@@ -61,5 +61,6 @@ export async function signInWithGoogle() {
     name: profile.name || profile.given_name || 'there',
     email: profile.email,
     picture: profile.picture || null,
+    accessToken,
   }
 }

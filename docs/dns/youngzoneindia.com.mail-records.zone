@@ -1,0 +1,5 @@
+; youngzoneindia.com - outbound mail records for the VPS (Postfix + OpenDKIM). Imported at Cloudflare 2026-10-26.
+$ORIGIN youngzoneindia.com.
+$TTL 600
+yzi2026._domainkey IN TXT "v=DKIM1;h=sha256;k=rsa;p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoWbP/AknD9orXn02QFq7EuSMwak7E6IH7OGRAIg3U/mYlz4tbRfSwjgBs9UCUX/PqbkJyxeKtTeQUIKqDLPX48/NlVjafBT9KixQ6WvEhS18fS959UQ0GYL5TuIEANM2syT" "lQ2ZO0L+LpuQRTU6AqxDMkDqVl/biq905HgNI7PhpHoVZ8IIDIYaA7ABHD7I1SkyakHsMaZaTpz7XsQL05SGKHVPV5N71vnCKJudhXSZYQeEIgKSR2q9TnCoa2Rn+wZ1IlsrQu6f1272CGKe+bPJs9D2fMlhKSEAHGnqufvq+RHmYarAmDdOHhSzPIXDlCHDRNjEHFT38EU1IU8WkfQIDAQAB"
+_dmarc IN TXT "v=DMARC1; p=none;"

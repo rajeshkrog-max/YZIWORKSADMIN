@@ -1,5 +1,6 @@
 import Navbar from '../components/Navbar'
 import HeroSlider from '../components/HeroSlider'
+import SeraPromo from '../components/SeraPromo'
 import Hero from '../components/Hero'
 import Programs from '../components/Programs'
 import PoweredBy from '../components/PoweredBy'
@@ -12,6 +13,7 @@ function Home() {
     <div className="min-h-screen bg-yzi-black text-fg">
       <Navbar />
       <HeroSlider />
+      <SeraPromo />
       <Hero />
       <Programs />
       <PoweredBy />

@@ -7,4 +7,29 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:4005',
+        changeOrigin: true,
+      },
+      '/.netlify': {
+        target: 'http://127.0.0.1:4005',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:4005',
+        changeOrigin: true,
+      },
+      '/.netlify': {
+        target: 'http://127.0.0.1:4005',
+        changeOrigin: true,
+      },
+    },
+  },
 })

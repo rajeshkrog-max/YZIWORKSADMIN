@@ -7,17 +7,23 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test \"netlify/lib/**/*.test.js\" \"server/**/*.test.js\"",
+    "server": "node server/index.js",
+    "smoke": "node scripts/smoke-live.mjs",
+    "sample:pdf": "node scripts/render-sample-report.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",
     "@aws-sdk/s3-request-presigner": "^3.1106.0",
     "@netlify/blobs": "^11.0.1",
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@vapi-ai/web": "2.7.1",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2",
-    "retell-client-js-sdk": "^2.0.8"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
