@@ -8,7 +8,7 @@ const CTC_MAX = 50
 const MAX_SPREAD = 6 // LPA between min and max
 
 // Well-known companies an invented name must not use (whole words, lowercase).
-const REAL_COMPANIES = [
+export const REAL_COMPANIES = [
   'tcs', 'tata', 'infosys', 'wipro', 'hcl', 'tech mahindra', 'mahindra', 'reliance', 'jio', 'airtel', 'adani',
   'accenture', 'deloitte', 'kpmg', 'pwc', 'ey', 'cognizant', 'capgemini', 'genpact', 'ibm', 'oracle',
   'google', 'alphabet', 'amazon', 'microsoft', 'apple', 'meta', 'facebook', 'netflix', 'uber', 'ola',
@@ -18,7 +18,7 @@ const REAL_COMPANIES = [
 
 const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const isText = (v) => typeof v === 'string' && v.trim().length > 0
-const isRealCompany = (name) => {
+export const isRealCompany = (name) => {
   const padded = ` ${norm(name)} `
   return REAL_COMPANIES.some((c) => padded.includes(` ${c} `))
 }

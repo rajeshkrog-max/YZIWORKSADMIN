@@ -90,6 +90,7 @@ import {
   reachedOffers,
   MAX_RESTARTS,
   END_CALL,
+  END_CALL_RETRY_STEPS,
 } from '../netlify/lib/seraVapi/index.js'
 import {
   ORDER_REUSE_MS,
@@ -229,7 +230,7 @@ function isAdminEmail(email) {
 // Public view of a session. The Vapi controlUrl (a capability to steer the live call)
 // and the résumé text stay on the server.
 function toPublicSession(session) {
-  const { vapi, resumeText, ...rest } = session
+  const { vapi, resumeText, resumeRead, ...rest } = session
   return { ...rest, offersShown: Boolean(vapi?.offersShownAt), callRound: vapi?.round ?? null }
 }
 
@@ -314,6 +315,7 @@ const roundTimers = createRoundTimers({
     if (!v || v.endHandled) return false
     if (step === 'force-handoff') return v.round === 'hr' && v.sawSignals === true // Vinit still talking, per Vapi's own signals
     if (step === 'assume-final') return v.round === 'hr' && !v.sawSignals // blind: assume Vinit handed off on schedule
+    if (END_CALL_RETRY_STEPS.includes(step)) return v.round === 'final' && (await callStillLive(v.callId))
     return v.round === round
   },
   // Recorded BEFORE the note is sent: a crash can lose one note but never send it twice after a restart.
@@ -328,6 +330,25 @@ const roundTimers = createRoundTimers({
     if (ok && step === 'assume-final') void enterRound(sessionId, 'final', { blind: true }).catch((e) => console.error('[Vapi] assume-final failed:', e))
   },
 })
+
+// An end-call retry goes out only while the call is still live: no end-of-call report yet (checked above via
+// endHandled) and, when VAPI_PRIVATE_KEY is set, Vapi does not already say "ended". A failed lookup counts as
+// live: a spare end-call to a finished call is harmless, a call left running is not.
+async function callStillLive(callId) {
+  if (!callId || !process.env.VAPI_PRIVATE_KEY?.trim()) return true
+  try {
+    const call = await getCall(callId, { timeoutMs: 5000 })
+    if (call?.status === 'ended') {
+      console.log(`[Vapi] call ${String(callId).slice(0, 8)} already ended (${call.endedReason ?? 'no reason'}): no end-call retry`)
+      return false
+    }
+    console.warn(`[Vapi] call ${String(callId).slice(0, 8)} still ${call?.status ?? 'live'} after end-call: sending it again`)
+    return true
+  } catch (err) {
+    console.warn(`[Vapi] could not check call ${String(callId).slice(0, 8)} before an end-call retry: ${err.message}`)
+    return true
+  }
+}
 
 // Move a call forward to `round` (never backwards) and start that round's timers.
 async function enterRound(sessionId, round, { blind = false } = {}) {
@@ -506,7 +527,10 @@ async function processEndOfCall({ callId, sessionId: metadataSessionId, endedRea
   if (outcome === 'report') await finalizeReport(sessionId)
 }
 
-const MAX_RESUME_TEXT = 12000
+// The résumé read asks for a compact summary, not the whole text: output tokens are the slowest and
+// most expensive part of that call (handoff Fix 1.4). The offers and report prompts use it as résumé text.
+const RESUME_SUMMARY_CHARS = 1500
+const MAX_RESUME_TEXT = 3000
 // Two calls (check, then offers) while the candidate waits; together they must finish inside Apache's 120 s.
 const RESUME_LLM_TIMEOUT_MS = 50 * 1000
 const RESUME_CHECK_SCHEMA = {
@@ -902,10 +926,6 @@ const server = http.createServer(async (req, res) => {
       if (inFlight.has(readLock)) return sendJson(res, 409, { error: 'Sera is already reading your résumé — one moment.' })
       inFlight.add(readLock)
       try {
-        await mutateSession(session.sessionId, (s) => {
-          s.resumeReads = (s.resumeReads ?? 0) + 1
-        })
-
         let buffer
         try {
           const obj = await getS3Client().send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
@@ -915,9 +935,19 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 500, { error: 'Unable to read that résumé' })
         }
 
-        // 1. One OpenAI read: is it a résumé, plus the highlight, field and text.
+        // 1. One OpenAI read: is it a résumé, plus the highlight, field and a summary.
+        // The result is saved on the session BEFORE the offers are made, keyed by the file's hash: when only
+        // the offers failed, the candidate's retry (same PDF, new upload) re-runs the offers, not this paid read.
+        const fileHash = crypto.createHash('sha256').update(buffer).digest('hex')
+        const cachedRead = session.resumeRead?.fileHash === fileHash ? session.resumeRead : null
         let check
-        try {
+        if (cachedRead) {
+          console.log(`[Resume] session ${session.sessionId.slice(0, 8)}: same résumé as before, reusing the read (offers only)`)
+          check = { isResume: true, highlight: cachedRead.highlight, field: cachedRead.field, resumeText: cachedRead.resumeText }
+        } else try {
+          await mutateSession(session.sessionId, (s) => {
+            s.resumeReads = (s.resumeReads ?? 0) + 1
+          })
           check = await generateJson({
             timeoutMs: RESUME_LLM_TIMEOUT_MS,
             schema: RESUME_CHECK_SCHEMA,
@@ -930,7 +960,7 @@ const server = http.createServer(async (req, res) => {
   - candidateFirstName: their first name if visible in the text, else an empty string
   - highlight: one natural sentence a friendly interviewer could say out loud to prove she read it — reference something SPECIFIC and real from the text (an actual role, project, skill, or achievement). Do not write a generic sentence.
   - field: their general field/domain in 2-4 words (e.g. "backend engineering", "graphic design", "sales")
-  - resumeText: the résumé's text content, as plain text (up to roughly ${MAX_RESUME_TEXT} characters)
+  - resumeText: a compact plain-text summary of the résumé, about ${RESUME_SUMMARY_CHARS} characters (never more than ${MAX_RESUME_TEXT}). Keep the real facts: education, each role or internship with the organisation and what they did, projects, skills and tools, achievements with numbers. No commentary, nothing invented.
 
   If it is NOT a résumé, fill candidateFirstName, highlight, field, and resumeText with empty strings, and explain briefly in reason why (e.g. not a résumé, unreadable, no extractable text).`,
           })
@@ -957,15 +987,24 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 200, { valid: false, reason: "This PDF doesn't have enough readable text — please upload your actual résumé." })
         }
         const resumeText = check.resumeText.slice(0, MAX_RESUME_TEXT)
+        if (!cachedRead) {
+          await mutateSession(session.sessionId, (s) => {
+            s.resumeRead = { fileHash, highlight: check.highlight, field: check.field, resumeText, at: new Date().toISOString() }
+          })
+        }
 
         // 2. The 3 offers, from THIS résumé, stored before any call exists. No canned fallback.
         let offers
         try {
-          offers = await generateOffers(({ prompt, schema }) => generateJson({ prompt, schema, timeoutMs: RESUME_LLM_TIMEOUT_MS }), {
-            resumeText,
-            field: check.field,
-            highlight: check.highlight,
-          })
+          offers = await generateOffers(
+            ({ prompt, schema }) => generateJson({ prompt, schema, timeoutMs: RESUME_LLM_TIMEOUT_MS }),
+            { resumeText, field: check.field, highlight: check.highlight },
+            {
+              onAttempt: ({ attempt, ok, errors }) => {
+                if (!ok) console.warn(`[Offers] session ${session.sessionId.slice(0, 8)} attempt ${attempt} rejected: ${errors.join('; ')}`)
+              },
+            },
+          )
         } catch (offerErr) {
           console.error('[Offers] generation failed:', offerErr.message)
           return sendJson(res, 500, { error: "We couldn't prepare your offers — please try again in a moment." })

@@ -11,6 +11,7 @@ import fs from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { SAMPLE_OFFERS } from '../netlify/lib/fixtures/seraOffers.js'
+import { TIME_UP_NOTES } from '../netlify/lib/seraVapi/rounds.js'
 import { SAMPLE_LLM_OUTPUT, SAMPLE_TRANSCRIPT } from '../netlify/lib/fixtures/seraInterview.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -269,7 +270,7 @@ test('AC-8: after a restart in the middle of a round the timers resume: due note
   const first = await startApp(dir, { SERA_ROUND_TIME_SCALE: '0.01' })
   await waitFor(() => controlCalls.some((c) => c.body.type === 'handoff'))
   const notes = () => controlCalls.filter((c) => c.body.type === 'add-message').map((c) => c.body.message.content)
-  assert.deepEqual(notes(), ['Interview system note: time is up.'], 'nearly was already recorded; up goes once')
+  assert.deepEqual(notes(), [TIME_UP_NOTES.hr], 'nearly was already recorded; up goes once')
   const recorded = (await readSession(dir, 'timers-1')).vapi.timerSteps.hr
   assert.deepEqual(Object.keys(recorded).sort(), ['force-handoff', 'nearly', 'up'])
 

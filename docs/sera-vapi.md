@@ -118,11 +118,12 @@ Vinit's and Sonia's prompts say *"You can't see a clock. The interview system �
 
 | When | What the server sends into the call |
 |---|---|
-| HR round starts (card tap) | HR timers start. 200 s in: `add-message` "Interview system note: time is nearly up." (read on the next turn). 240 s: "…time is up." (makes Vinit close and call `handoff_to_assistant`) |
+| HR round starts (card tap) | HR timers start. 200 s in: `add-message` "Interview system note: time is nearly up." (read on the next turn). 240 s: "Interview system note: time is up. Thank the candidate in one sentence and hand over to the final round now. Do not ask another question." (makes Vinit close and call `handoff_to_assistant`) |
 | HR 265 s, Vinit still talking | `handoff` to `sonia-final round` — **only if** Vapi's round signals have been arriving (otherwise it could restart Sonia) |
 | HR 275 s, no Vapi signals ever seen | assume Vinit handed off and start Sonia's timers |
-| Sonia starts (`assistant.started` / `conversation-update` with her `assistantName`) | the same two notes at 200 s and 240 s |
-| Sonia 260 s | `end-call`: Sonia has no end-call tool, so the server ends the call after her closing |
+| Sonia starts (`assistant.started` / `conversation-update` with her `assistantName`) | "nearly up" at 200 s; at 240 s "Interview system note: time is up. Thank the candidate in one sentence and end the call now. Do not ask another question." Sonia's dashboard prompt tells her to thank the candidate and call `endCall` on this note |
+| Sonia 260 s | `end-call` backstop, in case Sonia did not end the call herself |
+| Sonia 270 / 280 / 290 s | `end-call` again (`end-call-retry-1..3`), only while the call is still live: no end-of-call report yet and, with `VAPI_PRIVATE_KEY`, `GET /call/{id}` not `ended`. Vapi dropped one end-call on call `01a17d37…` (27 Oct) and the call ran to the 900 s cap. Each attempt is logged as `[Vapi] session … final timer end-call-retry-N` |
 | Anything else | `maxDurationSeconds` 900 ends a call nothing else ended |
 
 Round times live in one place, `src/config/seraRounds.js`: screening 300 (Sera ran 229 s), HR 240 (Vinit tells candidates "about four minutes"), final 240. Timers are in memory: a server restart mid-call loses them, and `maxDurationSeconds` is the backstop. The browser follows the server's round (`callRound` from `/api/sera/session/get`, polled every 2 s) and Vapi's own client messages. Its clock starts when Sera is actually audible (first `speech-update`), with a "Connecting…" state before that; the SDK reports `call-start` twice, so the second is ignored.

@@ -20,8 +20,15 @@ test('plan: nearly-up a little before the end, then up, then a backstop per roun
     { afterSeconds: 265, step: 'force-handoff' },
     { afterSeconds: 275, step: 'assume-final' },
   ])
-  assert.deepEqual(planRoundTimers('final', 240).map((s) => s.step), ['nearly', 'up', 'end-call'])
-  assert.equal(planRoundTimers('final', 240).at(-1).afterSeconds, 260)
+  assert.deepEqual(planRoundTimers('final', 240), [
+    { afterSeconds: 200, step: 'nearly' },
+    { afterSeconds: 240, step: 'up' },
+    { afterSeconds: 260, step: 'end-call' },
+    // Vapi once dropped an end-call: it is sent again while the call is live, 3 times, 10 s apart
+    { afterSeconds: 270, step: 'end-call-retry-1' },
+    { afterSeconds: 280, step: 'end-call-retry-2' },
+    { afterSeconds: 290, step: 'end-call-retry-3' },
+  ])
   // a very short round still gets nearly-up before up
   const [nearly, up] = planRoundTimers('hr', 30)
   assert.ok(nearly.afterSeconds < up.afterSeconds)
@@ -33,6 +40,11 @@ test('notes: nearly-up waits for the next turn, time-up makes the assistant clos
   assert.match(roundNote('nearly').message.content, /nearly up/)
   assert.match(roundNote('up').message.content, /time is up/)
   assert.equal(roundNote('up').message.role, 'system')
+  // "up" tells each interviewer exactly what to do: no new question after it
+  assert.match(roundNote('up', 'final').message.content, /^Interview system note: time is up\. .*end the call now\. Do not ask another question\.$/)
+  assert.match(roundNote('up', 'hr').message.content, /^Interview system note: time is up\. .*hand over to the final round now\. Do not ask another question\.$/)
+  assert.equal(roundNote('up', 'screening').message.content, 'Interview system note: time is up.')
+  assert.equal(roundNote('nearly', 'final').message.content, 'Interview system note: time is nearly up.')
   assert.deepEqual(FORCE_HANDOFF_TO_SONIA.destination, { type: 'assistant', assistantName: 'sonia-final round' })
 })
 
@@ -122,4 +134,21 @@ test('report rounds come from assistantName on bot messages (the shape of a real
   assert.deepEqual([transcripts.screening.length, transcripts.hr.length, transcripts.final.length], [2, 2, 2])
   assert.equal(transcripts.final[0].text, 'I am Sonia, business head.')
   assert.equal(transcripts.final[0].start, 0) // rebased to the round
+})
+
+test('final round: the "up" note names the round, and every end-call retry sends end-call again until the call is not live', async () => {
+  const sent = []
+  const timers = []
+  let live = 2 // the call stays live through the first end-call and one retry, then ends
+  const rt = createRoundTimers({
+    send: async (_url, message) => sent.push(message),
+    isCurrent: async (_sid, _round, step) => (step.startsWith('end-call-retry') ? live-- > 0 : true),
+    setTimer: (fn, ms) => (timers.push({ fn, ms }), timers.length),
+    clearTimer: () => {},
+  })
+  rt.start({ sessionId: 's1', round: 'final', seconds: 240, controlUrl: 'u' })
+  for (const t of timers.sort((a, b) => a.ms - b.ms)) await t.fn()
+  const up = sent.find((m) => m.type === 'add-message' && /time is up/.test(m.message.content))
+  assert.match(up.message.content, /end the call now/)
+  assert.equal(sent.filter((m) => m.type === 'end-call').length, 1 + 2, 'end-call, then 2 retries while live, the 3rd skipped')
 })

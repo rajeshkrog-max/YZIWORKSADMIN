@@ -10,6 +10,7 @@ import fs from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { SAMPLE_OFFERS } from '../netlify/lib/fixtures/seraOffers.js'
+import { TIME_UP_NOTES } from '../netlify/lib/seraVapi/rounds.js'
 import { SAMPLE_LLM_OUTPUT, SAMPLE_TRANSCRIPT } from '../netlify/lib/fixtures/seraInterview.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -393,9 +394,9 @@ test('round timers (no Vapi signals): Vinit then Sonia each get "nearly up" and 
   const notes = all.filter((m) => m.type === 'add-message' && /system note/.test(noteText(m))).map(noteText)
   assert.deepEqual(notes, [
     'Interview system note: time is nearly up.',
-    'Interview system note: time is up.',
+    TIME_UP_NOTES.hr,
     'Interview system note: time is nearly up.',
-    'Interview system note: time is up.',
+    TIME_UP_NOTES.final,
   ])
   assert.equal(all.filter((m) => m.type === 'handoff').length, 1, 'only the handoff to Vinit: nothing forces Sonia when no signals were seen')
   assert.equal(all.at(-1).type, 'end-call')

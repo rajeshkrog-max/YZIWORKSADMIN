@@ -92,5 +92,5 @@ test('resume: a step the round has moved past is not recorded or sent', async ()
 test('default start is unchanged: every step on its own timer from zero', () => {
   const { timers, handles } = rig()
   timers.start({ sessionId: 's', round: 'final', seconds: 240, controlUrl: 'u' })
-  assert.deepEqual(handles.map((h) => h.ms), [200_000, 240_000, 260_000])
+  assert.deepEqual(handles.map((h) => h.ms), [200_000, 240_000, 260_000, 270_000, 280_000, 290_000])
 })

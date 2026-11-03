@@ -8,7 +8,13 @@ import { roundOfAssistantName, SQUAD_MEMBERS } from './squad.js'
 
 export const NEARLY_UP_LEAD_SECONDS = 40 // "nearly up" this long before the round's end
 export const HANDOFF_BACKSTOP_SECONDS = 25 // HR: if Vinit has not handed to Sonia this long after "time is up"
-export const FINAL_END_BACKSTOP_SECONDS = 20 // Final: Sonia has no end-call tool, so end the call this long after "time is up"
+export const FINAL_END_BACKSTOP_SECONDS = 20 // Final: end the call this long after "time is up" if Sonia has not ended it herself
+// Vapi has dropped an end-call before (call 01a17d37…, 27 Oct: the candidate spoke right after it and the call ran on
+// until the 900 s cap). So while the call is still live, end-call is sent again, this many times, this far apart.
+export const END_CALL_RETRIES = 3
+export const END_CALL_RETRY_SECONDS = 10
+export const END_CALL_RETRY_STEPS = Array.from({ length: END_CALL_RETRIES }, (_, i) => `end-call-retry-${i + 1}`)
+export const isEndCallStep = (step) => step === 'end-call' || END_CALL_RETRY_STEPS.includes(step)
 
 export const ROUND_ORDER = ['screening', 'hr', 'final']
 
@@ -35,11 +41,22 @@ export function roundFromServerMessage(message) {
 // Only ever forward: a late or repeated message must not move the interview backwards.
 export const isForward = (from, to) => ROUND_ORDER.indexOf(to) > ROUND_ORDER.indexOf(from ?? 'screening')
 
-export const roundNote = (kind) => ({
+// What "time is up" tells each interviewer to do. Explicit, because a bare "time is up" let Sonia keep asking
+// new questions (27 Oct call). The prompts in the Vapi dashboard say the same thing.
+export const TIME_UP_NOTES = {
+  hr: 'Interview system note: time is up. Thank the candidate in one sentence and hand over to the final round now. Do not ask another question.',
+  final: 'Interview system note: time is up. Thank the candidate in one sentence and end the call now. Do not ask another question.',
+}
+const GENERIC_TIME_UP = 'Interview system note: time is up.'
+
+export const roundNote = (kind, round) => ({
   type: 'add-message',
   // "nearly up" is read on the next turn (let them finish the sentence); "up" makes the assistant close now.
   triggerResponseEnabled: kind === 'up',
-  message: { role: 'system', content: kind === 'up' ? 'Interview system note: time is up.' : 'Interview system note: time is nearly up.' },
+  message: {
+    role: 'system',
+    content: kind === 'up' ? (TIME_UP_NOTES[round] ?? GENERIC_TIME_UP) : 'Interview system note: time is nearly up.',
+  },
 })
 
 export const FORCE_HANDOFF_TO_SONIA = {
@@ -50,7 +67,7 @@ export const FORCE_HANDOFF_TO_SONIA = {
 export const END_CALL = { type: 'end-call' }
 
 // The steps for one round, in seconds from the moment it starts.
-// → [{ afterSeconds, step: 'nearly' | 'up' | 'force-handoff' | 'end-call' }]
+// → [{ afterSeconds, step: 'nearly' | 'up' | 'force-handoff' | 'assume-final' | 'end-call' | 'end-call-retry-N' }]
 export function planRoundTimers(round, seconds) {
   const nearly = Math.max(Math.round(seconds / 2), seconds - NEARLY_UP_LEAD_SECONDS)
   const plan = [
@@ -61,7 +78,11 @@ export function planRoundTimers(round, seconds) {
     plan.push({ afterSeconds: seconds + HANDOFF_BACKSTOP_SECONDS, step: 'force-handoff' }) // only if Vapi's signals show Vinit still talking
     plan.push({ afterSeconds: seconds + HANDOFF_BACKSTOP_SECONDS + 10, step: 'assume-final' }) // only if no signals were ever seen
   }
-  if (round === 'final') plan.push({ afterSeconds: seconds + FINAL_END_BACKSTOP_SECONDS, step: 'end-call' })
+  if (round === 'final') {
+    plan.push({ afterSeconds: seconds + FINAL_END_BACKSTOP_SECONDS, step: 'end-call' })
+    // only while the call is still live (the server's isCurrent checks that)
+    END_CALL_RETRY_STEPS.forEach((step, i) => plan.push({ afterSeconds: seconds + FINAL_END_BACKSTOP_SECONDS + END_CALL_RETRY_SECONDS * (i + 1), step }))
+  }
   return plan
 }
 
@@ -78,8 +99,16 @@ export function planForResume(plan, { elapsedSeconds = 0, done = [] } = {}) {
 }
 
 // null = a state-only step (nothing is sent to the call).
-const messageFor = (step) =>
-  step === 'nearly' ? roundNote('nearly') : step === 'up' ? roundNote('up') : step === 'force-handoff' ? FORCE_HANDOFF_TO_SONIA : step === 'end-call' ? END_CALL : null
+const messageFor = (step, round) =>
+  step === 'nearly'
+    ? roundNote('nearly', round)
+    : step === 'up'
+      ? roundNote('up', round)
+      : step === 'force-handoff'
+        ? FORCE_HANDOFF_TO_SONIA
+        : isEndCallStep(step)
+          ? END_CALL
+          : null
 
 // One set of timers per interview session.
 //  send(controlUrl, message)           → POST to the call's live-control URL
@@ -108,7 +137,7 @@ export function createRoundTimers({ send, isCurrent, record, onEvent = () => {},
         try {
           if (!(await isCurrent(sessionId, round, step))) return
           await record?.(sessionId, round, step)
-          const message = messageFor(step)
+          const message = messageFor(step, round)
           if (message) await send(controlUrl, message)
           onEvent({ sessionId, round, step, ok: true })
         } catch (error) {
